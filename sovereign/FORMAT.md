@@ -182,9 +182,22 @@ outputs = ["out", "debug"]
 source {
   url = "https://zlib.net/zlib-{{version.raw}}.tar.gz"
   # ⛔ PINNED, not fetched. A digest resolved at build time from the same
-  # host as the archive is not an integrity check. (Left as a placeholder
-  # here rather than written from memory — see §1.)
-  sha256           = "<the archive's digest, recorded when it was first fetched>"
+  # host as the archive is not an integrity check.
+  #
+  # ⛔⛔ AND KEYED BY VERSION, which the first draft of this document got
+  # wrong: it showed one scalar digest beside the url. The url interpolates
+  # {{version.raw}}, so this entry serves EVERY version the recipe resolves,
+  # and a single digest is right for exactly one of them and a lie for the
+  # rest. Spack pins on `version(…, sha256=)` and Guix on the origin of one
+  # specific source for this reason. A scalar stays legal only for a recipe
+  # that resolves a single version.
+  #
+  # Fail-closed: building a version absent from this map is REFUSED, not
+  # fetched unverified. A version the author did not pin is one they have
+  # not vouched for. (Implemented in go-zpkg/zbk#424.)
+  sha256 = {
+    "1.3.1" = "<the digest of zlib-1.3.1.tar.gz, as read from the release>"
+  }
   strip-components = 1
 
   # Further locations for the SAME bytes; the digest above governs all of them.
@@ -260,13 +273,19 @@ nothing checks reads, to anyone who opens it, as a verified source.
 So the first step is not "add fields", it is "stop accepting fields nobody
 reads". The order that keeps the tree buildable throughout:
 
-1. Close the schema: `additionalProperties: false` at the root, with the
-   present keys enumerated, so an unknown or misspelt key fails loudly. Do
-   this first — every step below is only as good as this one.
-2. `source.sha256` + `provenance`, and make `license` **required** rather
-   than merely present. This is a migration, not a flag day: 0 of 213 recipes
-   carry a licence and none carries a digest, so the requirement lands with a
-   grace list that shrinks, and the gate reports its denominator.
+1. ✅ **Done** (go-zpkg/zbk#422, #423). Close the schema:
+   `additionalProperties: false`, with the present keys enumerated, so an
+   unknown or misspelt key fails loudly. Closed at the root and in `build`,
+   `test`, `distributable` and `versions` — the five that were surveyed;
+   `scriptStep`, `fixture`, `runtime` and `interprets` are still open and
+   still unmeasured. Measured cost: 0 unknown keys in our 213 overlay
+   recipes and our 14 sovereign ones, 22 keys in 42 of upstream's 1932.
+2. 🔶 **Half done.** `sha256` is implemented, keyed by version and
+   fail-closed (go-zpkg/zbk#424); no recipe pins one yet. `provenance` is
+   not started, and `license` is still optional — it is *present* in the
+   schema and set by **0 of 213** recipes, so the work there is a
+   requirement with a shrinking grace list and a gate that reports its
+   denominator, not a new field.
 3. `deps` slots, with the present `build.dependencies` reading as
    `deps.build`.
 4. `platforms` required, plus an exclusion form, so a build can be dispatched
