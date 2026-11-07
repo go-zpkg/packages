@@ -2,10 +2,13 @@
 
 [![build](https://github.com/go-zpkg/packages/actions/workflows/build.yml/badge.svg)](https://github.com/go-zpkg/packages/actions/workflows/build.yml)
 
-A pure-Go package factory. Builds [pkgx pantry](https://github.com/pkgxdev/pantry)
-recipes with [`bk`](https://github.com/go-zpkg/zbk) (the CGO-free re-implementation
-of brewkit) and publishes **signed, attested packages** to
-`ghcr.io/go-pkgx/packages`.
+A pure-Go package factory. Builds pantry recipes with
+[`zbk`](https://github.com/go-zpkg/zbk) and publishes **signed, attested
+packages** to `ghcr.io/go-pkgx/packages`.
+
+Recipes come from our own overlay and from this repository's platform trees
+while the sovereign pantry is written (#420, #431). Compatibility with pkgx
+has been dropped, so nothing here is described in its terms any more.
 
 ## Supply chain
 
@@ -145,7 +148,7 @@ on the day the registry stops answering.
 
 ## Trees upstream does not have
 
-Most of what is here is a pkgx pantry recipe built differently. These are
+Most of what is here is a pantry recipe built differently. These are
 projects the pantry does not carry at all, written for this factory — the HPC
 and GPU floor an MPI actually needs, which upstream stops just above:
 
