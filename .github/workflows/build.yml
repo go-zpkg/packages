@@ -71,7 +71,7 @@ on:
         required: false
         default: ""
       mirror_from:
-        description: "copy the bottles from this upstream dist instead of building them, e.g. https://dist.pkgx.dev — republished signed + attested (used for the glibc sweep)."
+        description: "copy the bottles from this dist instead of building them — republished signed + attested (used for the glibc sweep). Blank, as it should normally be: this builds. The example here used to name an upstream pkgx dist, which we are no longer compatible with and do not copy from."
         required: false
         default: ""
   # Continuous population: rebuild recipes.txt daily. skip-if-published means
