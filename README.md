@@ -324,9 +324,8 @@ spent healing a bottle that never existed — then:
     recipes="python.org@~3.12 rust-lang.org libgit2.org@~1.7"
     mirror_from=<a dist that has them>   max_versions=1   no_closure=1
 
-⛔ That used to read `mirror_from=https://dist.pkgx.dev`. We are no longer
-compatible with pkgx and do not copy bottles from its dist (#431); the input
-defaults to blank, which builds.
+⛔ We are no longer compatible with pkgx and do not copy bottles from its
+dist (#431); the input defaults to blank, which builds.
 
 One version per line is enough: a recipe wants *a* version in the line, and an
 unbounded mirror has filled a runner's disk. A project may appear only **once** per
