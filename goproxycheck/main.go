@@ -102,7 +102,24 @@ const (
 // `[^@\s]+@` and not `.*@`: the module path cannot contain a space, and
 // anchoring on the run of non-space characters keeps `go run ./x && echo a@b`
 // from matching.
-var remoteModuleRun = regexp.MustCompile(`\bgo\s+(?:install|run)\s+[^@\s]+@`)
+//
+// ⛔⛔ A MODULE SPEC HELD IN A VARIABLE HAS NO LITERAL `@`, AND THIS GUARD
+// COULD NOT SEE IT. wasip1.yml bootstraps with
+//
+//	go install "$BK"          # BK=github.com/go-zpkg/zbk/cmd/zbk@v0.69.0
+//
+// so of the 14 workflows here that fetch a module by version, it examined 13
+// and was silent about that one. It went unnoticed because the file declares
+// the policy anyway: the guard agreed with a file it was not reading. Delete
+// those two lines and it would still have said nothing — which is the state
+// a guard exists to make impossible, not a near miss.
+//
+// So an argument that STARTS WITH A VARIABLE counts as a bootstrap. It is
+// fail-closed on purpose: `$BK` could in principle hold a local path, and
+// requiring the policy of such a workflow costs two lines, where missing one
+// costs the whole lane. `go install ./cmd/x` and `go test ./...` still do not
+// match, because they do not begin with `$`.
+var remoteModuleRun = regexp.MustCompile(`\bgo\s+(?:install|run)\s+(?:[^@\s]+@|"?\$)`)
 
 // inlineGOPROXY matches an assignment on a command line. Both the `env FOO=`
 // and the plain `FOO=cmd` prefix forms, and an `export`, because all three

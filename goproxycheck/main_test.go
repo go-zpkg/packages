@@ -42,6 +42,54 @@ func TestTheConformingFilePasses(t *testing.T) {
 	}
 }
 
+// ⛔⛔ A MODULE SPEC IN A VARIABLE WAS INVISIBLE TO THIS GUARD. wasip1.yml
+// bootstraps with `go install "$BK"`, which carries no literal `@`, so of the
+// 14 workflows in this repository that fetch a module by version the guard
+// examined 13. Nobody noticed because that file declares the policy anyway:
+// the guard agreed with a file it was not reading, and deleting the two lines
+// would have been silent.
+func TestABootstrapThroughAVariableIsSeen(t *testing.T) {
+	const viaVar = "- run: go install \"$BK\""
+	src := strings.Replace(conforming,
+		"- run: go install github.com/go-zpkg/zbk/cmd/zbk@main", viaVar, 1)
+	// With the policy present it still passes — the point is not to complain
+	// about the variable, it is to require the policy of such a file.
+	if bad := complaints(t, src); len(bad) != 0 {
+		t.Errorf("a variable bootstrap that declares the policy should pass; got:\n%s",
+			strings.Join(bad, "\n"))
+	}
+	// Remove the policy and it must be caught. This is the assertion that was
+	// false before the fix.
+	noPolicy := strings.Replace(src, "  GONOPROXY: github.com/go-zpkg/*\n", "", 1)
+	bad := complaints(t, noPolicy)
+	if len(bad) != 1 || !strings.Contains(bad[0], "does not set GONOPROXY") {
+		t.Fatalf("a variable bootstrap with no policy went unnoticed; got %d:\n%s",
+			len(bad), strings.Join(bad, "\n"))
+	}
+}
+
+// And the forms that are NOT a remote fetch must stay unmatched, or the guard
+// starts demanding the policy of files with no use for it — "a declaration
+// nobody needs is one nobody maintains".
+func TestALocalBuildStillNeedsNoPolicy(t *testing.T) {
+	for _, step := range []string{
+		"- run: go install ./cmd/x",
+		"- run: go test ./...",
+		"- run: go build ./...",
+		"- run: go run ./goproxycheck",
+		`- run: go run ./x && echo a@b`,
+	} {
+		src := strings.Replace(conforming,
+			"- run: go install github.com/go-zpkg/zbk/cmd/zbk@main", step, 1)
+		src = strings.Replace(src, "  GONOPROXY: github.com/go-zpkg/*\n", "", 1)
+		src = strings.Replace(src, "  GOPROXY: https://proxy.golang.org,direct\n", "", 1)
+		if bad := complaints(t, src); len(bad) != 0 {
+			t.Errorf("%q is not a remote fetch and should need no policy; got:\n%s",
+				step, strings.Join(bad, "\n"))
+		}
+	}
+}
+
 func TestAnInlineAssignmentIsRefused(t *testing.T) {
 	src := strings.Replace(conforming,
 		"- run: go install github.com/go-zpkg/zbk/cmd/zbk@main",
