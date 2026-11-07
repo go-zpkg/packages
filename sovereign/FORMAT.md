@@ -155,6 +155,25 @@ build system, under that project's licence, and the recipe should say which
 files that was. It is the difference between a recipe we can defend and one we
 merely assert.
 
+⛔⛔ **DECIDED, AND IT PROMOTES THIS FIELD FROM NICE TO REQUIRED.** The
+question this document left open — on what basis upstream's recipes could
+seed ours, given they carry no licence — is answered: they cannot. Where the
+licence is missing, **the recipes are written, not converted**
+([#431](https://github.com/go-zpkg/packages/issues/431)).
+
+So `bk tohcl` is not the route into our pantry, and the step it was the gate
+for is gone from [#420](https://github.com/go-zpkg/packages/issues/420)'s
+plan. A recipe is authored from the project's own `configure`,
+`CMakeLists.txt`, `Makefile`, `INSTALL` or `README` — the files it publishes
+to tell people how to build it. `provenance` is the record of which ones, and
+a recipe without it does not validate: it is the only thing that makes "ours"
+checkable rather than asserted, and it is now the whole basis on which these
+recipes exist.
+
+The facts are not the expression, and nothing here needs anyone's recipe:
+a version, an upstream URL, a source digest and a dependency list are
+statements about the software. The build script is the authored part.
+
 ## The format
 
 ```hcl
@@ -273,19 +292,34 @@ nothing checks reads, to anyone who opens it, as a verified source.
 So the first step is not "add fields", it is "stop accepting fields nobody
 reads". The order that keeps the tree buildable throughout:
 
-1. ✅ **Done** (go-zpkg/zbk#422, #423). Close the schema:
-   `additionalProperties: false`, with the present keys enumerated, so an
-   unknown or misspelt key fails loudly. Closed at the root and in `build`,
-   `test`, `distributable` and `versions` — the five that were surveyed;
-   `scriptStep`, `fixture`, `runtime` and `interprets` are still open and
-   still unmeasured. Measured cost: 0 unknown keys in our 213 overlay
-   recipes and our 14 sovereign ones, 22 keys in 42 of upstream's 1932.
-2. 🔶 **Half done.** `sha256` is implemented, keyed by version and
-   fail-closed (go-zpkg/zbk#424); no recipe pins one yet. `provenance` is
-   not started, and `license` is still optional — it is *present* in the
-   schema and set by **0 of 213** recipes, so the work there is a
-   requirement with a shrinking grace list and a gate that reports its
-   denominator, not a new field.
+1. ⛔ **Tried, reverted, and it waits on the pantry being ours.** Close the
+   schema so an unknown or misspelt key fails loudly. The survey that says
+   when it is safe exists and stays (go-zpkg/zbk#422); the closure itself
+   (#423) was **reopened the same day** (#427).
+
+   The measurement that justified closing it was right — 0 unknown keys in
+   our 213 overlay recipes and our 14 sovereign ones, against 22 keys in 42
+   of upstream's 1932 — and it was the wrong precondition. "Our files are
+   clean" does not license refusing an input; "we no longer read foreign
+   files" does, and that is this whole document. Closed, `zbk` could no
+   longer read the recipes of **openssl.org, llvm.org, cmake.org,
+   python.org** and **rust-lang.org** — five of the eight it lost are in
+   `seed/order.txt`, so the bootstrap floor went unreadable, and two CI steps
+   here went red within the hour.
+
+   Stating the blast radius as "42 of 1932" is what hid it. A percentage
+   cannot say that the 42 include the floor everything else stands on.
+
+   So this step lands when the pantry the factory reads is written rather
+   than borrowed — which is the rest of this list, not a prerequisite of it.
+2. 🔶 **Half done, and now the load-bearing one.** `sha256` is implemented,
+   keyed by version and fail-closed (go-zpkg/zbk#424); no recipe pins one
+   yet. `provenance` is not started and is no longer optional: with the
+   recipes written rather than converted (#431), it is the record that makes
+   "ours" checkable. `license` is still optional — *present* in the schema
+   and set by **0 of 213** recipes — so the work there is a requirement with
+   a shrinking grace list and a gate that reports its denominator, not a new
+   field.
 3. `deps` slots, with the present `build.dependencies` reading as
    `deps.build`.
 4. `platforms` required, plus an exclusion form, so a build can be dispatched
