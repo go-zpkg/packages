@@ -55,6 +55,12 @@ libssh2.org
 libgit2.org
 gnu.org/autoconf
 gnu.org/automake
+# ⛔ gzip BEFORE tar, and it was last in this file until now. `tar -z` does not
+# compress, it EXECS gzip (src/buffer.c:326-327, GZIP_PROGRAM), which the
+# sovereign gnu.org/tar recipe declares as a runtime dependency — so the order
+# has to honour it. It was invisible while tar was an inherited fragment that
+# declared nothing: the edge did not exist to be out of order.
+gnu.org/gzip
 gnu.org/tar
 kernel.org/linux-headers@~7.2
 # gnu.org/libidn2 exists in the closure only through OUR override of
@@ -103,4 +109,3 @@ gnu.org/bash
 gnu.org/libtool
 cpanmin.us
 gnu.org/help2man
-gnu.org/gzip
