@@ -1,9 +1,9 @@
 # Ask a vulnerability database about the versions we actually publish.
 #
 # WHY IT EXISTS. The advisory tree is already READ on every pull request
-# (`bk advisories --list`, ci.yml) and already ATTACHED to every bottle as an
-# OpenVEX document (`bk publish --advisories`, on build/darwin/windows). What
-# has never run anywhere is `bk vulnfetch`: nothing in this repository has
+# (`zbk advisories --list`, ci.yml) and already ATTACHED to every bottle as an
+# OpenVEX document (`zbk publish --advisories`, on build/darwin/windows). What
+# has never run anywhere is `zbk vulnfetch`: nothing in this repository has
 # ever ASKED a vulnerability database anything. So the tree can only contain
 # what somebody typed into it, and the signed VEX we ship says precisely as
 # much as the last person to look — which on 2026-10-18 was one project,
@@ -74,7 +74,7 @@ jobs:
       #
       # which is that refusal doing its job: it caught the one caller the
       # split forgot to sweep.
-      - name: install bk and pkgs
+      - name: install zbk and zpkgs
         run: |
           go install github.com/go-zpkg/zbk/cmd/zbk@main
           go install github.com/go-zpkg/zpkgx/cmd/zpkgs@main
@@ -83,10 +83,10 @@ jobs:
       - name: clone pantry
         run: git clone --depth 1 https://github.com/pkgxdev/pantry "$RUNNER_TEMP/pantry"
 
-      # ⛔ PULL the published catalogue; do not rebuild one. `bk catalog
+      # ⛔ PULL the published catalogue; do not rebuild one. `zbk catalog
       # --platform --versions` would also produce one, at a tag listing plus a
       # platform check for each of ~1900 projects — per platform, daily. That
-      # is catalogue.yml's weekly job, not this one's. `pkgs catalog update`
+      # is catalogue.yml's weekly job, not this one's. `zpkgs catalog update`
       # fetches the result as a single signed OCI pull, and ZPKG_VERIFY is on
       # by default, so a catalogue nobody signed stops the job here.
       #
@@ -104,7 +104,7 @@ jobs:
       # ⛔ EVERY PLATFORM WE PUBLISH, which until 2026-10-20 meant two of six.
       # This step said "both catalogues" and asked about linux/x86-64 and
       # darwin/aarch64 — while the registry carries four more, among them the
-      # LARGEST by bottle count. Measured that day with `bk vulnfetch` from a
+      # LARGEST by bottle count. Measured that day with `zbk vulnfetch` from a
       # laptop, against the published catalogues:
       #
       #   platform        asked  unanswerable  not asked     Σ  findings
@@ -121,7 +121,7 @@ jobs:
       #
       # ⛔ AND THE LIST IS NO LONGER WRITTEN DOWN, which was the actual
       # defect: adding the four by hand closed that day's gap and left the
-      # mechanism that caused it. `pkgs catalog platforms` (go-zpkg/pkgx#119,
+      # mechanism that caused it. `zpkgs catalog platforms` (go-zpkg/pkgx#119,
       # shipped) asks the registry, which has always known — a platform that
       # is not published is refused with "platform not in index" — and
       # ./vulnsweep fetches and scans every platform it names. A seventh is
@@ -165,4 +165,4 @@ jobs:
       # triage" when an undecided detection is sitting in the tree.
       - name: the advisory tree as it stands
         if: always()
-        run: bk advisories -dir advisories -list
+        run: zbk advisories -dir advisories -list

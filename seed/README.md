@@ -6,7 +6,7 @@ a build plan, and most of it is forced.
 
 ## Why a file, and not a command
 
-`bk closure --build` computes an order, and for most of this file it computes
+`zbk closure --build` computes an order, and for most of this file it computes
 *this* one. It cannot compute all of it, because the build-dependency graph has
 cycles and an order over a cyclic graph does not exist.
 
@@ -79,7 +79,7 @@ RECIPES="lz4.org" ./seed/dispatch-gen1.sh   one package, to prove the rootfs
 ```
 
 It differs from `dispatch-seed.sh` in two inputs: `bootstrap` is empty (the
-toolchain is bottles now) and `sovereign=1` (`bk builder` stages a rootfs
+toolchain is bottles now) and `sovereign=1` (`zbk builder` stages a rootfs
 **from the seed registry** and the build happens inside it, under `chroot`).
 `seed_dist` stays, and `--to` follows `ZPKG_DIST` on purpose: generation 1
 replaces generation 0 in the same throwaway registry, which is what build.yml
@@ -105,10 +105,10 @@ Each was invisible until the previous was lifted. A one-package pilot costs a
 staging; the same sequence found seventy builds in would have cost a day.
 
 **Two tools came out of it, and they are the reason the list above is short.**
-`bk builder --dry-run` answers "does this architecture have the bottles"
+`zbk builder --dry-run` answers "does this architecture have the bottles"
 without taking a runner, naming **every** blocked root rather than the first —
 and telling a conflict between roots apart from a missing bottle. After
-staging, `bk builder` reports every `NEEDED` soname the tree does not contain,
+staging, `zbk builder` reports every `NEEDED` soname the tree does not contain,
 **with who asks**: that turned "one contaminated package per failed build"
 into five names at once.
 

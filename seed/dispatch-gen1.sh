@@ -11,7 +11,7 @@
 # both are the whole point:
 #
 #   bootstrap=      the toolchain is bottles now, not host tools
-#   sovereign=1     `bk builder` stages a rootfs FROM the seed registry and
+#   sovereign=1     `zbk builder` stages a rootfs FROM the seed registry and
 #                   the build happens inside it, under chroot
 #
 # seed_dist stays. `--to` follows ZPKG_DIST on purpose, so generation 1

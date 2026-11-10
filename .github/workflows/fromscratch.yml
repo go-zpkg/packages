@@ -2,7 +2,7 @@ name: fromscratch
 # Continuous PROOF + COVERAGE that published ghcr bottles run FROM SCRATCH —
 # only pkgx bottles, no debian, no system libc.
 #
-# For each witness tool, `pkgm image` emits a `FROM scratch` Containerfile whose
+# For each witness tool, `zpkgm image` emits a `FROM scratch` Containerfile whose
 # `RUN` step uses pkgm ITSELF, inside the image, to install the tool's whole
 # runtime closure over HTTPS and wire the pkgx loader. This job executes exactly
 # that, in an EMPTY chroot rather than a docker image: the ENV and argv are read
@@ -61,7 +61,7 @@ jobs:
         with: { go-version: '1.27.3' }
 
       # ONE static (CGO_ENABLED=0) pkgm binary serves both roles: the host
-      # `pkgm image` that emits the Containerfile, and the `/pkgm` copied INTO the
+      # `zpkgm image` that emits the Containerfile, and the `/pkgm` copied INTO the
       # scratch image (it must run with no system libc). GONOPROXY (workflow
       # env:) pulls pkgm's current main straight from GitHub, since the module
       # proxy can serve a stale cached @main.
@@ -79,7 +79,7 @@ jobs:
           # about a rename.
           PKGM="$(command -v zpkgm)"
           # Corrected-recipe overlay (e.g. curl/wget openssl constraint) consulted
-          # by the in-image `pkgm install` before the upstream pantry.
+          # by the in-image `zpkgm install` before the upstream pantry.
           OVERLAY="https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects"
           # <project> then its smoke args (space-separated). No `|`/`xargs` trim:
           # `xargs` with no command runs /bin/echo, and GNU echo eats a leading
@@ -130,7 +130,7 @@ jobs:
             echo "::group::$proj"
             # The Containerfile is still the source of truth for HOW a
             # from-scratch install is done — its ENV and its RUN argv are read
-            # back below, so this job cannot drift from what `pkgm image`
+            # back below, so this job cannot drift from what `zpkgm image`
             # promises an end user.
             cf="$work/Containerfile"
             pkgm image -overlay "$OVERLAY" "$proj" > "$cf"

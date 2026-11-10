@@ -1,18 +1,18 @@
 # The catalogue, on its own schedule.
 #
-# `pkgs ls` and <TAB> read a catalogue; `pkgs catalog update` fetches one.
+# `zpkgs ls` and <TAB> read a catalogue; `zpkgs catalog update` fetches one.
 # Nothing refreshes what is PUBLISHED except a factory run, and every
 # factory's cron has been off since 2026-08-12 — so a published catalogue
 # would age until somebody dispatched a build by hand, and every reader
 # would be told, truthfully and uselessly, "47 day(s) old".
 #
-# This is the floor under that. It builds nothing: `bk catalog` reads the
+# This is the floor under that. It builds nothing: `zbk catalog` reads the
 # pantry and asks the registry which versions it carries, so seven platforms'
 # catalogues cost seven short jobs rather than a night of compiling. The
 # factories keep their own catalogue step, because a run that publishes new
 # bottles should say so immediately; this is what happens when none runs.
 #
-# ONE RUNNER FOR EVERY PLATFORM. `bk catalog --platform` takes the os/arch
+# ONE RUNNER FOR EVERY PLATFORM. `zbk catalog --platform` takes the os/arch
 # explicitly and asks the registry about it; nothing here is compiled or
 # executed for the target. Verified before this file existed: the same
 # linux host produced 1907 projects for linux/s390x, darwin/aarch64 and
@@ -65,7 +65,7 @@ jobs:
           # pkgx itself has supported the platform throughout -- platformKeys,
           # the host slug, `bin/<name>.wasm` resolution and the OCI spelling
           # all have tests. It was the registry that had nothing to answer
-          # with. Verified before adding the lane: `bk catalog --platform
+          # with. Verified before adding the lane: `zbk catalog --platform
           # wasip1/wasm` over a 192-recipe tree produces a catalogue, so this
           # needs no new code, only a seventh short job.
           - wasip1/wasm

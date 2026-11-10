@@ -361,18 +361,32 @@ const closureMark = "CLOSURE  "
 var closureKeys = []string{"build.dependencies"}
 
 // deliberate names the projects whose CONSUMER half is meant to disagree with
-// upstream's. Each one is this overlay doing the job it exists for: declaring
-// a runtime edge the upstream recipe omits and the closure needs.
+// upstream's.
 //
 // It is a list of projects rather than of project+key, because the point is
-// "this project's dependencies are ours"; pinning the exact key would turn
-// every legitimate addition into a second edit here.
+// "this project's recipe is ours"; pinning the exact key would turn every
+// legitimate addition into a second edit here.
 //
 // Adding to it is a decision, not a formality. The one defect this gate was
 // built after — tcl-lang.org enumerating versions from a page that lists only
 // what upstream recommends, while its own distributable downloads from
 // SourceForge — would have belonged nowhere near this list.
+//
+// ⛔ THERE ARE NOW TWO KINDS ON IT, AND THE SECOND IS NOT A WIDENING OF THE
+// FIRST. The original kind is one edge: this overlay declaring a runtime
+// dependency the upstream recipe omits and the closure needs. The second kind
+// is a WHOLE RECIPE WRITTEN FROM THE PROJECT'S OWN SOURCES, which disagrees
+// with upstream's in most of its keys because it was never derived from it —
+// that is the sovereign pantry (go-zpkg/packages#431), and "it differs from
+// upstream" is its definition rather than a finding about it.
+//
+// Keeping them in one map is right — the question this gate asks is the same —
+// but the two reasons must stay legible, because an entry of the first kind
+// with no stated edge is a defect and an entry of the second kind without a
+// written recipe behind it is worse.
 var deliberate = map[string]bool{
+	// ── one declared edge, where upstream's recipe omits it ──
+	//
 	// go-zpkg/pantry-overlay#30: the published bottle links gettext on darwin
 	// and upstream's recipe names it only as a build dependency.
 	"gnu.org/libiconv": true,
@@ -381,6 +395,30 @@ var deliberate = map[string]bool{
 	"perl.org": true,
 	// Links openssl 3; upstream's recipe declares no runtime dependency at all.
 	"rpm.org/rpm-sequoia": true,
+
+	// ── written from the project's own sources, so they are not comparable ──
+	//
+	// Each of these is a recipe of ours, written by reading the project's
+	// configure.ac, Makefile.am and sources, with a `provenance` block naming
+	// the files it was written from and a signature-verified digest. They
+	// differ from upstream's in `provides` (counted rather than guessed),
+	// `versions.match` (the archive this project actually publishes),
+	// `distributable.sha256` (pinned, which upstream does not do) and
+	// `dependencies` (measured, not inherited).
+	//
+	// ⛔ They are NOT "the overlay fallen behind the pantry", which is the
+	// other thing this gate reports and the reason it must not be silenced
+	// wholesale: that case is still an error for every project not listed here.
+	"gnu.org/bash":      true, // go-zpkg/pantry-overlay#87
+	"gnu.org/grep":      true, // #84
+	"gnu.org/gzip":      true, // #83
+	"gnu.org/m4":        true, // #90, the first with no dependencies at all
+	"gnu.org/tar":       true, // #91, gzip declared because `tar -z` execs it
+	"gnu.org/diffutils": true, // #92, AC_PATH_PROG would have baked coreutils' path
+	"gnu.org/findutils": true, // #93, the same hazard in a local m4 macro file
+	"lz4.org":           true,
+	"tukaani.org/xz":    true,
+	"zlib.net":          true,
 }
 
 // overlayRecipeFile reads a project's recipe out of an overlay checkout, in the

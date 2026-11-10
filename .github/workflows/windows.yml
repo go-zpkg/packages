@@ -1,6 +1,6 @@
 # Windows package factory (Go) — cross-builds pantry Go projects to Windows PE
 # packages and publishes them to BOTH channels, exactly like linux/darwin:
-#   - the signed OCI registry ghcr.io/go-pkgx/packages (via `bk publish`), and
+#   - the signed OCI registry ghcr.io/go-pkgx/packages (via `zbk publish`), and
 #   - the GitHub Pages pkgx dist mirror (via the central pages.yml aggregator,
 #     which unions the `dist-*` artifact this job uploads).
 # Go tools cross-build to Windows for free (GOOS=windows CGO_ENABLED=0 → a
@@ -126,7 +126,7 @@ jobs:
             printf 'provides:\n  - bin/%s\n' "$bin" > "$GITHUB_WORKSPACE/out/$slug/package.yml"
             # Publish the same package to the signed OCI registry (best-effort:
             # a publish failure must not abort the chunk). windows/x86-64 is as
-            # os/arch-generic to `bk publish` as linux/darwin are.
+            # os/arch-generic to `zbk publish` as linux/darwin are.
             if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
                zbk publish --to oci://ghcr.io/go-pkgx/packages --project "$slug" \
                  --version "$ver" --platform windows/x86-64 "${SIGN_ARGS[@]}" \

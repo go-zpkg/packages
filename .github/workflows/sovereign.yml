@@ -1,7 +1,7 @@
 name: sovereign build
 
 # Proof that a recipe can be compiled with NO distribution involved: the rootfs
-# `bk builder` stages from builder/toolchain.txt, entered with chroot, bk run
+# `zbk builder` stages from builder/toolchain.txt, entered with chroot, bk run
 # through pkgx exactly as builder/Containerfile's ENTRYPOINT does.
 #
 # Why this exists: with the ordinary path, what can be built is decided by the
