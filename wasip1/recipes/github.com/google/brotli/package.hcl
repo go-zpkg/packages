@@ -20,7 +20,7 @@ EOT
       run = "cp $PROP wasi_stubs.c"
     },
     {
-      run = "$BK_CC -O2 -Ic/include -include wasi_compat.h -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -o brotli.wasm wasi_stubs.c c/common/*.c c/dec/*.c c/enc/*.c c/tools/brotli.c -lwasi-emulated-signal -lwasi-emulated-process-clocks"
+      run = "$ZBK_CC -O2 -Ic/include -include wasi_compat.h -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -o brotli.wasm wasi_stubs.c c/common/*.c c/dec/*.c c/enc/*.c c/tools/brotli.c -lwasi-emulated-signal -lwasi-emulated-process-clocks"
     },
     "install -D brotli.wasm \"{{ prefix }}/bin/brotli.wasm\"",
   ]

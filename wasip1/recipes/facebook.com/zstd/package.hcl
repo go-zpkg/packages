@@ -22,7 +22,7 @@ int zs_chown(const char *p, unsigned u, unsigned g) { (void)p; (void)u; (void)g;
 EOT
       run = "cp $PROP programs/wasi_stubs.c"
     },
-    "make -C programs zstd CC=\"$BK_CC\" HAVE_THREAD=0 HAVE_ZLIB=0 HAVE_LZMA=0 HAVE_LZ4=0 BACKTRACE=0 CFLAGS=\"-O2 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -include wasi_compat.h\" LDLIBS=\"-lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
+    "make -C programs zstd CC=\"$ZBK_CC\" HAVE_THREAD=0 HAVE_ZLIB=0 HAVE_LZMA=0 HAVE_LZ4=0 BACKTRACE=0 CFLAGS=\"-O2 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -include wasi_compat.h\" LDLIBS=\"-lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
     "install -D programs/zstd \"{{ prefix }}/bin/zstd.wasm\"",
   ]
 }

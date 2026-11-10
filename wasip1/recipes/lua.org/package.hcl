@@ -17,9 +17,9 @@ EOT
       run = "cp $PROP wasi_stubs.c"
     },
     {
-      run = "$BK_CC -O2 -c -o wasi_stubs.o wasi_stubs.c"
+      run = "$ZBK_CC -O2 -c -o wasi_stubs.o wasi_stubs.c"
     },
-    "make -C src -j {{ hw.concurrency }} lua luac CC=\"$BK_CC\" AR=\"llvm-ar rcu\" RANLIB=llvm-ranlib MYCFLAGS=\"-DL_tmpnam=32 -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false\" MYLIBS=\"$SRCROOT/wasi_stubs.o -lwasi-emulated-process-clocks -lwasi-emulated-signal -lsetjmp\" MYLDFLAGS=\"-mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false\"",
+    "make -C src -j {{ hw.concurrency }} lua luac CC=\"$ZBK_CC\" AR=\"llvm-ar rcu\" RANLIB=llvm-ranlib MYCFLAGS=\"-DL_tmpnam=32 -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false\" MYLIBS=\"$SRCROOT/wasi_stubs.o -lwasi-emulated-process-clocks -lwasi-emulated-signal -lsetjmp\" MYLDFLAGS=\"-mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false\"",
     "install -D src/lua \"{{ prefix }}/bin/lua.wasm\"",
     "install -D src/luac \"{{ prefix }}/bin/luac.wasm\"",
   ]

@@ -8,7 +8,7 @@
 # compiler-rt.llvm.org/wasi (builtins + clang headers as a resource dir),
 # github.com/WebAssembly/wasi-libc (the sysroot) and libcxx.llvm.org/wasi
 # (libc++, libc++abi). `zbk --platform wasip1/wasm build` adds them to the
-# dependency eval and imposes the stencil through $BK_CC/$BK_CXX
+# dependency eval and imposes the stencil through $ZBK_CC/$ZBK_CXX
 # (clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1
 # --rtlib=compiler-rt), which the cc/gcc/clang shims re-exec, so a recipe cannot
 # lose it by setting CFLAGS or CC.

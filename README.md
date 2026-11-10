@@ -805,7 +805,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   headers, laid out as a resource dir) and `github.com/WebAssembly/wasi-libc` (the
   sysroot). `zbk --platform wasip1/wasm build` adds the three and imposes
   `clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1
-  --rtlib=compiler-rt` through `$BK_CC` (the shims re-exec it, so a recipe cannot
+  --rtlib=compiler-rt` through `$ZBK_CC` (the shims re-exec it, so a recipe cannot
   lose it). Each project has its own small recipe under
   `wasip1/recipes/<slug>/package.hcl` (static, no dlopen, no threads) — HCL2,
   which is the default recipe format, and `recipefile.Names` tries it first.
@@ -830,7 +830,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
     `/pkgx/llvm.org/…/{clang,clang++,wasm-ld,llvm-ar,llvm-ranlib}`; `gcc` is absent.
   - **C++.** `libcxx.llvm.org/wasi` (libc++ + libc++abi for wasm32-wasip1, from
     wasi-sdk's `define_libcxx_sub`; no exceptions, `-fno-exceptions` in the
-    `$BK_CXX` stencil). Pilot: `github.com/simdjson/simdjson` 5.0.5 (the library
+    `$ZBK_CXX` stencil). Pilot: `github.com/simdjson/simdjson` 5.0.5 (the library
     from upstream plus a 15-line stdin-to-stdout minifier; upstream's tools fetch
     cxxopts at configure time), run under wasmtime.
   - **More C tools.** Eight recipes added after the pilots, each built with

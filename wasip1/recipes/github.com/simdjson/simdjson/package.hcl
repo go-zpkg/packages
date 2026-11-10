@@ -31,7 +31,7 @@ EOT
       run = "cp $PROP minify.cpp"
     },
     {
-      run = "$BK_CXX -std=c++17 -O2 -Iinclude -Isrc -o minify.wasm src/simdjson.cpp minify.cpp"
+      run = "$ZBK_CXX -std=c++17 -O2 -Iinclude -Isrc -o minify.wasm src/simdjson.cpp minify.cpp"
     },
     "install -D minify.wasm \"{{ prefix }}/bin/simdjson-minify.wasm\"",
   ]
