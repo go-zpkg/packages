@@ -4,7 +4,7 @@
 # Docker+Wasm / CNCF wasm-oci-artifact spelling; bottle/oci.go passes the arch
 # `wasm` through unchanged). Consumer: an in-browser container engine.
 #
-# Same recipe as windows.yml — GOOS cross build, tar, `bk publish` — except:
+# Same recipe as windows.yml — GOOS cross build, tar, `zbk publish` — except:
 #   - GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0: Go-only, no C toolchain (wasi-sdk /
 #     wasi-libc projects are NOT part of this target).
 #   - the module is staged as bin/<name>.wasm. A recipe's `provides: bin/<name>`

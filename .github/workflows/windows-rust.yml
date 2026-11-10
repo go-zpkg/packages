@@ -1,6 +1,6 @@
 # Windows package factory (Rust) — cross-builds pantry Rust projects to Windows
 # packages with mingw-w64 and publishes them to BOTH channels, like linux/darwin:
-#   - the signed OCI registry ghcr.io/go-pkgx/packages (via `bk publish`), and
+#   - the signed OCI registry ghcr.io/go-pkgx/packages (via `zbk publish`), and
 #   - the GitHub Pages pkgx dist mirror (via the central pages.yml aggregator,
 #     which unions the `dist-*` artifact this job uploads).
 #
@@ -148,7 +148,7 @@ jobs:
             # which the linux factory's is not: an advisory record that will not
             # parse makes bk refuse, and that refusal lands in the "non-fatal"
             # branch below. The net under it is ci.yml, which runs
-            # `bk advisories` on every pull request, plus `bk factory`'s own
+            # `zbk advisories` on every pull request, plus `zbk factory`'s own
             # up-front check on linux — so a record that cannot be read does not
             # reach main unnoticed, and is not FIRST noticed here.
             if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
