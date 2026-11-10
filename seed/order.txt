@@ -94,7 +94,7 @@ rsync.samba.org
 # dist.pkgx.dev/llvm.org/linux/s390x/versions.txt: Not Found`.
 llvm.org
 # libcxx.llvm.org is NOT optional on the sovereign path, and it is not a
-# member of the toolchain either — it is what every `--libc pkgx` build is
+# member of the toolchain either — it is what every `--libc zpkgx` build is
 # handed. bk's Wrap appends `+libcxx.llvm.org` to the dependency eval of
 # EVERY recipe in that mode, because the bare llvm.org bottle omits the C++
 # runtime and a C++ recipe must link libc++ rather than the container's

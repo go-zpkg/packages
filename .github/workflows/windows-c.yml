@@ -86,14 +86,14 @@ jobs:
             --toolchain builder/toolchain.txt \
             # `zbk`/`zpkgx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
-            --bk "$(command -v zbk)" \
-            --pkgx "$(command -v zpkgx)" \
+            --zbk "$(command -v zbk)" \
+            --zpkgx "$(command -v zpkgx)" \
             --container
       - name: build ${{ matrix.slug }} ${{ matrix.version }} for windows/x86-64, in the rootfs
         run: |
           chmod +x builder/sovereign-bk.sh
           builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/windows/recipes" "$PWD/advisories" \
-            /usr/local/bin/bk --platform windows/x86-64 build --libc=pkgx \
+            /usr/local/bin/zbk --platform windows/x86-64 build --libc=zpkgx \
             --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE — the same negative claim the wasm lane makes: a

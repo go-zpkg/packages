@@ -145,8 +145,8 @@ jobs:
             --toolchain builder/toolchain.txt \
             # `zbk`/`zpkgx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
-            --bk "$(command -v zbk)" \
-            --pkgx "$(command -v zpkgx)" \
+            --zbk "$(command -v zbk)" \
+            --zpkgx "$(command -v zpkgx)" \
             --container
       # The claim to check is a negative one: no distribution in the tree. The
       # build below runs `chroot` into it, so these are the only files it sees.
@@ -158,7 +158,7 @@ jobs:
         run: |
           chmod +x builder/sovereign-bk.sh
           builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-            /usr/local/bin/bk --platform wasip1/wasm build --libc=pkgx \
+            /usr/local/bin/zbk --platform wasip1/wasm build --libc=zpkgx \
             --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,

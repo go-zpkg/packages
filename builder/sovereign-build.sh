@@ -65,7 +65,7 @@ if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 # it had to install:
 #
 #   pkgx: verify zlib.net v1.3.2 (linux/s390x): bottle: … is unsigned
-#   bk: the tool environment failed: /usr/local/bin/pkgx +…
+#   zbk: the tool environment failed: /usr/local/bin/zpkgx +…
 #
 # Measured on the first full second-generation run (2026-10-04): 2 of 78
 # built. The two that passed, lz4.org and tukaani.org/xz, are the only ones
@@ -134,10 +134,10 @@ $SUDO $PRESERVE \
       mount --bind "$advisories" "$r/advisories"
       ad=(--advisories /advisories)
     fi
-    exec chroot "$r" /usr/local/bin/pkgx \
+    exec chroot "$r" /usr/local/bin/zpkgx \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
-      -- /usr/local/bin/bk factory \
-           --pantry /pantry --overrides /overrides --libc pkgx "${ov[@]}" "${ad[@]}" \
+      -- /usr/local/bin/zbk factory \
+           --pantry /pantry --overrides /overrides --libc zpkgx "${ov[@]}" "${ad[@]}" \
            --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --bottles /dist "$@"
   ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
 
