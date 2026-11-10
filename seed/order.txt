@@ -1,11 +1,21 @@
-# ⛔ make FIRST, because the three recipes that open this order all declare it.
-# lz4.org, tukaani.org/xz and zlib.net were built at 1, 2 and 3 while
-# gnu.org/make sat at 9 — and that was invisible while they were inherited
-# fragments declaring nothing. The sovereign recipes name their build tools, so
-# the edge exists now and the order has to honour it.
+# ⛔ m4 then make, ahead of the three recipes that open this order and declare
+# make. lz4.org, tukaani.org/xz and zlib.net were built at 1, 2 and 3 while
+# gnu.org/make sat at 9 — invisible while they were inherited fragments
+# declaring nothing. The sovereign recipes name their build tools, so the edge
+# exists now and the order has to honour it.
 #
-# It needs nothing in this closure itself: `zbk closure --check-order` reports
-# no edge out of gnu.org/make, which is why it can simply lead.
+# ⛔⛔ AND make IS NOT FIRST, which the previous attempt got wrong. It was moved
+# to position 1 on the reasoning that the checker "reports no edge out of
+# gnu.org/make" — what the checker reports is edges OUT OF ORDER, and make at 9
+# needing m4 at 8 was in order, so there was nothing to report. Moving make to
+# 1 created the violation the absence had been hiding:
+#
+#   gnu.org/make is built at 1 and needs gnu.org/m4 at 9
+#
+# gnu.org/m4 can lead: its recipe declares no dependencies at all, which is
+# measured rather than inferred — go-zpkg/pantry-overlay#90 reads configure.ac
+# and records that libsigsegv is opt-in.
+gnu.org/m4
 gnu.org/make
 lz4.org
 tukaani.org/xz
@@ -14,7 +24,6 @@ curl.se/ca-certs
 nghttp2.org
 freedesktop.org/pkg-config
 github.com/besser82/libxcrypt
-gnu.org/m4
 perl.org@~5.44
 openssl.org
 curl.se
