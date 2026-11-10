@@ -1,3 +1,12 @@
+# ⛔ make FIRST, because the three recipes that open this order all declare it.
+# lz4.org, tukaani.org/xz and zlib.net were built at 1, 2 and 3 while
+# gnu.org/make sat at 9 — and that was invisible while they were inherited
+# fragments declaring nothing. The sovereign recipes name their build tools, so
+# the edge exists now and the order has to honour it.
+#
+# It needs nothing in this closure itself: `zbk closure --check-order` reports
+# no edge out of gnu.org/make, which is why it can simply lead.
+gnu.org/make
 lz4.org
 tukaani.org/xz
 zlib.net
@@ -6,7 +15,6 @@ nghttp2.org
 freedesktop.org/pkg-config
 github.com/besser82/libxcrypt
 gnu.org/m4
-gnu.org/make
 perl.org@~5.44
 openssl.org
 curl.se
