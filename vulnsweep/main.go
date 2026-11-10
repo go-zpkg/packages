@@ -10,7 +10,7 @@
 // into a file freezes while the population grows. Adding the four by hand
 // closed that day's gap and left the mechanism in place.
 //
-// `pkgs catalog platforms` (go-zpkg/pkgx#119) is the half that makes the list
+// `zpkgs catalog platforms` (go-zpkg/pkgx#119) is the half that makes the list
 // derivable; this is the half that uses it. A seventh platform is scanned the
 // day it is published, by nobody's decision.
 //
@@ -78,7 +78,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "vulnsweep: asking which platforms are published: %v\n", err)
 		return 2
 	}
-	// Belt and braces: `pkgs catalog platforms` already refuses to print an
+	// Belt and braces: `zpkgs catalog platforms` already refuses to print an
 	// empty list, and a sweep over nothing must not be this program's answer
 	// either if that ever changes.
 	if len(plats) == 0 {
@@ -111,7 +111,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 
 // platforms asks the registry, through pkgs, which platforms it publishes.
 func platforms() ([]string, error) {
-	out, err := runCmd("pkgs", "catalog", "platforms")
+	out, err := runCmd("zpkgs", "catalog", "platforms")
 	if err != nil {
 		return nil, fmt.Errorf("%v: %s", err, strings.TrimSpace(out))
 	}
@@ -131,10 +131,10 @@ func platforms() ([]string, error) {
 
 // scan fetches one platform's catalogue and runs bk against it.
 func scan(platform, pantry, advisories, store string) (string, error) {
-	if out, err := runCmd("pkgs", "catalog", "update", "--platform", platform); err != nil {
+	if out, err := runCmd("zpkgs", "catalog", "update", "--platform", platform); err != nil {
 		return out, fmt.Errorf("fetching the catalogue: %w", err)
 	}
-	out, err := runCmd("bk", "vulnfetch",
+	out, err := runCmd("zbk", "vulnfetch",
 		"-dir", pantry,
 		"-advisories", advisories,
 		"-catalog", filepath.Join(store, "catalog", catalogFile(platform)),
@@ -145,7 +145,7 @@ func scan(platform, pantry, advisories, store string) (string, error) {
 	return out, nil
 }
 
-// catalogFile is the name `pkgs catalog update` writes for a platform:
+// catalogFile is the name `zpkgs catalog update` writes for a platform:
 // os/arch becomes os-arch.json. Kept here rather than guessed at the call
 // site, because an almost-right path reads as "no catalogue" rather than as
 // a typo.

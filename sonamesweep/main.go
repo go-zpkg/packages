@@ -49,6 +49,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -67,17 +68,45 @@ var osExit = os.Exit
 
 func main() { osExit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
-// runCmd is the seam: a test drives this without bk, a registry or a store.
+// ⛔⛔ "COULD NOT START" AND "RAN AND SAID NO" WERE INDISTINGUISHABLE, AND THAT
+// MADE THIS SWEEP GREEN WHILE IT SWEPT NOTHING. `zbk unresolved` exits non-zero
+// when it FINDS something, so the baseline path below deliberately ignores the
+// error — and an exec that could not start returns an error too, with empty
+// output. Missing tool → no output → no findings → nothing outside the
+// baseline → exit 0.
+//
+// It was not hypothetical: this program execed `bk` after the binary was
+// renamed to `zbk`, and `sonames.yml` — "can what we publish load" — passed on
+// 2026-11-01 and 2026-11-08 having run no checker at all. Worse than a red
+// lane, because a red lane is read: this one also writes an EMPTY findings file
+// through -out, and `sonamesweep -merge` turns those into the next baseline.
+//
+// See [neverRan], and the refusal it drives in [run].
+
+// runCmd is the seam: a test drives this without zbk, a registry or a store.
 var runCmd = func(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
-	// A child that reads stdin eats the caller's; bk unresolved takes
+	// A child that reads stdin eats the caller's; zbk unresolved takes
 	// projects on stdin when it is given none, so an inherited terminal
 	// would make it wait for a list it has already been handed in argv.
 	cmd.Stdin = nil
-	err := cmd.Run()
-	return buf.String(), err
+	return buf.String(), cmd.Run()
+}
+
+// neverRan reports whether a command failed to START, as opposed to running and
+// exiting non-zero.
+//
+// ⛔ THE CLASSIFICATION IS HERE AND NOT INSIDE runCmd, because runCmd is the
+// SEAM every test replaces: a rule written inside it is a rule the tests cannot
+// reach, and this one exists precisely to be tested. An *exec.Error is "could
+// not start" — a missing binary, a permission denied — and an *exec.ExitError
+// is "ran and said no", which for `zbk unresolved` is the ordinary way of
+// reporting findings.
+func neverRan(err error) bool {
+	var startErr *exec.Error
+	return errors.As(err, &startErr)
 }
 
 func run(argv []string, stdout, stderr io.Writer) int {
@@ -183,8 +212,16 @@ func run(argv []string, stdout, stderr io.Writer) int {
 	// reference(s)" over 35 projects and named not one soname. A verdict
 	// with its evidence stripped is a line nobody can act on, and the extra
 	// cost here is ~100 "ok" lines a chunk.
-	bkOut, err := runCmd("bk", append([]string{"unresolved", "-platform", platform}, mine...)...)
+	bkOut, err := runCmd("zbk", append([]string{"unresolved", "-platform", platform}, mine...)...)
 	fmt.Fprint(stdout, bkOut)
+	// ⛔⛔ BEFORE ANYTHING READS `found`. A checker that never started produces
+	// no output and therefore no findings, which every path below reads as
+	// "clean". This is the one error that must not reach them.
+	if neverRan(err) {
+		fmt.Fprintf(stderr, "sonamesweep: %s chunk %d of %d swept NOTHING: %v\n",
+			platform, *chunk, *chunks, err)
+		return 2
+	}
 	found := parseFindings(bkOut)
 
 	if *out != "" {

@@ -24,7 +24,7 @@ func (c *calls) install(t *testing.T) {
 	runCmd = func(name string, args ...string) (string, error) {
 		key := name + " " + strings.Join(args, " ")
 		c.seen = append(c.seen, key)
-		if name == "pkgs" && len(args) == 2 && args[1] == "platforms" {
+		if name == "zpkgs" && len(args) == 2 && args[1] == "platforms" {
 			return c.list, c.err
 		}
 		if err, bad := c.fail[key]; bad {
@@ -75,7 +75,7 @@ func TestEveryPublishedPlatformIsScanned(t *testing.T) {
 // the reader to the logs to find out what.
 func TestAFailureNamesThePlatform(t *testing.T) {
 	c := &calls{list: six, out: map[string]string{}, fail: map[string]error{}}
-	key := "bk vulnfetch -dir p -advisories advisories -catalog s/catalog/linux-s390x.json -fail-on-new"
+	key := "zbk vulnfetch -dir p -advisories advisories -catalog s/catalog/linux-s390x.json -fail-on-new"
 	c.fail[key] = errors.New("exit 1")
 	c.out[key] = "GHSA-xxxx affects something we publish"
 	c.install(t)
@@ -129,7 +129,7 @@ func TestItRefusesToSweepNothing(t *testing.T) {
 // pass as one that was.
 func TestAPlatformWhoseCatalogueWillNotFetchFails(t *testing.T) {
 	c := &calls{list: "linux/x86-64\n", out: map[string]string{}, fail: map[string]error{}}
-	key := "pkgs catalog update --platform linux/x86-64"
+	key := "zpkgs catalog update --platform linux/x86-64"
 	c.fail[key] = errors.New("exit 1")
 	c.out[key] = "platform not in index"
 	c.install(t)
