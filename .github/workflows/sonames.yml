@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: '1.27.3' }
+        with: { go-version: '1.27.4' }
       - id: n
         run: |
           echo "chunks=$(go run ./sonamesweep -chunk-list -chunks "${{ inputs.chunks || '14' }}")" >> "$GITHUB_OUTPUT"
@@ -112,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: '1.27.3' }
+        with: { go-version: '1.27.4' }
 
       # @main, and GONOPROXY (workflow env:) keeps that honest against a
       # stale proxy cache: the question "can this load" should be answered
