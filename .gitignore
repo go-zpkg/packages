@@ -5,3 +5,16 @@ failures.txt
 cov.out
 failures-detail.txt
 tests.txt
+
+# builder/Containerfile is built with the three binaries in its context, which
+# its own header tells you to compile there:
+#
+#   for r in zbk zpkgm zpkgx; do go build -o builder/$r github.com/go-zpkg/$r/...
+#
+# They were COMMITTED instead — 30 MB of stripped, aarch64-only executables in
+# a repository whose own pre-push gate now refuses that class (#442). Named one
+# per line rather than as a glob: a pattern that happens to match a source file
+# later is how a rename leaves a binary behind in the first place.
+/builder/zbk
+/builder/zpkgm
+/builder/zpkgx

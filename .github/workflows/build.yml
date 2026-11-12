@@ -526,8 +526,8 @@ jobs:
             --toolchain builder/toolchain.txt \
             # `zbk`/`zpkgx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
-            --bk "$(command -v zbk)" \
-            --pkgx "$(command -v zpkgx)" \
+            --zbk "$(command -v zbk)" \
+            --zpkgx "$(command -v zpkgx)" \
             --container
 
       # What the machine HAS, in a step of its own.

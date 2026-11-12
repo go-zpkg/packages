@@ -124,8 +124,8 @@ jobs:
             # the whole reason the rename happened. A lookup left as `pkgx`
             # does not fail loudly; it either finds nothing or finds upstream
             # and stages a rootfs with it.
-            --bk "$(command -v zbk)" \
-            --pkgx "$(command -v zpkgx)" \
+            --zbk "$(command -v zbk)" \
+            --zpkgx "$(command -v zpkgx)" \
             --container
           du -sh "$RUNNER_TEMP/rootfs"
 

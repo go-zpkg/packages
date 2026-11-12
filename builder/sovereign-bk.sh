@@ -8,7 +8,7 @@
 #
 # Usage:  builder/sovereign-bk.sh <rootfs> <recipes-dir> <advisories-dir> <program> [args...]
 #
-#   <program> is an ABSOLUTE path inside the rootfs: /usr/local/bin/bk for the
+#   <program> is an ABSOLUTE path inside the rootfs: /usr/local/bin/zbk for the
 #   build and the publish, /bin/sh for the evidence step. It is exec'd through
 #   `pkgx +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org --`, which is
 #   builder/Containerfile's ENTRYPOINT: make, clang, wasm-ld and llvm-ar come
@@ -54,7 +54,7 @@ $SUDO $PRESERVE \
     mount --bind "$recipes" "$r/recipes"
     mount --bind "$advisories" "$r/advisories"
     prog="$1"; shift
-    exec chroot "$r" /usr/local/bin/pkgx \
+    exec chroot "$r" /usr/local/bin/zpkgx \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
       -- "$prog" "$@"
   ' bash "$root" "$recipes" "$advisories" "$@"

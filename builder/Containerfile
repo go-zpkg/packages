@@ -13,18 +13,21 @@
 #
 # Build it with the three binaries in the context:
 #
-#   for r in bk pkgm pkgx; do
+#   for r in zbk zpkgm zpkgx; do
 #     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o builder/$r github.com/go-zpkg/$r/...
-#   where $r is zbk, zpkgx or zpkgm — assembled from a variable, so the
-#   go-pkgx → go-zpkg rename could not see it and this line is set by hand.
 #   done
-#   docker build -f builder/Containerfile -t bk-builder builder
+#   docker build -f builder/Containerfile -t zbk-builder builder
+#
+# ⛔ THE NAMES ARE ASSEMBLED FROM A VARIABLE, so no sweep that matches
+# spellings can see them — this loop said `bk pkgm pkgx` for as long as the
+# binaries had been renamed, and had to be corrected by hand. The same blind
+# spot is why `builder/{bk,pkgm,pkgx}` are still committed here (#442).
 #
 # and compile with it (the pantry mounted, the output bind-mounted out):
 #
-#   docker run --rm -v "$PWD/pantry:/pantry:ro" -v "$PWD/out:/out" bk-builder \
+#   docker run --rm -v "$PWD/pantry:/pantry:ro" -v "$PWD/out:/out" zbk-builder \
 #     factory --platform linux/aarch64 --pantry /pantry --recipes lz4.org \
-#             --libc pkgx --bottles /out/dist --to oci://…
+#             --libc zpkgx --bottles /out/dist --to oci://…
 FROM scratch
 ENV ZPKG_DIR=/pkgx
 ENV HOME=/root
@@ -42,9 +45,9 @@ ENV ZPKG_DIST=$DIST
 # the from-scratch panel does.
 ENV ZPKG_PANTRY_OVERLAY=https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
 
-COPY pkgm /pkgm
-COPY pkgx /usr/local/bin/pkgx
-COPY bk /usr/local/bin/bk
+COPY zpkgm /zpkgm
+COPY zpkgx /usr/local/bin/zpkgx
+COPY zbk /usr/local/bin/zbk
 
 # The toolchain, from bottles only — and the proof: if it installs and runs here,
 # no distribution is involved. The list lives in a committed file rather than in
@@ -54,13 +57,13 @@ COPY bk /usr/local/bin/bk
 # llvm.org goes in FIRST, on its own layer: it is the bulk of the image and
 # changes far less often than the rest, so editing the list re-uses this layer
 # instead of pulling ~1.7 GiB again.
-RUN ["/pkgm","install","-s","--prefix","/usr","llvm.org"]
+RUN ["/zpkgm","install","-s","--prefix","/usr","llvm.org"]
 COPY toolchain.txt /toolchain.txt
-RUN ["/pkgm","install","-s","--prefix","/usr","-f","/toolchain.txt"]
+RUN ["/zpkgm","install","-s","--prefix","/usr","-f","/toolchain.txt"]
 
-# bk runs THROUGH pkgx, which composes PATH/LD_LIBRARY_PATH/CPATH from the
+# zbk runs THROUGH zpkgx, which composes PATH/LD_LIBRARY_PATH/CPATH from the
 # installed bottles at run time. Hardcoding a library path would pin a glibc
 # version into the image; this stays correct when the toolchain moves.
-ENTRYPOINT ["/usr/local/bin/pkgx", \
+ENTRYPOINT ["/usr/local/bin/zpkgx", \
             "+gnu.org/glibc","+gnu.org/coreutils","+gnu.org/make","+llvm.org", \
-            "--","/usr/local/bin/bk"]
+            "--","/usr/local/bin/zbk"]
