@@ -416,9 +416,20 @@ var deliberate = map[string]bool{
 	"gnu.org/tar":       true, // #91, gzip declared because `tar -z` execs it
 	"gnu.org/diffutils": true, // #92, AC_PATH_PROG would have baked coreutils' path
 	"gnu.org/findutils": true, // #93, the same hazard in a local m4 macro file
-	"lz4.org":           true,
-	"tukaani.org/xz":    true,
-	"zlib.net":          true,
+	// ⛔ #95, AND THIS ONE IS A SECURITY PIN, which is why it is the entry most
+	// worth stating rather than the most obvious. Upstream's recipe now matches
+	// `patch-(…)\.tar\.gz`; ours stays on `.tar.xz` at 2.8.1, with a
+	// signature-verified `distributable.sha256` upstream does not pin at all.
+	// 2.8.1's only change is "Prevent creation of out-of-tree files
+	// (CVE-2026-115207)", and every bottle published before it predates the fix
+	// (go-zpkg/packages#447). The recipe's test asserts the PROPERTY — a diff
+	// whose target escapes the directory must not create the file — so bringing
+	// this project "back in line" with the pantry is the one action this gate
+	// must not be read as asking for.
+	"gnu.org/patch":  true,
+	"lz4.org":        true,
+	"tukaani.org/xz": true,
+	"zlib.net":       true,
 }
 
 // overlayRecipeFile reads a project's recipe out of an overlay checkout, in the
