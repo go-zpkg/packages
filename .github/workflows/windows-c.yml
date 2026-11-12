@@ -52,7 +52,7 @@ jobs:
           # ⛔ v0.58.0 IS THE FLOOR FOR THIS LANE, not a routine bump. Below it,
           # bk's own compiler shim shadowed llvm-mingw and could not delegate:
           # compilerShimsFor shims the TRIPLE-PREFIXED names and puts them first
-          # on PATH, and with no $BK_CC (which bk deliberately does not set for
+          # on PATH, and with no $ZBK_CC (which bk deliberately does not set for
           # windows) the shim reduced `x86_64-w64-mingw32-gcc` to a bare `gcc`
           # that llvm-mingw does not ship. go-zpkg/bk#405.
           #
