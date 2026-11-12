@@ -58,7 +58,7 @@ jobs:
           }
 
       - uses: actions/setup-go@v7
-        with: { go-version: '1.27.3' }
+        with: { go-version: '1.27.4' }
 
       # ONE static (CGO_ENABLED=0) pkgm binary serves both roles: the host
       # `zpkgm image` that emits the Containerfile, and the `/pkgm` copied INTO the
