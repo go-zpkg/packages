@@ -3,7 +3,7 @@ name: darwin
 # macOS bottles for ghcr.io/go-pkgx/packages. Same pure-Go bk pipeline and the
 # same signed-OCI registry as the linux factory (build.yml) — the ONLY difference
 # is native macOS runners instead of a debian container (GitHub's macOS runners
-# are already clean, ephemeral VMs, so they are the isolation). `zbk factory` is
+# are already clean, ephemeral VMs, so they are the isolation). `zpkb factory` is
 # platform-agnostic (PLATFORM=darwin/<arch>). The whole recipes.txt is chunked
 # across both arches; macOS runner concurrency is scarce so max-parallel is low.
 on:
@@ -198,7 +198,7 @@ jobs:
 
       - name: install bk
         run: |
-          go install github.com/go-zpkg/zbk/cmd/zbk@main
+          go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: clone pantry
@@ -301,7 +301,7 @@ jobs:
           fi
           # shellcheck disable=SC2086  # RECIPES is intentionally word-split to count projects
           echo "chunk ${{ matrix.chunk }} → $(printf '%s\n' $RECIPES | grep -c .) requested projects${FORCE:+ (FORCE rebuild)}"
-          # RECIPES, NO_CLOSURE and PLATFORM are read from the env by `zbk factory` itself.
+          # RECIPES, NO_CLOSURE and PLATFORM are read from the env by `zpkb factory` itself.
           NO_CLOSURE="${{ github.event.inputs.no_closure }}"
           # REBUILD is NOT derived from FORCE. A manual dispatch always forces,
           # so deriving it would mint a `_N` on every retry of a lane that
@@ -312,7 +312,7 @@ jobs:
           # OpenVEX document beside its SBOM is a bottle whose consumer has to
           # re-triage what we already decided — and a flag added to one lane is
           # the half-a-pair defect this repository has paid for before.
-          zbk factory \
+          zpkb factory \
             --pantry pantry \
             --overrides overrides \
             --overlay overlay \
@@ -334,7 +334,7 @@ jobs:
       #   closure: skip github.com/ggml-org/llama.cpp: no recipe file
       #   === summary (darwin/aarch64): 0 built, 0 skipped, 0 failed ===
       # and the job was GREEN. The recipe lives in the overlay, which this
-      # lane did not pass to `zbk factory` (fixed above), so the closure could
+      # lane did not pass to `zpkb factory` (fixed above), so the closure could
       # not see it at all.
       #
       # ⛔ AND IT IS STRICTER THAN build.yml's, deliberately. That one fires on
@@ -382,7 +382,7 @@ jobs:
           SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
         run: |
           set -eu
-          zbk catalog \
+          zpkb catalog \
             --pantry pantry \
             --overlay overlay \
             --overrides overrides \

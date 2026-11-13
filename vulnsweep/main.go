@@ -134,7 +134,7 @@ func scan(platform, pantry, advisories, store string) (string, error) {
 	if out, err := runCmd("zpkgs", "catalog", "update", "--platform", platform); err != nil {
 		return out, fmt.Errorf("fetching the catalogue: %w", err)
 	}
-	out, err := runCmd("zbk", "vulnfetch",
+	out, err := runCmd("zpkb", "vulnfetch",
 		"-dir", pantry,
 		"-advisories", advisories,
 		"-catalog", filepath.Join(store, "catalog", catalogFile(platform)),

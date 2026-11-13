@@ -73,11 +73,11 @@ jobs:
         with: { go-version: '1.27.4' }
 
       # ⛔ ASSEMBLED FROM A VARIABLE, so a rename cannot see it: the modules
-      # are `zbk/cmd/zbk`, `zpkgx` and `zpkgm`, and the binaries are `zbk`,
+      # are `zpkb/cmd/zpkb`, `zpkgx` and `zpkgm`, and the binaries are `zpkb`,
       # `zpkgx` and `zpkgm`. See sovereign.yml, where exactly this was missed.
-      - name: build zbk, zpkgx and zpkgm (static)
+      - name: build zpkb, zpkgx and zpkgm (static)
         run: |
-          for m in zbk/cmd/zbk zpkgx zpkgm; do
+          for m in zpkb/cmd/zpkb zpkgx zpkgm; do
             CGO_ENABLED=0 go install "github.com/go-zpkg/$m@main"
           done
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -94,7 +94,7 @@ jobs:
         run: |
           echo "pantry   $(git -C pantry rev-parse HEAD)"
           echo "packages $(git rev-parse HEAD)"
-          echo "zbk      $(zbk version)"
+          echo "zpkb      $(zpkb version)"
 
       - name: point at the pull-through cache if it answers
         run: |
@@ -107,11 +107,11 @@ jobs:
         env:
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
         run: |
-          zbk builder \
+          zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "$PLATFORM" \
             --toolchain builder/toolchain.txt \
-            --zbk "$(command -v zbk)" \
+            --zpkb "$(command -v zpkb)" \
             --zpkgx "$(command -v zpkgx)" \
             --container
           du -sh "$RUNNER_TEMP/rootfs"
@@ -155,7 +155,7 @@ jobs:
 
       # ⛔ THE COMPARISON NAMES BOTH FILES AND REFUSES TO GUESS. If either
       # pass produced no bottle, there is nothing to compare and this must say
-      # so — an absent file must not arrive at `zbk reproduce` as a silent
+      # so — an absent file must not arrive at `zpkb reproduce` as a silent
       # zero-entry pass, which is the one way this whole job could report
       # success having proved nothing.
       - name: do the two builds agree
@@ -170,9 +170,9 @@ jobs:
           echo "A $a"
           echo "B $b"
           if [ "${{ github.event.inputs.ignore_mtime || '1' }}" = "1" ]; then
-            zbk reproduce -ignore-mtime "$a" "$b"
+            zpkb reproduce -ignore-mtime "$a" "$b"
           else
-            zbk reproduce "$a" "$b"
+            zpkb reproduce "$a" "$b"
           fi
 
       - name: upload both bottles

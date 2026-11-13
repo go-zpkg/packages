@@ -1,7 +1,7 @@
 name: sovereign build
 
 # Proof that a recipe can be compiled with NO distribution involved: the rootfs
-# `zbk builder` stages from builder/toolchain.txt, entered with chroot, bk run
+# `zpkb builder` stages from builder/toolchain.txt, entered with chroot, bk run
 # through pkgx exactly as builder/Containerfile's ENTRYPOINT does.
 #
 # Why this exists: with the ordinary path, what can be built is decided by the
@@ -73,10 +73,10 @@ jobs:
           # ⛔⛔ ASSEMBLED FROM A VARIABLE, SO THE RENAME DID NOT SEE IT. The
           # go-pkgx → go-zpkg pass is a rule table over literal text, and
           # there is no string `go-zpkg/bk/cmd/bk` in this file to match —
-          # only `github.com/go-zpkg/$m`. The modules are `zbk/cmd/zbk`,
-          # `zpkgx` and `zpkgm`, and the binaries they install are `zbk`,
+          # only `github.com/go-zpkg/$m`. The modules are `zpkb/cmd/zpkb`,
+          # `zpkgx` and `zpkgm`, and the binaries they install are `zpkb`,
           # `zpkgx` and `zpkgm`.
-          for m in zbk/cmd/zbk zpkgx zpkgm; do
+          for m in zpkb/cmd/zpkb zpkgx zpkgm; do
             CGO_ENABLED=0 go install "github.com/go-zpkg/$m@main"
           done
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -114,7 +114,7 @@ jobs:
         env:
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
         run: |
-          zbk builder \
+          zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "$PLATFORM" \
             --toolchain builder/toolchain.txt \
@@ -124,7 +124,7 @@ jobs:
             # the whole reason the rename happened. A lookup left as `pkgx`
             # does not fail loudly; it either finds nothing or finds upstream
             # and stages a rootfs with it.
-            --zbk "$(command -v zbk)" \
+            --zpkb "$(command -v zpkb)" \
             --zpkgx "$(command -v zpkgx)" \
             --container
           du -sh "$RUNNER_TEMP/rootfs"

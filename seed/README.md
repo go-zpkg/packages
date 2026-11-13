@@ -6,7 +6,7 @@ a build plan, and most of it is forced.
 
 ## Why a file, and not a command
 
-`zbk closure --build` computes an order, and for most of this file it computes
+`zpkb closure --build` computes an order, and for most of this file it computes
 *this* one. It cannot compute all of it, because the build-dependency graph has
 cycles and an order over a cyclic graph does not exist.
 
@@ -20,13 +20,13 @@ So the order is a human artefact with a machine-checkable property, and both
 halves matter:
 
 ```
-zbk closure --cycles --build --pantry P --overlay O --overrides overrides $(…)
+zpkb closure --cycles --build --pantry P --overlay O --overrides overrides $(…)
 ```
 
 names the components, and
 
 ```
-zbk closure --build --check-order seed/order.txt --pantry P --overlay O --overrides overrides $(…)
+zpkb closure --build --check-order seed/order.txt --pantry P --overlay O --overrides overrides $(…)
 ```
 
 separates what the file decided from what it got wrong:
@@ -79,7 +79,7 @@ RECIPES="lz4.org" ./seed/dispatch-gen1.sh   one package, to prove the rootfs
 ```
 
 It differs from `dispatch-seed.sh` in two inputs: `bootstrap` is empty (the
-toolchain is bottles now) and `sovereign=1` (`zbk builder` stages a rootfs
+toolchain is bottles now) and `sovereign=1` (`zpkb builder` stages a rootfs
 **from the seed registry** and the build happens inside it, under `chroot`).
 `seed_dist` stays, and `--to` follows `ZPKG_DIST` on purpose: generation 1
 replaces generation 0 in the same throwaway registry, which is what build.yml
@@ -99,16 +99,16 @@ actually looks like:
 | installing, three times over | `$RUNNER_TEMP` is reused on a self-hosted runner and `InstallFor` reads an existing directory as "already installed", so a half-written tree was inherited in silence |
 | the first `mkdir` | `coreutils` linked the builder's `libselinux`, which no bottle provides |
 | `make install` | `sed` did too |
-| the dependency eval | `libcxx.llvm.org` was never in the seed, and zbk hands it to **every** `--libc zpkgx` build |
+| the dependency eval | `libcxx.llvm.org` was never in the seed, and zpkb hands it to **every** `--libc zpkgx` build |
 
 Each was invisible until the previous was lifted. A one-package pilot costs a
 staging; the same sequence found seventy builds in would have cost a day.
 
 **Two tools came out of it, and they are the reason the list above is short.**
-`zbk builder --dry-run` answers "does this architecture have the bottles"
+`zpkb builder --dry-run` answers "does this architecture have the bottles"
 without taking a runner, naming **every** blocked root rather than the first —
 and telling a conflict between roots apart from a missing bottle. After
-staging, `zbk builder` reports every `NEEDED` soname the tree does not contain,
+staging, `zpkb builder` reports every `NEEDED` soname the tree does not contain,
 **with who asks**: that turned "one contaminated package per failed build"
 into five names at once.
 

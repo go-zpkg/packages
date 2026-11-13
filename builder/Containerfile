@@ -13,10 +13,10 @@
 #
 # Build it with the three binaries in the context:
 #
-#   for r in zbk zpkgm zpkgx; do
+#   for r in zpkb zpkgm zpkgx; do
 #     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o builder/$r github.com/go-zpkg/$r/...
 #   done
-#   docker build -f builder/Containerfile -t zbk-builder builder
+#   docker build -f builder/Containerfile -t zpkb-builder builder
 #
 # ⛔ THE NAMES ARE ASSEMBLED FROM A VARIABLE, so no sweep that matches
 # spellings can see them — this loop said `bk pkgm pkgx` for as long as the
@@ -25,7 +25,7 @@
 #
 # and compile with it (the pantry mounted, the output bind-mounted out):
 #
-#   docker run --rm -v "$PWD/pantry:/pantry:ro" -v "$PWD/out:/out" zbk-builder \
+#   docker run --rm -v "$PWD/pantry:/pantry:ro" -v "$PWD/out:/out" zpkb-builder \
 #     factory --platform linux/aarch64 --pantry /pantry --recipes lz4.org \
 #             --libc zpkgx --bottles /out/dist --to oci://…
 FROM scratch
@@ -47,7 +47,7 @@ ENV ZPKG_PANTRY_OVERLAY=https://raw.githubusercontent.com/go-zpkg/pantry-overlay
 
 COPY zpkgm /zpkgm
 COPY zpkgx /usr/local/bin/zpkgx
-COPY zbk /usr/local/bin/zbk
+COPY zpkb /usr/local/bin/zpkb
 
 # The toolchain, from bottles only — and the proof: if it installs and runs here,
 # no distribution is involved. The list lives in a committed file rather than in
@@ -61,9 +61,9 @@ RUN ["/zpkgm","install","-s","--prefix","/usr","llvm.org"]
 COPY toolchain.txt /toolchain.txt
 RUN ["/zpkgm","install","-s","--prefix","/usr","-f","/toolchain.txt"]
 
-# zbk runs THROUGH zpkgx, which composes PATH/LD_LIBRARY_PATH/CPATH from the
+# zpkb runs THROUGH zpkgx, which composes PATH/LD_LIBRARY_PATH/CPATH from the
 # installed bottles at run time. Hardcoding a library path would pin a glibc
 # version into the image; this stays correct when the toolchain moves.
 ENTRYPOINT ["/usr/local/bin/zpkgx", \
             "+gnu.org/glibc","+gnu.org/coreutils","+gnu.org/make","+llvm.org", \
-            "--","/usr/local/bin/zbk"]
+            "--","/usr/local/bin/zpkb"]

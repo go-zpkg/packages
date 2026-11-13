@@ -4,7 +4,7 @@
 # Docker+Wasm / CNCF wasm-oci-artifact spelling; bottle/oci.go passes the arch
 # `wasm` through unchanged). Consumer: an in-browser container engine.
 #
-# Same recipe as windows.yml — GOOS cross build, tar, `zbk publish` — except:
+# Same recipe as windows.yml — GOOS cross build, tar, `zpkb publish` — except:
 #   - GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0: Go-only, no C toolchain (wasi-sdk /
 #     wasi-libc projects are NOT part of this target).
 #   - the module is staged as bin/<name>.wasm. A recipe's `provides: bin/<name>`
@@ -27,7 +27,7 @@ env:
   # across the workflows by ./goproxycheck.
   GOPROXY: https://proxy.golang.org,direct
   GONOPROXY: github.com/go-zpkg/*
-  # ⛔ v0.59.0 is the first tag declaring `github.com/go-zpkg/zbk`. Go verifies
+  # ⛔ v0.59.0 is the first tag declaring `github.com/go-zpkg/zpkb`. Go verifies
   # the path a module DECLARES, so every earlier tag — v0.35.0 among them — is
   # unfetchable under the new name. That is the FLOOR.
   #
@@ -44,9 +44,9 @@ env:
   # factory REFUSES to publish bytes that differ from what a hashed tag
   # already holds. A lane at v0.64.0 computes a perfectly good identity and
   # will still overwrite an address, rewriting what every existing lock,
-  # install and signature refers to (go-zpkg/zbk#416). zbkpin_test.go holds
+  # install and signature refers to (go-zpkg/zpkb#416). zpkbpin_test.go holds
   # the floor and the reason together.
-  BK: github.com/go-zpkg/zbk/cmd/zbk@v0.69.0
+  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
 
 jobs:
   build:
@@ -149,7 +149,7 @@ jobs:
             umask 077; KEYFILE="$(mktemp)"; printf '%s' "$SIGNING_KEY" > "$KEYFILE"
             SIGN_ARGS=(--sign "$KEYFILE"); echo "signing: enabled"
           else
-            # ⛔ NO FALLBACK. zbk publish refuses an unsigned bottle, so this
+            # ⛔ NO FALLBACK. zpkb publish refuses an unsigned bottle, so this
             # branch now FAILS THE JOB instead of shipping thirty artefacts a
             # fail-closed client cannot install. Red here is the correct
             # state until BOTTLE_SIGNING_KEY exists in this organisation —
@@ -205,7 +205,7 @@ jobs:
           # worth pointing them at; that switch is a separate, deliberate step
           # and has a gate on it.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
-            zbk publish --to oci://ghcr.io/go-zpkg/packages --project "$slug" \
+            zpkb publish --to oci://ghcr.io/go-zpkg/packages --project "$slug" \
               --version "$ver" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
               --spec-dep "go.dev=${GOVER#go}" \
               --spec-recipe-from "$RUNNER_TEMP/build.txt" \

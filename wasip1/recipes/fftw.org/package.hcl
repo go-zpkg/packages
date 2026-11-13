@@ -27,7 +27,7 @@ build {
   script = [
     # --host makes autoconf cross-compile rather than run its probes, which is
     # the whole reason a wasm build of an autotools project works at all.
-    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --disable-fortran --disable-threads --disable-openmp --disable-mpi CC=\"$ZBK_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2\" || (cat config.log && false)",
+    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --disable-fortran --disable-threads --disable-openmp --disable-mpi CC=\"$ZPKB_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2\" || (cat config.log && false)",
     "make --jobs {{ hw.concurrency }}",
     "make install",
     # The tool is installed by `make install` without the extension; the lane

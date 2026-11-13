@@ -32,8 +32,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/zbk/logical"
-	"github.com/go-zpkg/zbk/overrides"
+	"github.com/go-zpkg/zpkb/logical"
+	"github.com/go-zpkg/zpkb/overrides"
 	"gopkg.in/yaml.v3"
 )
 

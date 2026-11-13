@@ -19,7 +19,7 @@ on:
         required: false
         default: ""
       lock:
-        description: "path to a `zbk lock` file IN THIS REPOSITORY (e.g. locks/seed.lock.hcl). Builds exactly the versions it pins — every pin, not just its roots — and overrides `recipes`, the chunking and `versions`. A lock is the whole set: this is how a build is made to be the SAME build later, which plain re-dispatch is not. The same pantry commit 2df061bd resolved tcl to 9.0.4 and then to 9.1.0 four hours apart."
+        description: "path to a `zpkb lock` file IN THIS REPOSITORY (e.g. locks/seed.lock.hcl). Builds exactly the versions it pins — every pin, not just its roots — and overrides `recipes`, the chunking and `versions`. A lock is the whole set: this is how a build is made to be the SAME build later, which plain re-dispatch is not. The same pantry commit 2df061bd resolved tcl to 9.0.4 and then to 9.1.0 four hours apart."
         required: false
         default: ""
       clean_build_root:
@@ -51,7 +51,7 @@ on:
         required: false
         default: ""
       sovereign:
-        description: "blank = build inside the FROM-scratch rootfs `zbk builder` stages, so neither the host's libc nor its compiler takes part. `0` falls back to the runner's distribution. Ignored when mirror_from is set, which compiles nothing and would stage a toolchain for no reason."
+        description: "blank = build inside the FROM-scratch rootfs `zpkb builder` stages, so neither the host's libc nor its compiler takes part. `0` falls back to the runner's distribution. Ignored when mirror_from is set, which compiles nothing and would stage a toolchain for no reason."
         required: false
         default: ""
       source_mirror:
@@ -324,7 +324,7 @@ jobs:
         # else the module proxy serves a stale cached @main and CI runs an old bk.
         run: |
           # Static for the same reason as pkgx: bk is installed into the rootfs.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zbk/cmd/zbk@main
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # --depth 1 of a moving branch, so WHICH pantry is a property of the
@@ -340,9 +340,9 @@ jobs:
       # factory's closure walk read the pantry alone, so such a provider was
       # never built while every consumer asked the registry for it — and the
       # s390x seed only worked because its order had been computed by hand with
-      # `zbk closure --build --overlay` and pasted in.
+      # `zpkb closure --build --overlay` and pasted in.
       #
-      # It does NOT change what is compiled: `zbk factory` still builds the
+      # It does NOT change what is compiled: `zpkb factory` still builds the
       # pantry's recipe with the overrides applied. It widens the closure.
       - name: clone the pantry overlay
         run: |
@@ -502,7 +502,7 @@ jobs:
           # rootfs's /pkgx belongs to root. A plain rm reported
           #   rm: cannot remove '…/rootfs/pkgx/lz4.org/v1.10.0/lib/liblz4.so':
           #   Permission denied
-          # and `bash -e` ended the step before `zbk builder` ran at all —
+          # and `bash -e` ended the step before `zpkb builder` ran at all —
           # trading a silent stale tree for a loud refusal, which is better
           # but still not staging anything.
           SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
@@ -517,16 +517,16 @@ jobs:
           # `|| true`: this is diagnosis, not the gate. The staging below is
           # the verdict, and a pre-flight that could fail a job the real step
           # would have passed is a second opinion nobody asked for.
-          zbk builder --dry-run \
+          zpkb builder --dry-run \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt || true
-          zbk builder \
+          zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zbk`/`zpkgx` since the rename: `pkgx` is upstream's binary and
+            # `zpkb`/`zpkgx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
-            --zbk "$(command -v zbk)" \
+            --zpkb "$(command -v zpkb)" \
             --zpkgx "$(command -v zpkgx)" \
             --container
 
@@ -682,7 +682,7 @@ jobs:
           # A LOCK wins over every other way of naming the set, and is passed
           # to bk as a FILE rather than expanded here: bk reads it, and a
           # second expansion in shell would be a second answer to the same
-          # question. See `zbk factory --lock`.
+          # question. See `zpkb factory --lock`.
           if [ -n "${{ github.event.inputs.lock }}" ]; then
             LOCK="${{ github.event.inputs.lock }}"
             [ -r "$LOCK" ] || { echo "::error::no lock at $LOCK in this repository"; exit 1; }
@@ -705,7 +705,7 @@ jobs:
           # shellcheck disable=SC2086  # RECIPES is intentionally word-split to count projects
           echo "chunk ${{ matrix.chunk }} → $(printf '%s\n' $RECIPES | grep -c .) requested projects${FORCE:+ (FORCE rebuild)}"
           # RECIPES / FORCE / MAX_VERSIONS / PLATFORM / LOCK are read from the
-          # env by `zbk factory` itself; the rest is passed explicitly.
+          # env by `zpkb factory` itself; the rest is passed explicitly.
           # Disk, before and after, because a full one does not announce
           # itself — it arrives as somebody else's error. The s390x seed hit
           # it on the fifty-seventh project and reported
@@ -804,7 +804,7 @@ jobs:
             # Validated ONCE before the first build — a record that does not
             # parse stops a publish, and the fortieth bottle of a chunk is six
             # hours into the run.
-            zbk factory \
+            zpkb factory \
               --pantry pantry \
               --overrides overrides \
               --overlay overlay \
@@ -838,7 +838,7 @@ jobs:
       # already published) has no failure and stays green.
       # NOT always(): if the build step itself failed the job is already red,
       # and a second error under it only competes with the first. Both the
-      # sovereign path (SOVEREIGN_STRICT=0 for a chunk) and `zbk factory`
+      # sovereign path (SOVEREIGN_STRICT=0 for a chunk) and `zpkb factory`
       # exit 0 on a recipe failure, which is exactly the case this catches.
       - name: a named dispatch that built nothing
         if: github.event.inputs.recipes != ''
@@ -903,7 +903,7 @@ jobs:
           SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
         run: |
           set -eu
-          zbk catalog \
+          zpkb catalog \
             --pantry pantry \
             --overlay overlay \
             --overrides overrides \
@@ -1015,18 +1015,18 @@ jobs:
             # binary that is there but carries no stamp makes the pipeline
             # print NOTHING and succeed, and an empty field beside a label
             # reads as an answer. Ask whether it is empty, and say so.
-            # ⛔ `zbk`, AND THE MODULE FILTER BELOW IS WHY IT MATTERS HERE.
-            # The lookup was `command -v bk`; the binary is `zbk` since the
+            # ⛔ `zpkb`, AND THE MODULE FILTER BELOW IS WHY IT MATTERS HERE.
+            # The lookup was `command -v bk`; the binary is `zpkb` since the
             # rename. Left as `bk` it finds nothing, prints `(unread)`, and
             # this provenance record silently stops saying which factory built
             # the run — the exact failure the comment above is about.
             bkver=""
-            bkbin=$(command -v zbk 2>/dev/null || true)
+            bkbin=$(command -v zpkb 2>/dev/null || true)
             if [ -n "$bkbin" ]; then
               bkver=$(go version -m "$bkbin" 2>/dev/null |
-                awk '$1=="mod" && $2=="github.com/go-zpkg/zbk" {print $3}')
+                awk '$1=="mod" && $2=="github.com/go-zpkg/zpkb" {print $3}')
             fi
-            printf '%-10s %s\n' zbk "${bkver:-(unread)}"
+            printf '%-10s %s\n' zpkb "${bkver:-(unread)}"
             echo
             echo "== host tools that stood in for bottles =="
             # Each of these can be what --bootstrap fell back to. Recording the
@@ -1121,7 +1121,7 @@ jobs:
           path: seed-provenance.txt
           if-no-files-found: ignore
 
-      # The pkgx dist tree `zbk factory --bottles dist` writes — unioned into
+      # The pkgx dist tree `zpkb factory --bottles dist` writes — unioned into
       # the GitHub Pages mirror by pages.yml. Named per arch+chunk so pages.yml
       # discovers every slice (it globs dist-*).
       - name: upload dist tree

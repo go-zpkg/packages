@@ -7,7 +7,7 @@ build {
     "gnu.org/make" = "*"
   }
   script = [
-    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --disable-docs --disable-maintainer-mode --with-oniguruma=builtin CC=\"$ZBK_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS\" LDFLAGS=\"-lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
+    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --disable-docs --disable-maintainer-mode --with-oniguruma=builtin CC=\"$ZPKB_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS\" LDFLAGS=\"-lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
     "make --jobs {{ hw.concurrency }}",
     "install -D jq \"{{ prefix }}/bin/jq.wasm\"",
   ]

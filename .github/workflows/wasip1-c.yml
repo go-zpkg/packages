@@ -7,13 +7,13 @@
 # wasm-ld, llvm-ar) plus bottles built from source in the pantry overlay,
 # compiler-rt.llvm.org/wasi (builtins + clang headers as a resource dir),
 # github.com/WebAssembly/wasi-libc (the sysroot) and libcxx.llvm.org/wasi
-# (libc++, libc++abi). `zbk --platform wasip1/wasm build` adds them to the
-# dependency eval and imposes the stencil through $ZBK_CC/$ZBK_CXX
+# (libc++, libc++abi). `zpkb --platform wasip1/wasm build` adds them to the
+# dependency eval and imposes the stencil through $ZPKB_CC/$ZPKB_CXX
 # (clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1
 # --rtlib=compiler-rt), which the cc/gcc/clang shims re-exec, so a recipe cannot
 # lose it by setting CFLAGS or CC.
 #
-# SOVEREIGN: the build runs in the rootfs `zbk builder` stages from
+# SOVEREIGN: the build runs in the rootfs `zpkb builder` stages from
 # builder/toolchain.txt, entered with unshare+chroot (builder/sovereign-bk.sh),
 # so make, sh, coreutils, clang and wasm-ld all come from bottles in that tree and
 # nothing from the runner's distribution takes part. The runner contributes three
@@ -102,7 +102,7 @@ jobs:
       # The host's only jobs: run three static Go binaries and hold a namespace.
       - name: build bk, pkgx and pkgm (static)
         # ⛔ bk MUST BE >= v0.50.0 HERE, and that is a hard requirement rather
-        # than hygiene: this lane's recipes are `package.hcl`, and `zbk build
+        # than hygiene: this lane's recipes are `package.hcl`, and `zpkb build
         # --recipe` read every path as YAML until v0.50.0 (go-zpkg/bk#389).
         # An older pin does not warn — it fails with a yaml unmarshal error
         # about the first attribute of a perfectly good HCL file.
@@ -116,7 +116,7 @@ jobs:
         # BECAUSE ANYTHING NEEDED A NEWER FACTORY. Go verifies the path a
         # module DECLARES, and v0.54.0 declares `github.com/go-pkgx/bk`:
         # required under the new name it fails outright, not subtly. v0.59.0
-        # is the first tag that declares `github.com/go-zpkg/zbk`, so it is
+        # is the first tag that declares `github.com/go-zpkg/zpkb`, so it is
         # the floor for every pin in this repository — the >= v0.50.0
         # requirement above is still satisfied, by a wide margin.
         #
@@ -130,22 +130,22 @@ jobs:
         # ⛔⛔ v0.65.0 now, for a SECOND reason: from that tag the factory
         # refuses to publish bytes that differ from what a hashed tag already
         # holds. A lane at v0.64.0 computes a good identity and will still
-        # overwrite an address (go-zpkg/zbk#416).
+        # overwrite an address (go-zpkg/zpkb#416).
         run: |
-          CGO_ENABLED=0 go install github.com/go-zpkg/zbk/cmd/zbk@v0.69.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkgx@main
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkgm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: stage the sovereign rootfs
         run: |
           sudo rm -rf "$RUNNER_TEMP/rootfs"
-          zbk builder \
+          zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zbk`/`zpkgx` since the rename: `pkgx` is upstream's binary and
+            # `zpkb`/`zpkgx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
-            --zbk "$(command -v zbk)" \
+            --zpkb "$(command -v zpkb)" \
             --zpkgx "$(command -v zpkgx)" \
             --container
       # The claim to check is a negative one: no distribution in the tree. The
@@ -158,7 +158,7 @@ jobs:
         run: |
           chmod +x builder/sovereign-bk.sh
           builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-            /usr/local/bin/zbk --platform wasip1/wasm build --libc=zpkgx \
+            /usr/local/bin/zpkb --platform wasip1/wasm build --libc=zpkgx \
             --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,
@@ -207,7 +207,7 @@ jobs:
       # modules ten minutes apart with no publish in between — 87e24e89…, then
       # c946f9c5…, then 87e24e89… again.
       #
-      # `zbk publish` is documented to SKIP a tag already in ghcr; it replaced it
+      # `zpkb publish` is documented to SKIP a tag already in ghcr; it replaced it
       # instead, which is a separate defect and still open. This step does not
       # depend on that being fixed: it simply stops asking.
       #

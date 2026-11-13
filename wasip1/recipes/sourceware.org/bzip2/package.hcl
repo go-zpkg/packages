@@ -23,9 +23,9 @@ EOT
       run = "cp $PROP wasi_stubs.c"
     },
     {
-      run = "$ZBK_CC -O2 -c -o wasi_stubs.o wasi_stubs.c"
+      run = "$ZPKB_CC -O2 -c -o wasi_stubs.o wasi_stubs.c"
     },
-    "make libbz2.a bzip2 CC=\"$ZBK_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2 -D_FILE_OFFSET_BITS=64 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -Dfchmod=bz_fchmod -Dutime=bz_utime -include wasi_compat.h\" LDFLAGS=\"$SRCROOT/wasi_stubs.o -lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
+    "make libbz2.a bzip2 CC=\"$ZPKB_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2 -D_FILE_OFFSET_BITS=64 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -Dfchmod=bz_fchmod -Dutime=bz_utime -include wasi_compat.h\" LDFLAGS=\"$SRCROOT/wasi_stubs.o -lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
     "install -D bzip2 \"{{ prefix }}/bin/bzip2.wasm\"",
     "install -D libbz2.a \"{{ prefix }}/lib/libbz2.a\"",
     "install -D bzlib.h \"{{ prefix }}/include/bzlib.h\"",

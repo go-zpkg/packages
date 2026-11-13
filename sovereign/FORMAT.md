@@ -28,7 +28,7 @@ Read 2026-11-07, from primary sources, at the versions linked.
 | version discovery | `versions.github`, `versions.strip` | — | — | `list_url`, `spack checksum` | inferred from `url`, `livecheck` |
 
 ⛔ The pkgx column describes **upstream's** recipes. Our own schema
-(`zbk/schema/package.schema.json`, "derived from libpkgx's parser") is not
+(`zpkb/schema/package.schema.json`, "derived from libpkgx's parser") is not
 identical to it: it already declares `license` and `platforms`, which §2 and
 §6 below correct. It still has no integrity field of any kind.
 
@@ -71,7 +71,7 @@ rather than written from memory: an unverified digest in the document that
 argues for verified digests would be the same mistake in miniature.
 
 ⛔ **This is not new ground, and the existing analysis is sharper than the
-first draft of this section.** `zbk/fetch/fetch.go:160` already states the
+first draft of this section.** `zpkb/fetch/fetch.go:160` already states the
 problem and already mitigates it: "Exactly one recipe of 904 in the pantry
 carries a `sha:`, and that one points at a `.sha256` served by the same host
 as the tarball — it catches corruption, not substitution. For everything else
@@ -96,7 +96,7 @@ the schema's `distributableObject` offers only `url`, `ref` and
 
 **2. The licence field exists and nothing fills it.** Corrected after reading
 the authoritative schema: `license` is already there
-(`zbk/schema/package.schema.json:98`, a `stringOrArray`). The gap is not a
+(`zpkb/schema/package.schema.json:98`, a `stringOrArray`). The gap is not a
 missing field, it is a field no recipe is required to carry and almost none
 does — **0 of our 213** overlay recipes and **1 of upstream's 1932**. A field
 that is optional and unused is indistinguishable from an absent one, except
@@ -131,7 +131,7 @@ node of a heterogeneous cluster.
 
 **6. The platform field exists and almost nothing states it.** Corrected, as
 §2 was: `platforms` is in the schema already
-(`zbk/schema/package.schema.json:83` — "darwin, linux, windows, or
+(`zpkb/schema/package.schema.json:83` — "darwin, linux, windows, or
 `<os>/<arch>`"), and **7 of our 213** overlay recipes set it. Two things are
 genuinely missing rather than unused: there is no way to *exclude* a couple
 that a broader claim admits — Nixpkgs pairs `platforms` with `badPlatforms`
@@ -213,7 +213,7 @@ source {
   #
   # Fail-closed: building a version absent from this map is REFUSED, not
   # fetched unverified. A version the author did not pin is one they have
-  # not vouched for. (Implemented in go-zpkg/zbk#424.)
+  # not vouched for. (Implemented in go-zpkg/zpkb#424.)
   sha256 = {
     "1.3.1" = "<the digest of zlib-1.3.1.tar.gz, as read from the release>"
   }
@@ -283,9 +283,9 @@ provenance {
 
 ⛔ **Corrected, and it inverts the risk.** The first draft said an unknown
 field would be a parse error. It is the opposite:
-`zbk/schema/package.schema.json` sets `"additionalProperties": true` at the
+`zpkb/schema/package.schema.json` sets `"additionalProperties": true` at the
 root and in every nested object, so a recipe may declare `sha256`,
-`provenance` or anything else today and `zbk` will **accept it and silently
+`provenance` or anything else today and `zpkb` will **accept it and silently
 ignore it**. That is worse than refusing it. A recipe carrying a digest that
 nothing checks reads, to anyone who opens it, as a verified source.
 
@@ -294,14 +294,14 @@ reads". The order that keeps the tree buildable throughout:
 
 1. ⛔ **Tried, reverted, and it waits on the pantry being ours.** Close the
    schema so an unknown or misspelt key fails loudly. The survey that says
-   when it is safe exists and stays (go-zpkg/zbk#422); the closure itself
+   when it is safe exists and stays (go-zpkg/zpkb#422); the closure itself
    (#423) was **reopened the same day** (#427).
 
    The measurement that justified closing it was right — 0 unknown keys in
    our 213 overlay recipes and our 14 sovereign ones, against 22 keys in 42
    of upstream's 1932 — and it was the wrong precondition. "Our files are
    clean" does not license refusing an input; "we no longer read foreign
-   files" does, and that is this whole document. Closed, `zbk` could no
+   files" does, and that is this whole document. Closed, `zpkb` could no
    longer read the recipes of **openssl.org, llvm.org, cmake.org,
    python.org** and **rust-lang.org** — five of the eight it lost are in
    `seed/order.txt`, so the bootstrap floor went unreadable, and two CI steps
@@ -313,7 +313,7 @@ reads". The order that keeps the tree buildable throughout:
    So this step lands when the pantry the factory reads is written rather
    than borrowed — which is the rest of this list, not a prerequisite of it.
 2. 🔶 **Half done, and now the load-bearing one.** `sha256` is implemented,
-   keyed by version and fail-closed (go-zpkg/zbk#424); no recipe pins one
+   keyed by version and fail-closed (go-zpkg/zpkb#424); no recipe pins one
    yet. `provenance` is not started and is no longer optional: with the
    recipes written rather than converted (#431), it is the record that makes
    "ours" checkable. `license` is still optional — *present* in the schema
@@ -330,7 +330,7 @@ reads". The order that keeps the tree buildable throughout:
 Steps 1–4 are what the first bootstrap tranche needs; 5–6 can follow the
 recipes.
 
-Both front-ends have to move together: `zbk/pantry/hcl` converts HCL to YAML
+Both front-ends have to move together: `zpkb/pantry/hcl` converts HCL to YAML
 through `bottle.HCLToYAML` and validates with the same schema, deliberately,
 "because the CLIENT has to read these files too — the overlay is fetched at
 install time". A field the factory honours and the installer ignores would be
