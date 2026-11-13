@@ -124,7 +124,7 @@ jobs:
         # FACTORY. An artifact built by anything before v0.62.0 carries no build
         # identity at all; v0.63.0 made that identity a real Merkle hash, and
         # v0.64.0 stamps the signer's key id on the signature referrer. Left
-        # at v0.59.0 this lane would go on publishing artifacts that `zpkgs
+        # at v0.59.0 this lane would go on publishing artifacts that `zpks
         # builds` can only describe as "nothing recorded".
         #
         # ⛔⛔ v0.65.0 now, for a SECOND reason: from that tag the factory
@@ -133,8 +133,8 @@ jobs:
         # overwrite an address (go-zpkg/zpkb#416).
         run: |
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkgx@main
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkgm@main
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@main
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: stage the sovereign rootfs
         run: |
@@ -143,10 +143,10 @@ jobs:
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zpkb`/`zpkgx` since the rename: `pkgx` is upstream's binary and
+            # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
             --zpkb "$(command -v zpkb)" \
-            --zpkgx "$(command -v zpkgx)" \
+            --zpkx "$(command -v zpkx)" \
             --container
       # The claim to check is a negative one: no distribution in the tree. The
       # build below runs `chroot` into it, so these are the only files it sees.
@@ -158,7 +158,7 @@ jobs:
         run: |
           chmod +x builder/sovereign-bk.sh
           builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-            /usr/local/bin/zpkb --platform wasip1/wasm build --libc=zpkgx \
+            /usr/local/bin/zpkb --platform wasip1/wasm build --libc=zpkx \
             --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,

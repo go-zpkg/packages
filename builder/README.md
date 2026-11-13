@@ -14,7 +14,7 @@ Two ways to get one. They stage the same thing; pick by what will consume it.
 ```
 zpkb builder --out ./rootfs --platform linux/aarch64 \
            --toolchain builder/toolchain.txt \
-           --zpkb ./zpkb-linux-arm64 --zpkgx ./zpkgx-linux-arm64 --microvm
+           --zpkb ./zpkb-linux-arm64 --zpkx ./zpkx-linux-arm64 --microvm
 ```
 
 The directory is the primitive: what actually consumes a builder rootfs is a
@@ -41,7 +41,7 @@ NEEDED     libc.so.6            RPATH  $ORIGIN/../lib
 references to /usr/lib, /lib/aarch64-linux-gnu, debian:  0
 ```
 
-Pair it with `zpkb factory --libc zpkgx`, which points the compiler at our own
+Pair it with `zpkb factory --libc zpkx`, which points the compiler at our own
 glibc artifact: the environment and the output are then both free of the
 distribution.
 
@@ -75,7 +75,7 @@ this table is a list and not a lookup:
 | `builder: 42 packages` and nothing installed | a self-hosted runner reuses `$RUNNER_TEMP`, and `InstallFor` reads an existing `<project>/v<ver>` as "already present". A tree left by a run that died is inherited in silence. Remove it before staging — with `sudo`, since the chroot wrote it as root. `bk builder` now says when it is reusing (bk#277) |
 | `mkdir`, then `sed`, want `libselinux.so.1` | their configure AUTO-DETECTS the builder's SELinux (`with_selinux=maybe` in gnulib's `m4/selinux-selinux-h.m4`). `--without-selinux` in the override. Do not find these one failed build at a time: `bk builder` reports every NEEDED soname the tree lacks, with who asks (bk#276) |
 | `fork/exec …/build/configure: no such file or directory`, with the tree FULL | `bk build` removed `paths.Install` before building, and for `gnu.org/bash` that is what `/bin/sh` points at — a symlink and not a copy, because `$ORIGIN` in bash's RUNPATH must resolve from the real location. **Rebuilding bash deleted the shell**, and the next `#!/bin/sh` exec died naming the SCRIPT, which exists, not the interpreter, which did not. Measured: bash is built 74th of 78 and all five packages after it fail, the 73 before do not; `gzip` alone builds, `bash` alone fails. Rebuilding `gnu.org/glibc` is the same wound one level deeper — it removes the loader every ELF names — which is why gen1 could not rebuild its toolchain at all (bk#292) |
-| `no libcxx.llvm.org for linux/s390x` | zpkb appends `+libcxx.llvm.org` to the dependency eval of **every** `--libc zpkgx` build, and zpkgx refuses the whole eval when one spec cannot resolve — so an absent libcxx takes down C builds too. It belongs in `seed/order.txt` |
+| `no libcxx.llvm.org for linux/s390x` | zpkb appends `+libcxx.llvm.org` to the dependency eval of **every** `--libc zpkx` build, and zpkx refuses the whole eval when one spec cannot resolve — so an absent libcxx takes down C builds too. It belongs in `seed/order.txt` |
 
 Before dispatching anything on a new architecture, `bk builder --dry-run
 --platform <target> --toolchain builder/toolchain.txt` names every root that

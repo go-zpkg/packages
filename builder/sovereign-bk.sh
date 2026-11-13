@@ -54,7 +54,7 @@ $SUDO $PRESERVE \
     mount --bind "$recipes" "$r/recipes"
     mount --bind "$advisories" "$r/advisories"
     prog="$1"; shift
-    exec chroot "$r" /usr/local/bin/zpkgx \
+    exec chroot "$r" /usr/local/bin/zpkx \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
       -- "$prog" "$@"
   ' bash "$root" "$recipes" "$advisories" "$@"

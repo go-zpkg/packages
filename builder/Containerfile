@@ -13,7 +13,7 @@
 #
 # Build it with the three binaries in the context:
 #
-#   for r in zpkb zpkgm zpkgx; do
+#   for r in zpkb zpkm zpkx; do
 #     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o builder/$r github.com/go-zpkg/$r/...
 #   done
 #   docker build -f builder/Containerfile -t zpkb-builder builder
@@ -27,7 +27,7 @@
 #
 #   docker run --rm -v "$PWD/pantry:/pantry:ro" -v "$PWD/out:/out" zpkb-builder \
 #     factory --platform linux/aarch64 --pantry /pantry --recipes lz4.org \
-#             --libc zpkgx --bottles /out/dist --to oci://…
+#             --libc zpkx --bottles /out/dist --to oci://…
 FROM scratch
 ENV ZPKG_DIR=/zpkg
 ENV HOME=/root
@@ -45,8 +45,8 @@ ENV ZPKG_DIST=$DIST
 # the from-scratch panel does.
 ENV ZPKG_PANTRY_OVERLAY=https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
 
-COPY zpkgm /zpkgm
-COPY zpkgx /usr/local/bin/zpkgx
+COPY zpkm /zpkm
+COPY zpkx /usr/local/bin/zpkx
 COPY zpkb /usr/local/bin/zpkb
 
 # The toolchain, from bottles only — and the proof: if it installs and runs here,
@@ -57,13 +57,13 @@ COPY zpkb /usr/local/bin/zpkb
 # llvm.org goes in FIRST, on its own layer: it is the bulk of the image and
 # changes far less often than the rest, so editing the list re-uses this layer
 # instead of pulling ~1.7 GiB again.
-RUN ["/zpkgm","install","-s","--prefix","/usr","llvm.org"]
+RUN ["/zpkm","install","-s","--prefix","/usr","llvm.org"]
 COPY toolchain.txt /toolchain.txt
-RUN ["/zpkgm","install","-s","--prefix","/usr","-f","/toolchain.txt"]
+RUN ["/zpkm","install","-s","--prefix","/usr","-f","/toolchain.txt"]
 
-# zpkb runs THROUGH zpkgx, which composes PATH/LD_LIBRARY_PATH/CPATH from the
+# zpkb runs THROUGH zpkx, which composes PATH/LD_LIBRARY_PATH/CPATH from the
 # installed bottles at run time. Hardcoding a library path would pin a glibc
 # version into the image; this stays correct when the toolchain moves.
-ENTRYPOINT ["/usr/local/bin/zpkgx", \
+ENTRYPOINT ["/usr/local/bin/zpkx", \
             "+gnu.org/glibc","+gnu.org/coreutils","+gnu.org/make","+llvm.org", \
             "--","/usr/local/bin/zpkb"]

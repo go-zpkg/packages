@@ -122,9 +122,9 @@ whose coverage depends on how interesting they looked.
 
 ⛔ **And the list is no longer written down**, which was the actual defect:
 adding the four by hand closed that day's gap and left the mechanism that
-caused it in place. The index has always known — `zpkgs catalog update
+caused it in place. The index has always known — `zpks catalog update
 --platform linux/nonsense` is refused with *"platform not in index"* — and
-since go-zpkg/pkgx#119 shipped, `zpkgs catalog platforms` asks it:
+since go-zpkg/pkgx#119 shipped, `zpks catalog platforms` asks it:
 
 ```console
 $ pkgs catalog platforms
@@ -180,10 +180,10 @@ over pkgx's own resolution, with no Lua interpreter and no modulefile tree.
     pkge load openucx.org
     pkge save mpi-stack          # and `pkge restore mpi-stack` later
 
-On a cluster that already runs Lmod nothing has to change — `zpkgx --modulefile
+On a cluster that already runs Lmod nothing has to change — `zpkx --modulefile
 +openucx.org` publishes a modulefile the site's own Lmod loads, so conflicts,
 hierarchies and `spider` keep working. Where there is no Lmod,
-`zpkgx env init --module` defines `module` and `ml`; where there is one it
+`zpkx env init --module` defines `module` and `ml`; where there is one it
 **refuses** to, because two implementations answering one command is how a
 support ticket becomes unanswerable. See
 [Environments and HPC](https://go-zpkg.github.io/docs/environments/).
@@ -217,7 +217,7 @@ commented out since 2026-08-12 to leave the runners free for targeted jobs, and 
 identical, platform-agnostic `zpkb factory` (which also writes a pkgx dist tree, uploaded
 as a `dist-*` artifact for the Pages mirror). Auth to ghcr uses the workflow's **native
 `GITHUB_TOKEN`** (`permissions.packages: write`) — no long-lived PAT to rotate. Each
-run installs pkgx (bk sources its own toolchain via `zpkgx +deps`) and bk, clones the
+run installs pkgx (bk sources its own toolchain via `zpkx +deps`) and bk, clones the
 pantry, then runs `zpkb factory` — one pure-Go command (no bash, no curl/jq, no `git apply`), which:
 
 - expands the requested projects to their **topologically-ordered runtime-dependency
@@ -388,9 +388,9 @@ curl -fsSL https://go-zpkg.github.io/install.sh | sh -s -- pkgm v0.1.4
 $env:PKGM_VERSION='v0.1.4'; irm https://go-zpkg.github.io/install.ps1 | iex
 ```
 
-or, for Go users, `go install github.com/go-zpkg/zpkgm@latest`. The installer
+or, for Go users, `go install github.com/go-zpkg/zpkm@latest`. The installer
 grabs the static binary for your os/arch from that release and verifies it
-against the release `SHA256SUMS`; then `zpkgm install lz4.org` verifies each
+against the release `SHA256SUMS`; then `zpkm install lz4.org` verifies each
 artifact against this signed registry by default.
 
 The version is named rather than resolved from `/releases/latest` when the line
@@ -418,7 +418,7 @@ dispatched, so the site can lag the registry).
 
 Point the go-zpkg tools at the registry and verify against the trust set:
 
-    ZPKG_DIST=oci://ghcr.io/go-pkgx/packages ZPKG_VERIFY=1 zpkgm install lz4.org
+    ZPKG_DIST=oci://ghcr.io/go-pkgx/packages ZPKG_VERIFY=1 zpkm install lz4.org
 
 or pull a package directly:
 
@@ -433,7 +433,7 @@ system at all.** For each witness tool in that workflow's `TOOLS` array —
 eleven today (`lz4.org`, `openssl.org`,
 `tukaani.org/xz`, `facebook.com/zstd`, `sqlite.org`, `rsync.samba.org`,
 `perl.org`, `stedolan.github.io/jq`, `gnu.org/wget`, `curl.se`,
-`git-scm.org`) — `zpkgm image` emits a `FROM scratch` Containerfile whose `RUN`
+`git-scm.org`) — `zpkm image` emits a `FROM scratch` Containerfile whose `RUN`
 step uses pkgm *itself*, inside the image, to install the tool's whole runtime
 closure over HTTPS from this registry and wire the pkgx loader. The job then
 executes exactly that — the ENV and argv are read out of the Containerfile pkgm
@@ -740,8 +740,8 @@ Like `build.yml`, every one of these triggers on `workflow_dispatch` alone (no
 `go-projects-all.txt`, `rust-projects.txt`, `rust-projects-all.txt`); add rows to
 scale. Consume the Windows packages from either channel:
 
-    ZPKG_DIST=https://go-zpkg.github.io/packages zpkgx syft.exe --version
-    ZPKG_DIST=oci://ghcr.io/go-pkgx/packages     zpkgx syft.exe --version
+    ZPKG_DIST=https://go-zpkg.github.io/packages zpkx syft.exe --version
+    ZPKG_DIST=oci://ghcr.io/go-pkgx/packages     zpkx syft.exe --version
 
 ## wasip1/wasm
 

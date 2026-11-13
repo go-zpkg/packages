@@ -27,9 +27,9 @@
 #   resolv.conf  the resolver a runtime injects too.
 #
 # The environment is builder/Containerfile's ENV, and bk is invoked through
-# zpkgx with its ENTRYPOINT's argv, so a caller cannot drift from what the
+# zpkx with its ENTRYPOINT's argv, so a caller cannot drift from what the
 # image promises. ZPKG_DIR matters more than it looks, and its VALUE matters as
-# much as setting it at all: zpkgx reads the store from it and falls back to
+# much as setting it at all: zpkx reads the store from it and falls back to
 # $HOME/.zpkg when it is unset (go-zpkg/artifact zpkg.go:381-385), which
 # re-downloads a toolchain the staged tree already holds and bakes
 # PT_INTERP=/root/.zpkg/... into every artifact — an absolute path no consumer
@@ -70,7 +70,7 @@ if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 # it had to install:
 #
 #   pkgx: verify zlib.net v1.3.2 (linux/s390x): artifact: … is unsigned
-#   zpkb: the tool environment failed: /usr/local/bin/zpkgx +…
+#   zpkb: the tool environment failed: /usr/local/bin/zpkx +…
 #
 # Measured on the first full second-generation run (2026-10-04): 2 of 78
 # built. The two that passed, lz4.org and tukaani.org/xz, are the only ones
@@ -139,10 +139,10 @@ $SUDO $PRESERVE \
       mount --bind "$advisories" "$r/advisories"
       ad=(--advisories /advisories)
     fi
-    exec chroot "$r" /usr/local/bin/zpkgx \
+    exec chroot "$r" /usr/local/bin/zpkx \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
       -- /usr/local/bin/zpkb factory \
-           --pantry /pantry --overrides /overrides --libc zpkgx "${ov[@]}" "${ad[@]}" \
+           --pantry /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
            --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --artifacts /dist "$@"
   ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
 

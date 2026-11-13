@@ -74,10 +74,10 @@ jobs:
       #
       # which is that refusal doing its job: it caught the one caller the
       # split forgot to sweep.
-      - name: install zpkb and zpkgs
+      - name: install zpkb and zpks
         run: |
           go install github.com/go-zpkg/zpkb/cmd/zpkb@main
-          go install github.com/go-zpkg/zpkgx/cmd/zpkgs@main
+          go install github.com/go-zpkg/zpkx/cmd/zpks@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: clone pantry
@@ -86,7 +86,7 @@ jobs:
       # ⛔ PULL the published catalogue; do not rebuild one. `zpkb catalog
       # --platform --versions` would also produce one, at a tag listing plus a
       # platform check for each of ~1900 projects — per platform, daily. That
-      # is catalogue.yml's weekly job, not this one's. `zpkgs catalog update`
+      # is catalogue.yml's weekly job, not this one's. `zpks catalog update`
       # fetches the result as a single signed OCI pull, and ZPKG_VERIFY is on
       # by default, so a catalogue nobody signed stops the job here.
       #
@@ -121,7 +121,7 @@ jobs:
       #
       # ⛔ AND THE LIST IS NO LONGER WRITTEN DOWN, which was the actual
       # defect: adding the four by hand closed that day's gap and left the
-      # mechanism that caused it. `zpkgs catalog platforms` (go-zpkg/pkgx#119,
+      # mechanism that caused it. `zpks catalog platforms` (go-zpkg/pkgx#119,
       # shipped) asks the registry, which has always known — a platform that
       # is not published is refused with "platform not in index" — and
       # ./vulnsweep fetches and scans every platform it names. A seventh is

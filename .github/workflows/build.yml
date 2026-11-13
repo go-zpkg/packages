@@ -314,9 +314,9 @@ jobs:
           # CGO_ENABLED=0: this same binary is copied INTO the sovereign rootfs,
           # which has no system libc. Built against the runner's glibc it cannot
           # start there at all —
-          #   /usr/local/bin/zpkgx: error while loading shared libraries:
+          #   /usr/local/bin/zpkx: error while loading shared libraries:
           #     libc.so.6: cannot open shared object file
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkgx@main
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install bk
@@ -367,7 +367,7 @@ jobs:
       # to every later step. Expressing one decision as two conditions is how
       # they drift: the step-level `if` and the shell branch disagreed, staging
       # was skipped while the build still chrooted, and the job died with
-      #   chroot: failed to run command '/usr/local/bin/zpkgx': No such file
+      #   chroot: failed to run command '/usr/local/bin/zpkx': No such file
       # (GitHub compares operands of different types as NUMBERS, so an omitted
       # input — null — equals the string '0'. The default case was the broken
       # one.) Shell has no such rule.
@@ -479,7 +479,7 @@ jobs:
         env:
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
         run: |
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkgm@main
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           # A SELF-HOSTED runner reuses $RUNNER_TEMP between jobs, and
           # artifact.InstallFor treats the mere EXISTENCE of <project>/v<ver> as
           # "already present":
@@ -524,10 +524,10 @@ jobs:
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zpkb`/`zpkgx` since the rename: `pkgx` is upstream's binary and
+            # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
             --zpkb "$(command -v zpkb)" \
-            --zpkgx "$(command -v zpkgx)" \
+            --zpkx "$(command -v zpkx)" \
             --container
 
       # What the machine HAS, in a step of its own.

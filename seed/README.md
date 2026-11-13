@@ -99,7 +99,7 @@ actually looks like:
 | installing, three times over | `$RUNNER_TEMP` is reused on a self-hosted runner and `InstallFor` reads an existing directory as "already installed", so a half-written tree was inherited in silence |
 | the first `mkdir` | `coreutils` linked the builder's `libselinux`, which no artifact provides |
 | `make install` | `sed` did too |
-| the dependency eval | `libcxx.llvm.org` was never in the seed, and zpkb hands it to **every** `--libc zpkgx` build |
+| the dependency eval | `libcxx.llvm.org` was never in the seed, and zpkb hands it to **every** `--libc zpkx` build |
 
 Each was invisible until the previous was lifted. A one-package pilot costs a
 staging; the same sequence found seventy builds in would have cost a day.

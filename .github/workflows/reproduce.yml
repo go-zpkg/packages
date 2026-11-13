@@ -73,11 +73,11 @@ jobs:
         with: { go-version: '1.27.4' }
 
       # ⛔ ASSEMBLED FROM A VARIABLE, so a rename cannot see it: the modules
-      # are `zpkb/cmd/zpkb`, `zpkgx` and `zpkgm`, and the binaries are `zpkb`,
-      # `zpkgx` and `zpkgm`. See sovereign.yml, where exactly this was missed.
-      - name: build zpkb, zpkgx and zpkgm (static)
+      # are `zpkb/cmd/zpkb`, `zpkx` and `zpkm`, and the binaries are `zpkb`,
+      # `zpkx` and `zpkm`. See sovereign.yml, where exactly this was missed.
+      - name: build zpkb, zpkx and zpkm (static)
         run: |
-          for m in zpkb/cmd/zpkb zpkgx zpkgm; do
+          for m in zpkb/cmd/zpkb zpkx zpkm; do
             CGO_ENABLED=0 go install "github.com/go-zpkg/$m@main"
           done
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -112,7 +112,7 @@ jobs:
             --platform "$PLATFORM" \
             --toolchain builder/toolchain.txt \
             --zpkb "$(command -v zpkb)" \
-            --zpkgx "$(command -v zpkgx)" \
+            --zpkx "$(command -v zpkx)" \
             --container
           du -sh "$RUNNER_TEMP/rootfs"
 
