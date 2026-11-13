@@ -36,7 +36,7 @@ in sovereign mode. `lz4.org` (linux/aarch64) is the reference case: the build
 completes inside the image and the bottle it produces carries
 
 ```
-PT_INTERP  /pkgx/gnu.org/glibc/v2.44.0/lib/glibc-2.44/ld-linux-aarch64.so.1
+PT_INTERP  /zpkg/gnu.org/glibc/v2.44.0/lib/glibc-2.44/ld-linux-aarch64.so.1
 NEEDED     libc.so.6            RPATH  $ORIGIN/../lib
 references to /usr/lib, /lib/aarch64-linux-gnu, debian:  0
 ```

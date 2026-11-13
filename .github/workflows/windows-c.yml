@@ -117,7 +117,7 @@ jobs:
         if: always()
         run: |
           builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/windows/recipes" "$PWD/advisories" \
-            /bin/sh -c 'command -v sh make install x86_64-w64-mingw32-clang x86_64-w64-mingw32-gcc; echo "--- llvm-mingw bin:"; ls /pkgx/llvm.org/mingw-w64/v*/bin; echo "PATH=$PATH"'
+            /bin/sh -c 'command -v sh make install x86_64-w64-mingw32-clang x86_64-w64-mingw32-gcc; echo "--- llvm-mingw bin:"; ls /zpkg/llvm.org/mingw-w64/v*/bin; echo "PATH=$PATH"'
       # ⛔ IS IT ACTUALLY A WINDOWS BINARY? A cross build that silently fell
       # back to the host compiler produces a working ELF and a green job, and
       # the first person to find out is whoever runs it on Windows.

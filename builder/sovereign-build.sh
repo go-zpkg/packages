@@ -26,11 +26,16 @@
 #              directory" AFTER the registry has already answered.
 #   resolv.conf  the resolver a runtime injects too.
 #
-# The environment is builder/Containerfile's ENV, and bk is invoked through pkgx
-# with its ENTRYPOINT's argv, so a caller cannot drift from what the image
-# promises. ZPKG_DIR matters more than it looks: without it pkgx falls back to
-# $HOME/.pkgx, re-downloads a toolchain the staged tree already holds, and bakes
-# PT_INTERP=/root/.pkgx/... into every bottle — an absolute path no consumer has.
+# The environment is builder/Containerfile's ENV, and bk is invoked through
+# zpkgx with its ENTRYPOINT's argv, so a caller cannot drift from what the
+# image promises. ZPKG_DIR matters more than it looks, and its VALUE matters as
+# much as setting it at all: zpkgx reads the store from it and falls back to
+# $HOME/.zpkg when it is unset (go-zpkg/bottle zpkg.go:381-385), which
+# re-downloads a toolchain the staged tree already holds and bakes
+# PT_INTERP=/root/.zpkg/... into every bottle — an absolute path no consumer
+# has. Pointing it at a directory where the builder did NOT stage reaches that
+# same end by another road, which is why this file and zpkb's
+# cmd/zpkb/builder.go:264 have to agree that the guest store is /zpkg.
 set -euo pipefail
 
 root="${1:?rootfs}"; pantry="${2:?pantry}"; overrides="${3:?overrides}"; shift 3

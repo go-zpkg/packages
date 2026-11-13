@@ -127,7 +127,7 @@ jobs:
       # survive for the comparison and for the artifact.
       - name: build it, twice
         env:
-          ZPKG_DIR: /pkgx
+          ZPKG_DIR: /zpkg
           HOME: /root
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
           QEMU_RESERVED_VA: ${{ github.event.inputs.arch == 'aarch64' && '0x400000000' || '' }}

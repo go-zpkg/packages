@@ -314,7 +314,7 @@ jobs:
           # CGO_ENABLED=0: this same binary is copied INTO the sovereign rootfs,
           # which has no system libc. Built against the runner's glibc it cannot
           # start there at all —
-          #   /usr/local/bin/pkgx: error while loading shared libraries:
+          #   /usr/local/bin/zpkgx: error while loading shared libraries:
           #     libc.so.6: cannot open shared object file
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkgx@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -367,7 +367,7 @@ jobs:
       # to every later step. Expressing one decision as two conditions is how
       # they drift: the step-level `if` and the shell branch disagreed, staging
       # was skipped while the build still chrooted, and the job died with
-      #   chroot: failed to run command '/usr/local/bin/pkgx': No such file
+      #   chroot: failed to run command '/usr/local/bin/zpkgx': No such file
       # (GitHub compares operands of different types as NUMBERS, so an omitted
       # input — null — equals the string '0'. The default case was the broken
       # one.) Shell has no such rule.
@@ -499,8 +499,8 @@ jobs:
           #
           # SUDO, because the tree is not ours to delete: the build runs under
           # `sudo unshare … chroot`, so everything it installed into the
-          # rootfs's /pkgx belongs to root. A plain rm reported
-          #   rm: cannot remove '…/rootfs/pkgx/lz4.org/v1.10.0/lib/liblz4.so':
+          # rootfs's /zpkg belongs to root. A plain rm reported
+          #   rm: cannot remove '…/rootfs/zpkg/lz4.org/v1.10.0/lib/liblz4.so':
           #   Permission denied
           # and `bash -e` ended the step before `zpkb builder` ran at all —
           # trading a silent stale tree for a loud refusal, which is better
@@ -750,17 +750,17 @@ jobs:
           # an ABSOLUTE PT_INTERP pointing into $ZPKG_DIR. Under the default
           # ($HOME/.pkgx) that is the RUNNER's home — a path no consumer has, so
           # the bottle could only start through an explicit loader invocation.
-          # Build such bottles under the canonical /pkgx prefix instead: the same
+          # Build such bottles under the canonical /zpkg prefix instead: the same
           # one `pkgm image` bakes into a from-scratch image, so the interpreter
           # resolves where the package is actually installed.
           # (an `if`, not `[ … ] &&`. Not because of `set -e`, which leaves an
           # AND-list alone, but because a bare `[ false ] && x` as the LAST
           # command executed sets the script's exit status to 1 and fails the
           # step. An `if` is harmless wherever it is moved to.)
-          if [ -n "$GLIBC" ]; then export ZPKG_DIR=/pkgx; fi
+          if [ -n "$GLIBC" ]; then export ZPKG_DIR=/zpkg; fi
           # Sovereign by default. The two arches are proven — lz4.org built in
           # the staged rootfs on x86-64 and on the EMULATED aarch64 pool, the
-          # bottles carrying PT_INTERP into /pkgx and no distribution strings at
+          # bottles carrying PT_INTERP into /zpkg and no distribution strings at
           # all — and the pull-through cache makes staging affordable. `0` is the
           # way back to the runner's distribution.
           #
@@ -770,7 +770,7 @@ jobs:
             # its absence was measured, and two divergent copies of that is how
             # one of them silently stops being sovereign.
             # A chunk is best-effort by design, so it must NOT fail on "0 built".
-            export ZPKG_DIR=/pkgx HOME=/root
+            export ZPKG_DIR=/zpkg HOME=/root
             # A chunk is best-effort: the tally and the failure artifacts are
             # the result, and a recipe that genuinely does not build must not
             # paint the whole lot red. The proof job keeps the strict posture.

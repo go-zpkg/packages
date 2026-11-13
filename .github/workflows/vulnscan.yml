@@ -152,12 +152,12 @@ jobs:
       # pull request, by a person.
       - name: every published platform
         env:
-          ZPKG_DIR: ${{ runner.temp }}/pkgx
+          ZPKG_DIR: ${{ runner.temp }}/zpkg
         run: |
           go run ./vulnsweep \
             -pantry "$RUNNER_TEMP/pantry" \
             -advisories advisories \
-            -store "$RUNNER_TEMP/pkgx"
+            -store "$RUNNER_TEMP/zpkg"
 
       # ci.yml already lists the tree on every pull request. It is listed again
       # here, and `if: always()`, so that this job's log answers "what do we

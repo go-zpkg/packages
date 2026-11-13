@@ -163,7 +163,7 @@ jobs:
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,
       # in the same chroot, through the same pkgx environment the build had.
-      # Anything under /pkgx came from a bottle in the rootfs; /bin and /usr are
+      # Anything under /zpkg came from a bottle in the rootfs; /bin and /usr are
       # the rootfs's own (staged from the same toolchain list), never the runner's.
       # A name that prints nothing is a tool that is NOT there.
       - name: what ran, from where
@@ -177,7 +177,7 @@ jobs:
           printf '{ "a" : [1, 2 ] }\n' > j.json
           printf '<a x="1"><b>hi</b></a>\n' > x.xml
           printf 'var o={a:[1,2,3]}; print(JSON.stringify(o), o.a.map(function(x){return x*2}).join(","));\ntry { null.x } catch (e) { print("caught", e.name) }\nprint(/a(b+)c/.exec("xabbbc")[1]);\n' > m.js
-          mod="$RUNNER_TEMP/rootfs/pkgx/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
+          mod="$RUNNER_TEMP/rootfs/zpkg/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
           ls -l "$mod"
           wasmtime run --dir=/ --env PWD="$PWD" "$mod" ${{ matrix.smoke }} < ${{ matrix.stdin }} > /dev/null
 
@@ -194,7 +194,7 @@ jobs:
       # when nobody is watching.
       - name: the module's digest, for comparison with the other host
         run: |
-          mod="$RUNNER_TEMP/rootfs/pkgx/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
+          mod="$RUNNER_TEMP/rootfs/zpkg/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
           echo "digest ${{ matrix.slug }} ${{ matrix.version }} built on ${{ matrix.platform }}:"
           sha256sum "$mod"
 

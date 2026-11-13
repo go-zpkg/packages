@@ -9,7 +9,7 @@ edits = [
   {
     # clang's own header says what is missing:
     #
-    #   /pkgx/llvm.org/v23.1.2/lib/clang/23/include/vecintrin.h:12864:2:
+    #   /zpkg/llvm.org/v23.1.2/lib/clang/23/include/vecintrin.h:12864:2:
     #   error: "Use -fzvector to enable vector extensions"
     #   contrib/crc32vx/crc32_vx.c:79:17: error: call to undeclared function
     #   'vec_insert'

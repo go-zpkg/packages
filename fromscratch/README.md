@@ -24,10 +24,10 @@ git clone --depth 1 https://github.com/pkgxdev/pantry
 # the entrypoint is replaced by the root project's resolved version dir. Args
 # after `--` are passed to the container (its real exit code is bk's).
 zpkb fromscratch -arch amd64 -tag myimg:lz4 \
-    -entrypoint '/pkgx/lz4.org/{V}/bin/lz4' -run lz4.org -- --version
+    -entrypoint '/zpkg/lz4.org/{V}/bin/lz4' -run lz4.org -- --version
 
 zpkb fromscratch -arch arm64 -tag myimg:perl \
-    -entrypoint '/pkgx/perl.org/{V}/bin/perl' -run perl.org -- --version
+    -entrypoint '/zpkg/perl.org/{V}/bin/perl' -run perl.org -- --version
 
 # Just print the resolved proj:ver closure (diagnostic, no image):
 zpkb fromscratch -arch arm64 -resolve-only sqlite.org
@@ -58,7 +58,7 @@ things that a scratch image can't satisfy on its own:
    **published on ghcr with a `linux/<arch>` manifest** (the OCI index filter
    matches **both** `os == linux` **and** the arch — an arch-only filter also
    matches `darwin/<arch>` Mach-O manifests), pull the layer and lay it out at
-   `/pkgx/<proj>/v<ver>`. If any closure member is not published for the arch it
+   `/zpkg/<proj>/v<ver>`. If any closure member is not published for the arch it
    aborts (**exit 3**) instead of building a broken image.
 3. **readelf-driven completion**: scan every laid-out ELF's `DT_NEEDED`
    sonames (pure Go, `debug/elf`) and pull the bottle that provides each

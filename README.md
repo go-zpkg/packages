@@ -826,8 +826,8 @@ spelling; the pkgx slug is `wasip1/wasm`.
     wasm-ld are bottles in that tree; the runner supplies three static Go binaries,
     the namespace and wasmtime (the runtime under test). A "what ran, from where"
     step prints `command -v` of each tool from inside the chroot: `/bin/sh`
-    (the tree's), `/pkgx/gnu.org/make/…`, `/pkgx/gnu.org/coreutils/…/{install,cp}`,
-    `/pkgx/llvm.org/…/{clang,clang++,wasm-ld,llvm-ar,llvm-ranlib}`; `gcc` is absent.
+    (the tree's), `/zpkg/gnu.org/make/…`, `/zpkg/gnu.org/coreutils/…/{install,cp}`,
+    `/zpkg/llvm.org/…/{clang,clang++,wasm-ld,llvm-ar,llvm-ranlib}`; `gcc` is absent.
   - **C++.** `libcxx.llvm.org/wasi` (libc++ + libc++abi for wasm32-wasip1, from
     wasi-sdk's `define_libcxx_sub`; no exceptions, `-fno-exceptions` in the
     `$ZPKB_CXX` stencil). Pilot: `github.com/simdjson/simdjson` 5.0.5 (the library
