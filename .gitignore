@@ -11,10 +11,21 @@ tests.txt
 #
 #   for r in zpkb zpkgm zpkgx; do go build -o builder/$r github.com/go-zpkg/$r/...
 #
-# They were COMMITTED instead — 30 MB of stripped, aarch64-only executables in
+# They were COMMITTED instead — 29 MB of stripped, aarch64-only executables in
 # a repository whose own pre-push gate now refuses that class (#442). Named one
 # per line rather than as a glob: a pattern that happens to match a source file
 # later is how a rename leaves a binary behind in the first place.
+#
+# ⛔⛔ AND THE RETIRED NAMES ARE LISTED TOO, BECAUSE THEY ARE THE ONES THAT WERE
+# ACTUALLY THERE. This list arrived in #449 carrying only the CURRENT spellings
+# — zbk, zpkgm, zpkgx — while the committed files were `bk`, `pkgm` and `pkgx`
+# from before the rename. So it ignored three files that did not exist and left
+# the three that did, untracked by nobody and committed by everybody; #449's
+# own body said they were "gone from HEAD" and they were not. An ignore rule
+# written from the name a thing SHOULD have cannot see the name it HAS.
+/builder/bk
+/builder/pkgm
+/builder/pkgx
 /builder/zbk
 /builder/zpkb
 /builder/zpkgm

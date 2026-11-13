@@ -129,7 +129,7 @@ jobs:
       # is on by default, so an unsigned catalogue stops the job here.
       - name: the published catalogue for ${{ inputs.platform || 'linux/x86-64' }}
         env:
-          ZPKG_DIR: ${{ runner.temp }}/pkgx
+          ZPKG_DIR: ${{ runner.temp }}/zpkg
           PLATFORM: ${{ inputs.platform || 'linux/x86-64' }}
         run: |
           zpkgs catalog update --platform "$PLATFORM"
@@ -174,10 +174,10 @@ jobs:
       # in the fleet the one whose gate could never be wired.
       - name: chunk ${{ matrix.chunk }} of ${{ inputs.chunks || '14' }} on ${{ inputs.platform || 'linux/x86-64' }}
         env:
-          ZPKG_DIR: ${{ runner.temp }}/pkgx
+          ZPKG_DIR: ${{ runner.temp }}/zpkg
         run: |
           go run ./sonamesweep \
-            -catalog "$RUNNER_TEMP/pkgx/catalog/$SLUG.json" \
+            -catalog "$RUNNER_TEMP/zpkg/catalog/$SLUG.json" \
             -chunk ${{ matrix.chunk }} \
             -chunks "${{ inputs.chunks || '14' }}" \
             -baseline "sonames/baseline-$SLUG.txt" \

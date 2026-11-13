@@ -151,7 +151,7 @@ jobs:
           # (a) re-downloads the toolchain the staged tree already holds and
           # (b) bakes PT_INTERP=/root/.pkgx/... into the bottle — an absolute
           # path no consumer has. Measured on the first bottle this job built.
-          ZPKG_DIR: /pkgx
+          ZPKG_DIR: /zpkg
           HOME: /root
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
           # Our aarch64 pool is emulated by construction — the host is amd64 —

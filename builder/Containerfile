@@ -29,7 +29,7 @@
 #     factory --platform linux/aarch64 --pantry /pantry --recipes lz4.org \
 #             --libc zpkgx --bottles /out/dist --to oci://…
 FROM scratch
-ENV ZPKG_DIR=/pkgx
+ENV ZPKG_DIR=/zpkg
 ENV HOME=/root
 # ZPKG_DIST can point at a local pull-through cache so a rebuild does not fetch
 # gigabytes from ghcr again (see README): build with
