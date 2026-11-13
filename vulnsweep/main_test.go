@@ -24,7 +24,7 @@ func (c *calls) install(t *testing.T) {
 	runCmd = func(name string, args ...string) (string, error) {
 		key := name + " " + strings.Join(args, " ")
 		c.seen = append(c.seen, key)
-		if name == "zpkgs" && len(args) == 2 && args[1] == "platforms" {
+		if name == "zpks" && len(args) == 2 && args[1] == "platforms" {
 			return c.list, c.err
 		}
 		if err, bad := c.fail[key]; bad {
@@ -129,7 +129,7 @@ func TestItRefusesToSweepNothing(t *testing.T) {
 // pass as one that was.
 func TestAPlatformWhoseCatalogueWillNotFetchFails(t *testing.T) {
 	c := &calls{list: "linux/x86-64\n", out: map[string]string{}, fail: map[string]error{}}
-	key := "zpkgs catalog update --platform linux/x86-64"
+	key := "zpks catalog update --platform linux/x86-64"
 	c.fail[key] = errors.New("exit 1")
 	c.out[key] = "platform not in index"
 	c.install(t)

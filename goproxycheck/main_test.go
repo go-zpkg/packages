@@ -217,7 +217,7 @@ runs:
   using: composite
   steps:
     - shell: bash
-      run: GOPROXY=direct go install github.com/go-zpkg/zpkgm@main
+      run: GOPROXY=direct go install github.com/go-zpkg/zpkm@main
 `
 	bad := complaints(t, src)
 	if len(bad) == 0 {

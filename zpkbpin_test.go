@@ -30,7 +30,7 @@ import (
 //   - or a signature referrer with no signer key id (v0.64.0), which a
 //     verifier holding several trusted keys has to brute-force.
 //
-// `zpkgs builds` can only report such an artifact as `nothing recorded`. That is
+// `zpks builds` can only report such an artifact as `nothing recorded`. That is
 // indistinguishable, to a reader, from an artifact we never built — which is the
 // whole failure this gate exists to stop.
 //

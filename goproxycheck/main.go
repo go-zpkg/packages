@@ -13,7 +13,7 @@
 //	fatal: unable to access 'https://gopkg.in/yaml.v3/':
 //	  The requested URL returned error: 502
 //
-// The step was `GOPROXY=direct go install github.com/go-zpkg/zpkgx@main`, and
+// The step was `GOPROXY=direct go install github.com/go-zpkg/zpkx@main`, and
 // fourteen sites across eight workflows said exactly that. `direct` was
 // deliberate and the reason was written beside it — "pull current main from
 // GitHub, not a stale proxy cache" — because a lane that builds the fleet's
@@ -48,7 +48,7 @@
 // address so only the direct path can answer:
 //
 //	GOPROXY=http://127.0.0.1:1 GONOPROXY=github.com/go-zpkg/*
-//	  go list -m github.com/go-zpkg/zpkgx@main  -> exit 0, v0.16.1
+//	  go list -m github.com/go-zpkg/zpkx@main  -> exit 0, v0.16.1
 //	  go list -m gopkg.in/yaml.v3@v3.0.1       -> exit 1, connection refused
 //
 // The first says our modules really do bypass the proxy; the second says the

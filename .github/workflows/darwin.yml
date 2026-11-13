@@ -193,7 +193,7 @@ jobs:
       # reported as successful.
       - name: install pkgx (bk sources its toolchain via `pkgx +deps`)
         run: |
-          go install github.com/go-zpkg/zpkgx@main
+          go install github.com/go-zpkg/zpkx@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install bk

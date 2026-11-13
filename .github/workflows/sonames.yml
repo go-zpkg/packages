@@ -117,10 +117,10 @@ jobs:
       # @main, and GONOPROXY (workflow env:) keeps that honest against a
       # stale proxy cache: the question "can this load" should be answered
       # by the code that answers it best today.
-      - name: install zpkb and zpkgs
+      - name: install zpkb and zpks
         run: |
           go install github.com/go-zpkg/zpkb/cmd/zpkb@main
-          go install github.com/go-zpkg/zpkgx/cmd/zpkgs@main
+          go install github.com/go-zpkg/zpkx/cmd/zpks@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # PULL the published catalogue rather than build one: this audits what
@@ -132,7 +132,7 @@ jobs:
           ZPKG_DIR: ${{ runner.temp }}/zpkg
           PLATFORM: ${{ inputs.platform || 'linux/x86-64' }}
         run: |
-          zpkgs catalog update --platform "$PLATFORM"
+          zpks catalog update --platform "$PLATFORM"
           # os/arch -> os-arch is the name `pkgs catalog update` writes, and
           # the baseline is PER PLATFORM: a reference known on linux must not
           # mask a new one on darwin.
