@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -168,7 +168,7 @@ func sameAfterMerge(full, reduced []byte, name string, up map[string]any) (bool,
 	return reflect.DeepEqual(mergeOver(up, a), mergeOver(up, b)), nil
 }
 
-// mergeOver is bottle's rule, restated here because this tool must judge by
+// mergeOver is artifact's rule, restated here because this tool must judge by
 // what the CLIENT will do: a key the overlay states replaces that key, a key
 // it omits is inherited, and a list replaces rather than merges.
 func mergeOver(base, over map[string]any) map[string]any {
@@ -194,7 +194,7 @@ func hclDoc(src []byte, name string) (map[string]any, error) {
 	y := src
 	if strings.HasSuffix(name, ".hcl") {
 		var err error
-		if y, err = bottle.HCLToYAML(src, name); err != nil {
+		if y, err = artifact.HCLToYAML(src, name); err != nil {
 			return nil, err
 		}
 	}

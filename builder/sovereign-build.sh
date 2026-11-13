@@ -5,7 +5,7 @@
 # Usage:  builder/sovereign-build.sh <rootfs> <pantry> <overrides> [bk args...]
 #
 # $SOVEREIGN_ADVISORIES, when set, is the advisory tree bound in at /advisories
-# and passed as --advisories, so each published bottle carries the OpenVEX
+# and passed as --advisories, so each published artifact carries the OpenVEX
 # document that says what is known about it.
 #
 # $SOVEREIGN_OVERLAY, when set, is a pantry-overlay checkout bound in as
@@ -30,9 +30,9 @@
 # zpkgx with its ENTRYPOINT's argv, so a caller cannot drift from what the
 # image promises. ZPKG_DIR matters more than it looks, and its VALUE matters as
 # much as setting it at all: zpkgx reads the store from it and falls back to
-# $HOME/.zpkg when it is unset (go-zpkg/bottle zpkg.go:381-385), which
+# $HOME/.zpkg when it is unset (go-zpkg/artifact zpkg.go:381-385), which
 # re-downloads a toolchain the staged tree already holds and bakes
-# PT_INTERP=/root/.zpkg/... into every bottle — an absolute path no consumer
+# PT_INTERP=/root/.zpkg/... into every artifact — an absolute path no consumer
 # has. Pointing it at a directory where the builder did NOT stage reaches that
 # same end by another road, which is why this file and zpkb's
 # cmd/zpkb/builder.go:264 have to agree that the guest store is /zpkg.
@@ -40,7 +40,7 @@ set -euo pipefail
 
 root="${1:?rootfs}"; pantry="${2:?pantry}"; overrides="${3:?overrides}"; shift 3
 overlay="${SOVEREIGN_OVERLAY:-}"
-# $SOVEREIGN_ADVISORIES is the advisory tree whose records become each bottle's
+# $SOVEREIGN_ADVISORIES is the advisory tree whose records become each artifact's
 # OpenVEX referrer. Bound in like the overlay, and for the reason the LOCK
 # paragraph below gives in full: a path from the workspace means nothing inside
 # the rootfs. Passing `--advisories advisories` without the mount would make bk
@@ -59,7 +59,7 @@ if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 
 # ZPKG_VERIFY travels with ZPKG_DIST, and the two are one decision.
 #
-# A seed registry is a throwaway on loopback and its bottles are unsigned, so
+# A seed registry is a throwaway on loopback and its artifacts are unsigned, so
 # build.yml turns verification off for it. That is set in the JOB's
 # environment — and the build happens on the far side of a `sudo … chroot`,
 # which carries only what this list names. ZPKG_DIST was here; ZPKG_VERIFY
@@ -69,7 +69,7 @@ if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 # while every build INSIDE it verified again and died on the first dependency
 # it had to install:
 #
-#   pkgx: verify zlib.net v1.3.2 (linux/s390x): bottle: … is unsigned
+#   pkgx: verify zlib.net v1.3.2 (linux/s390x): artifact: … is unsigned
 #   zpkb: the tool environment failed: /usr/local/bin/zpkgx +…
 #
 # Measured on the first full second-generation run (2026-10-04): 2 of 78
@@ -143,7 +143,7 @@ $SUDO $PRESERVE \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
       -- /usr/local/bin/zpkb factory \
            --pantry /pantry --overrides /overrides --libc zpkgx "${ov[@]}" "${ad[@]}" \
-           --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --bottles /dist "$@"
+           --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --artifacts /dist "$@"
   ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
 
 # `bk factory` is best-effort: it exits 0 with a per-recipe tally. That is right

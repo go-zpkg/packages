@@ -1,5 +1,5 @@
 project = "gnu.org/gettext"
-why     = "gettext's configure auto-detects the builder's SELinux and its OpenMP, and links both into libgettextlib and the msg* tools — two libraries no bottle in this factory provides, so they cannot start in a FROM-scratch tree."
+why     = "gettext's configure auto-detects the builder's SELinux and its OpenMP, and links both into libgettextlib and the msg* tools — two libraries no artifact in this factory provides, so they cannot start in a FROM-scratch tree."
 
 edits = [
   {

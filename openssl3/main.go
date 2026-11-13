@@ -2,7 +2,7 @@
 // `openssl.org: ^1.1` recipe pin at the openssl our registry actually carries.
 //
 // The problem is not one recipe. 117 pantry recipes pin openssl to a 1.x line;
-// the registry holds 48 openssl bottles and every one of them is 3.x or 4.x, so
+// the registry holds 48 openssl artifacts and every one of them is 3.x or 4.x, so
 // each of those recipes dies before a single compiler runs:
 //
 //	resolve deps: no version of openssl.org satisfies "^1.1" (available: 48)
@@ -49,7 +49,7 @@ import (
 // the indentation, the opening quote (if any) and any trailing comment, so the
 // rewrite can put the line back exactly as it was but for the constraint.
 // Every way of naming the 1.x line is equally stale, and the pantry uses six of
-// them. Measured against the published registry with bottle's own semver
+// them. Measured against the published registry with artifact's own semver
 // (ParseVer(v).Satisfies(c)), rather than assumed:
 //
 //	^1.1 ^1 ^1.1.1 ^1.0.1 ^1.1.1k   caret, the common forms

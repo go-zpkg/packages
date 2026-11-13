@@ -1,16 +1,16 @@
 # wasip1/wasm package factory (Go) — cross-builds pure-Go pantry projects to a
 # WASI preview-1 module and publishes them to the signed OCI registry
 # ghcr.io/go-zpkg/packages with OCI platform os=wasip1, architecture=wasm (the
-# Docker+Wasm / CNCF wasm-oci-artifact spelling; bottle/oci.go passes the arch
+# Docker+Wasm / CNCF wasm-oci-artifact spelling; artifact/oci.go passes the arch
 # `wasm` through unchanged). Consumer: an in-browser container engine.
 #
 # Same recipe as windows.yml — GOOS cross build, tar, `zpkb publish` — except:
 #   - GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0: Go-only, no C toolchain (wasi-sdk /
 #     wasi-libc projects are NOT part of this target).
 #   - the module is staged as bin/<name>.wasm. A recipe's `provides: bin/<name>`
-#     stays extension-free and bottle.ResolveBinPath finds the .wasm on a wasm
+#     stays extension-free and artifact.ResolveBinPath finds the .wasm on a wasm
 #     host, exactly as it finds foo.exe on windows.
-#   - every bottle is RUN under wasmtime before it is published: a module that
+#   - every artifact is RUN under wasmtime before it is published: a module that
 #     builds but does not start is not a package.
 #   - the pilot list is explicit (slug, tag, main package), not derived. `go build
 #     -o f .` on a LIBRARY writes an archive and exits 0, and the shell fallback
@@ -31,12 +31,12 @@ env:
   # the path a module DECLARES, so every earlier tag — v0.35.0 among them — is
   # unfetchable under the new name. That is the FLOOR.
   #
-  # ⛔⛔ AND IT IS NOW v0.64.0, BECAUSE A BOTTLE BUILT BY ANYTHING OLDER HAS NO
+  # ⛔⛔ AND IT IS NOW v0.64.0, BECAUSE A ARTIFACT BUILT BY ANYTHING OLDER HAS NO
   # IDENTITY. Builds gained a hash in v0.62.0 (v0.61.0 shipped a second,
   # unverifiable definition of it), the hash became a real Merkle hash in
   # v0.63.0, and v0.64.0 puts the signer's key id on the signature referrer so
   # a verifier with several trusted keys can tell which made which signature.
-  # Pinned at v0.59.0, THIS LANE WOULD KEEP PUBLISHING BOTTLES THAT `zpkgs
+  # Pinned at v0.59.0, THIS LANE WOULD KEEP PUBLISHING ARTIFACTS THAT `zpkgs
   # builds` can only describe as "nothing recorded" — which is exactly the
   # shape of "a fix in the factory is not a fix in the registry".
   #
@@ -137,7 +137,7 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
         run: |
           slug="${{ matrix.slug }}"; ver="${{ matrix.version }}"
           stage="stage/$slug/v$ver/bin"; mkdir -p "$stage"
@@ -149,10 +149,10 @@ jobs:
             umask 077; KEYFILE="$(mktemp)"; printf '%s' "$SIGNING_KEY" > "$KEYFILE"
             SIGN_ARGS=(--sign "$KEYFILE"); echo "signing: enabled"
           else
-            # ⛔ NO FALLBACK. zpkb publish refuses an unsigned bottle, so this
+            # ⛔ NO FALLBACK. zpkb publish refuses an unsigned artifact, so this
             # branch now FAILS THE JOB instead of shipping thirty artefacts a
             # fail-closed client cannot install. Red here is the correct
-            # state until BOTTLE_SIGNING_KEY exists in this organisation —
+            # state until ARTIFACT_SIGNING_KEY exists in this organisation —
             # the secret did not follow the repository transfer.
             echo "signing: disabled (no SIGNING_KEY) — refusing to publish unsigned"
           fi
@@ -160,7 +160,7 @@ jobs:
           # DERIVE ONE FROM. `go build` is not a pantry recipe: there is no
           # resolved closure and no script, so bk cannot compute a Concrete
           # and the tag would be the bare version — which two different
-          # builds can both claim. Every bottle this lane published before
+          # builds can both claim. Every artifact this lane published before
           # 2026-11-06 reads `nothing recorded` for exactly that reason.
           #
           # What actually decides these bytes is written down and digested by
@@ -201,7 +201,7 @@ jobs:
           # COPYING. Nothing in go-pkgx carries a build identity — it predates
           # them — and copying identity-less artefacts into the new home would
           # move the problem rather than leave it behind. Clients still read
-          # go-pkgx (bottle.DistBase) until the new one carries enough to be
+          # go-pkgx (artifact.DistBase) until the new one carries enough to be
           # worth pointing them at; that switch is a separate, deliberate step
           # and has a gate on it.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \

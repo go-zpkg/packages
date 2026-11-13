@@ -10,7 +10,7 @@
 # pantry and asks the registry which versions it carries, so seven platforms'
 # catalogues cost seven short jobs rather than a night of compiling. The
 # factories keep their own catalogue step, because a run that publishes new
-# bottles should say so immediately; this is what happens when none runs.
+# artifacts should say so immediately; this is what happens when none runs.
 #
 # ONE RUNNER FOR EVERY PLATFORM. `zpkb catalog --platform` takes the os/arch
 # explicitly and asks the registry about it; nothing here is compiled or
@@ -51,16 +51,16 @@ jobs:
           - darwin/aarch64
           - darwin/x86-64
           - windows/x86-64
-          # ⛔ THE WASM LANE PUBLISHED BOTTLES NOBODY COULD FIND. wasip1.yml and
+          # ⛔ THE WASM LANE PUBLISHED ARTIFACTS NOBODY COULD FIND. wasip1.yml and
           # wasip1-c.yml have been publishing seven projects under OCI platform
           # os=wasip1, architecture=wasm -- age, go-md2man, shfmt, zlib, lua,
           # sqlite3, simdjson -- and neither lane has ever published a
           # catalogue, so the only platform of the seven that a client could
-          # not ASK about was the one whose bottles are hardest to find by
+          # not ASK about was the one whose artifacts are hardest to find by
           # other means:
           #
           #   $ pkgs catalog update --platform wasip1/wasm
-          #   no bottle for go-zpkg.github.io/catalog v1 (wasip1/wasm): platform not in index
+          #   no artifact for go-zpkg.github.io/catalog v1 (wasip1/wasm): platform not in index
           #
           # pkgx itself has supported the platform throughout -- platformKeys,
           # the host slug, `bin/<name>.wasm` resolution and the OCI spelling
@@ -95,7 +95,7 @@ jobs:
       # a factory that is not this one.
       #
       # --versions, which is a tag listing per project plus a platform check
-      # each. That is the price of saying "this exists and has no bottle for
+      # each. That is the price of saying "this exists and has no artifact for
       # you" instead of naming it bare, and it is paid here — once a week,
       # in CI — rather than on the machine of everyone who presses <TAB>.
       #
@@ -112,7 +112,7 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
         run: |
           set -eu
           zpkb catalog \

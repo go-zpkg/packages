@@ -1,4 +1,4 @@
-// Command sonamesweep asks whether the bottles we publish can actually load.
+// Command sonamesweep asks whether the artifacts we publish can actually load.
 //
 // # THE TOOL EXISTED AND NOTHING RAN IT
 //
@@ -16,12 +16,12 @@
 // and this registry publishes no openssl 1.x at all — every one of the 48 is
 // 3.x or 4.x. So python's `ssl` and `hashlib` could not load on that
 // platform, and every build that fetches over HTTPS died there. The same
-// bottle for linux/aarch64 needs `libssl.so.3`: one project, one version,
+// artifact for linux/aarch64 needs `libssl.so.3`: one project, one version,
 // two platforms, one of them wrong. It surfaced because a user's
 // `pkgx openstack` failed, which is the longest possible way to learn it.
 //
 // `overrides/python.org.hcl` had already retargeted the recipe's `^1.1` pin
-// to `^3`. An override moves a RECIPE; a DT_NEEDED compiled into a bottle
+// to `^3`. An override moves a RECIPE; a DT_NEEDED compiled into an artifact
 // published earlier does not move with it. Nothing compares the two, which
 // is what this is for.
 //
@@ -30,7 +30,7 @@
 // ⛔ A SWEEP OVER EVERYTHING IS NOT AFFORDABLE, SO IT DOES NOT CLAIM ONE.
 // `bk unresolved` installs each project's whole closure into its own store —
 // deliberately, because a shared one rescues a missing reference by accident
-// — and there are ~1400 bottled projects per platform. So this takes a
+// — and there are ~1400 packaged projects per platform. So this takes a
 // CHUNK, names it, and prints the bounds with the verdict. "clean" here
 // means "clean for chunk 3 of 14 on linux/x86-64", which is a sentence that
 // cannot be mistaken for a clean bill of health.
@@ -38,7 +38,7 @@
 // # IT REFUSES TO AUDIT A PLATFORM IT IS NOT ON
 //
 // ⛔ `bk unresolved` resolves and installs for the HOST. Handed another
-// platform's catalogue it would install the host's bottles and report on
+// platform's catalogue it would install the host's artifacts and report on
 // those, under the other platform's name — a judge and a subject counting
 // differently, which is how a measurement comes back confident and wrong.
 // The catalogue names its platform; if that is not this machine's, this
@@ -61,7 +61,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 var osExit = os.Exit
@@ -131,7 +131,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 	// nothing making them. Dispatched with chunks=2, twelve of the fourteen
 	// jobs refused as out of range — measured 2026-10-25, on myself, within
 	// a minute of shipping the input. And the opposite is worse for a small
-	// platform: 14 chunks over linux/s390x's ~29 bottled projects leaves
+	// platform: 14 chunks over linux/s390x's ~29 packaged projects leaves
 	// chunks empty, which is also an error, so the fixed matrix made the
 	// narrow run the tool explicitly supports impossible to request.
 	//
@@ -167,7 +167,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "sonamesweep:", err)
 		return 2
 	}
-	c, err := bottle.UnmarshalCatalog(b)
+	c, err := artifact.UnmarshalCatalog(b)
 	if err != nil {
 		fmt.Fprintf(stderr, "sonamesweep: %s: %v\n", *catalog, err)
 		return 2
@@ -182,20 +182,20 @@ func run(argv []string, stdout, stderr io.Writer) int {
 	// Until bk v0.34.0 this had to check that the catalogue matched the
 	// host and exit 2 otherwise, because `bk unresolved` installed for the
 	// host: handed another platform's catalogue it would have reported
-	// THIS machine's bottles under that platform's name. The refusal was
+	// THIS machine's artifacts under that platform's name. The refusal was
 	// right, and it capped the audit at one platform of six — where it
 	// found 967 unresolvable references while the other five went unasked.
 	//
-	// bottle v0.55.0 made the closure platform-explicit and bk v0.34.0
+	// artifact v0.55.0 made the closure platform-explicit and bk v0.34.0
 	// exposed it, so the same fact now steers the run instead of stopping
 	// it. One machine, every platform.
 	fmt.Fprintf(stdout, "auditing %s (bk unresolved -platform)\n", platform)
 
-	projects := bottled(c)
+	projects := packaged(c)
 	if len(projects) == 0 {
-		// A catalogue with no bottled project is a file that did not
+		// A catalogue with no packaged project is a file that did not
 		// arrive, not a platform with nothing published.
-		fmt.Fprintf(stderr, "sonamesweep: %s names %d project(s) and none of them has a bottle — nothing would be swept\n", *catalog, len(c.Projects))
+		fmt.Fprintf(stderr, "sonamesweep: %s names %d project(s) and none of them has an artifact — nothing would be swept\n", *catalog, len(c.Projects))
 		return 2
 	}
 	mine := slice(projects, *chunk, *chunks)
@@ -204,7 +204,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	fmt.Fprintf(stdout, "%s: chunk %d of %d — %d of %d bottled project(s), %s … %s\n",
+	fmt.Fprintf(stdout, "%s: chunk %d of %d — %d of %d packaged project(s), %s … %s\n",
 		platform, *chunk, *chunks, len(mine), len(projects), mine[0], mine[len(mine)-1])
 
 	// ⛔ NO -quiet. It suppresses the per-reference lines, and the first run
@@ -236,7 +236,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 
 	if *baseline == "" {
 		if err != nil {
-			fmt.Fprintf(stderr, "sonamesweep: %s chunk %d of %d: %d unresolvable reference(s) above — a bottle that cannot load\n",
+			fmt.Fprintf(stderr, "sonamesweep: %s chunk %d of %d: %d unresolvable reference(s) above — an artifact that cannot load\n",
 				platform, *chunk, *chunks, len(found))
 			return 1
 		}
@@ -293,7 +293,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 //
 // All three, because the project alone collapses distinct defects into one
 // line — `attrs.org python.org libssl.so.1.1` and `attrs.org tcl-lang.org
-// libtcl8.6.so` are two bottles to rebuild, not one project to look at.
+// libtcl8.6.so` are two artifacts to rebuild, not one project to look at.
 type finding struct{ project, owner, ref string }
 
 // parseFindings reads `bk unresolved`'s output: a header line per owner with
@@ -403,7 +403,7 @@ func runMerge(dir string, chunks int, stdout, stderr io.Writer) int {
 	// ⛔ THE TALLY IS BY OWNER, NOT BY PROJECT, BECAUSE THE OWNER IS WHAT
 	// GETS REBUILT. 967 references across hundreds of projects is a number
 	// nobody can act on; the same 967 sorted by whose binary names the
-	// missing soname says which handful of bottles to rebuild first, and
+	// missing soname says which handful of artifacts to rebuild first, and
 	// the counts are steeply unequal — one bad openssl pin in a popular
 	// dependency appears once per dependent.
 	byOwner := map[string]int{}
@@ -422,7 +422,7 @@ func runMerge(dir string, chunks int, stdout, stderr io.Writer) int {
 		}
 		return owners[i] < owners[j] // ties alphabetical, so two runs agree
 	})
-	fmt.Fprintf(stderr, "sonamesweep: %d reference(s) over %d project(s), owned by %d bottle(s), from %d chunk(s)\n",
+	fmt.Fprintf(stderr, "sonamesweep: %d reference(s) over %d project(s), owned by %d artifact(s), from %d chunk(s)\n",
 		len(lines), len(projects), len(owners), chunks)
 	const show = 10
 	for i, o := range owners {
@@ -469,7 +469,7 @@ func writeFindings(path string, found []finding) error {
 //	                                          A finding later IS new, and
 //	                                          red is then correct.
 //
-// Measured 2026-10-26: linux/s390x swept clean — 66 bottled projects, 0
+// Measured 2026-10-26: linux/s390x swept clean — 66 packaged projects, 0
 // unresolvable references — so its baseline is legitimately empty, and
 // the refusal made the cleanest platform in the fleet the one that could
 // never have its gate wired. A platform is not disqualified from being
@@ -498,7 +498,7 @@ func readBaseline(path string) (map[finding]bool, error) {
 // A catalogue is published per platform and its entries carry that platform;
 // more than one would mean the file is not what this tool thinks it is, and
 // guessing which to believe is how the host check gets bypassed.
-func platformOf(c bottle.Catalog) (string, error) {
+func platformOf(c artifact.Catalog) (string, error) {
 	seen := map[string]bool{}
 	for _, p := range c.Projects {
 		for _, pl := range p.Platforms {
@@ -521,10 +521,10 @@ func platformOf(c bottle.Catalog) (string, error) {
 	return "", fmt.Errorf("the catalogue names %d platforms (%s) — a published one names one", len(names), strings.Join(names, " "))
 }
 
-// bottled is the subject: projects this platform can actually install. A
-// project with a recipe and no bottle has nothing to load, and asking about
+// packaged is the subject: projects this platform can actually install. A
+// project with a recipe and no artifact has nothing to load, and asking about
 // it would spend a closure install to learn what the catalogue already says.
-func bottled(c bottle.Catalog) []string {
+func packaged(c artifact.Catalog) []string {
 	var out []string
 	for _, p := range c.Projects {
 		if len(p.Versions) > 0 {

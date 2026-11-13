@@ -19,7 +19,7 @@ edits = [
       "patch -p1 < patch/debian/patches/08-hardening-build-fix-1.patch",
       "patch -p1 < patch/debian/patches/09-hardening-build-fix-2.patch",
       "patch -p1 < patch/debian/patches/10-remove-build-date.patch",
-      # ${CC:-…} rather than the bottle's gcc outright.
+      # ${CC:-…} rather than the artifact's gcc outright.
       #
       # bk exports CC with the SOVEREIGN SYSROOT in pkgx-libc mode —
       #
@@ -34,7 +34,7 @@ edits = [
       # sysroot by naming a compiler instead of using the one bk had set.
       #
       # The fallback keeps the DISTRIBUTION path byte-for-byte what it was:
-      # off the sovereign lane nothing exports CC and the bottle's gcc is
+      # off the sovereign lane nothing exports CC and the artifact's gcc is
       # still what runs. `expect` below is untouched, because what upstream
       # ships has not moved.
       "make -f unix/Makefile CC=\"$${CC:-{{deps.gnu.org/gcc.prefix}}/bin/gcc} -std=gnu17 -Wno-implicit-function-declaration -Wno-implicit-int -Wno-int-conversion\" generic",
@@ -74,7 +74,7 @@ edits = [
     # catches corruption and not substitution (go-zpkg/bk#282). For everything
     # else TLS is the only control there is, and here there was none at all.
     # The tarball is then extracted as root inside the chroot, and
-    # go-zpkg/bottle#107 is a traversal in that extractor.
+    # go-zpkg/artifact#107 is a traversal in that extractor.
     #
     # Measured before changing it, because a URL change that also changes the
     # content is a different defect: the same path over http and over https

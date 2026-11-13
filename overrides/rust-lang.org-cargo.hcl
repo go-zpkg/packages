@@ -1,5 +1,5 @@
 project = "rust-lang.org/cargo"
-why     = "cargo is built by cargo, and the published bottle of it — ours AND upstream's — links OpenSSL 1.1, which our registry does not carry. Bootstrap from rust's own official binary instead, and on s390x name the triple explicitly because the default guess is wrong there."
+why     = "cargo is built by cargo, and the published artifact of it — ours AND upstream's — links OpenSSL 1.1, which our registry does not carry. Bootstrap from rust's own official binary instead, and on s390x name the triple explicitly because the default guess is wrong there."
 
 edits = [
   {
@@ -36,7 +36,7 @@ EOT
 set -eu
 # openssl-sys refuses to guess: "Could not find directory of OpenSSL
 # installation, and this `-sys` crate cannot proceed without this
-# knowledge." Point it at the bottle, same globbing rule as libgcc.
+# knowledge." Point it at the artifact, same globbing rule as libgcc.
 # The MAJOR symlink, not the concrete version. pkgx stages v3, v3.6 and
 # v3.6.4 alike, and a glob of v3* keeps the most specific one — which
 # openssl-sys then bakes into the binary as

@@ -1,5 +1,5 @@
 project = "opendev.org/openstack/python-openstackclient"
-why     = "Asked for by a user on 2026-10-22, and the darwin bottle built and runs (10.5.0). Both linux lanes failed twice, identically, and not on anything about this package."
+why     = "Asked for by a user on 2026-10-22, and the darwin artifact built and runs (10.5.0). Both linux lanes failed twice, identically, and not on anything about this package."
 
 edits = [
   {

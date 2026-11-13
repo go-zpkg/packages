@@ -1,4 +1,4 @@
-// pecheck asserts that a Windows bottle actually contains a Windows binary.
+// pecheck asserts that a Windows artifact actually contains a Windows binary.
 //
 // ⛔ WHY A TOOL AND NOT A `find` AND A `grep`. The windows-c lane's first
 // version did
@@ -7,11 +7,11 @@
 //	fmt=$(… objdump -f "$exe" | grep -o 'file format .*')
 //
 // and reported "minigzip.exe was not built" for a build that had just
-// succeeded: `dist` holds the PACKAGED bottle, so there is no loose .exe to
+// succeeded: `dist` holds the PACKAGED artifact, so there is no loose .exe to
 // find. A pipeline cannot tell "the build produced nothing" from "I looked in
 // the wrong place", and that is the whole question this step exists to answer.
 //
-// So it looks INSIDE the bottles, and it reports its denominator: how many
+// So it looks INSIDE the artifacts, and it reports its denominator: how many
 // archives it opened and how many members they hold. "Not found" is only
 // meaningful next to "and here is what was there".
 //
@@ -34,10 +34,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
-// maxMember bounds what one archive member may be read into memory. A bottle
+// maxMember bounds what one archive member may be read into memory. An artifact
 // is untrusted input here exactly as it is in the installer: a tar header can
 // declare any size at all, and this step runs in CI with the rest of the job
 // behind it. 512 MiB is far above any binary we publish and far below the
@@ -57,9 +57,9 @@ var machines = map[string]uint16{
 	"aarch64": pe.IMAGE_FILE_MACHINE_ARM64,
 }
 
-// archiveExts are the bottle extensions bottle.Decompressor understands,
+// archiveExts are the artifact extensions artifact.Decompressor understands,
 // longest first so ".tar.gz" is not read as ".gz".
-var archiveExts = []string{bottle.ExtTarXz, bottle.ExtTarZst, bottle.ExtTarGz}
+var archiveExts = []string{artifact.ExtTarXz, artifact.ExtTarZst, artifact.ExtTarGz}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -71,7 +71,7 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("pecheck", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dir := fs.String("dir", "", "directory holding the built bottle(s)")
+	dir := fs.String("dir", "", "directory holding the built artifact(s)")
 	member := fs.String("member", "", "archive member to check, eg. bin/minigzip.exe")
 	arch := fs.String("arch", "x86-64", "expected arch: "+archList())
 	if err := fs.Parse(args); err != nil {
@@ -96,7 +96,7 @@ func archList() string {
 	return strings.Join(out, ", ")
 }
 
-// check finds member inside the bottles under dir and asserts it is a PE for
+// check finds member inside the artifacts under dir and asserts it is a PE for
 // want. It prints what it opened either way.
 func check(dir, member, arch string, want uint16, out io.Writer) error {
 	var archives, members int
@@ -105,7 +105,7 @@ func check(dir, member, arch string, want uint16, out io.Writer) error {
 
 	// Every archive is opened, including those after the hit: see memberOf
 	// for why a count that stops at the answer is not a count. dist holds a
-	// handful of bottles, so the whole walk is cheaper than the explanation.
+	// handful of artifacts, so the whole walk is cheaper than the explanation.
 	err := filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
@@ -132,7 +132,7 @@ func check(dir, member, arch string, want uint16, out io.Writer) error {
 	if archives == 0 {
 		// Distinguished from "found nothing": an empty dist means the BUILD
 		// produced nothing, which is a different defect from a bad artefact.
-		return fmt.Errorf("no bottle archive under %s — the build published nothing", dir)
+		return fmt.Errorf("no artifact archive under %s — the build published nothing", dir)
 	}
 	if found == nil {
 		return fmt.Errorf("no member %q in any of the %d archive(s) under %s", member, archives, dir)
@@ -151,7 +151,7 @@ func check(dir, member, arch string, want uint16, out io.Writer) error {
 	return nil
 }
 
-// archiveExt returns the bottle extension p ends in, or "".
+// archiveExt returns the artifact extension p ends in, or "".
 func archiveExt(p string) string {
 	for _, e := range archiveExts {
 		if strings.HasSuffix(p, e) {
@@ -162,7 +162,7 @@ func archiveExt(p string) string {
 }
 
 // memberOf returns the bytes of the member whose path ends in want, and how
-// many members the archive holds. A bottle's paths are prefixed by the
+// many members the archive holds. An artifact's paths are prefixed by the
 // install prefix, so the match is on the SUFFIX: "bin/minigzip.exe" must find
 // "zlib.net/v1.3.2/bin/minigzip.exe".
 //
@@ -182,7 +182,7 @@ func memberOf(p, ext, want string) ([]byte, int, error) {
 		return nil, 0, err
 	}
 	defer f.Close()
-	dec, closeFn, err := bottle.Decompressor(ext, f)
+	dec, closeFn, err := artifact.Decompressor(ext, f)
 	if err != nil {
 		return nil, 0, err
 	}

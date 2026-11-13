@@ -1,6 +1,6 @@
 # The seed order
 
-`order.txt` is the order in which an architecture that has **no bottles at all**
+`order.txt` is the order in which an architecture that has **no artifacts at all**
 gets its first generation. It is not a list of packages we happen to want; it is
 a build plan, and most of it is forced.
 
@@ -69,7 +69,7 @@ and `Tcl/9.1.0/` exists holding nothing but a release candidate (#262).
 ## The second generation
 
 `sovereign=0` buys exactly one thing: a first generation on an architecture
-that has no bottles at all. It takes the compiler, `make` and the shell from
+that has no artifacts at all. It takes the compiler, `make` and the shell from
 the runner's distribution because there is nothing else to take them from.
 **That licence ends the moment the seed exists.**
 
@@ -79,7 +79,7 @@ RECIPES="lz4.org" ./seed/dispatch-gen1.sh   one package, to prove the rootfs
 ```
 
 It differs from `dispatch-seed.sh` in two inputs: `bootstrap` is empty (the
-toolchain is bottles now) and `sovereign=1` (`zpkb builder` stages a rootfs
+toolchain is artifacts now) and `sovereign=1` (`zpkb builder` stages a rootfs
 **from the seed registry** and the build happens inside it, under `chroot`).
 `seed_dist` stays, and `--to` follows `ZPKG_DIST` on purpose: generation 1
 replaces generation 0 in the same throwaway registry, which is what build.yml
@@ -94,10 +94,10 @@ actually looks like:
 | it died on | because |
 |---|---|
 | resolving the toolchain | a pin written for a stale mirror (`~7.1`) against a seed that holds only 7.2.8 |
-| staging the rootfs | the seed's bottles are unsigned and verification was on |
-| posing the loader | `bottle.LoaderNameFor` had no s390x entry — its loader is `ld64.so.1`, not `ld-linux-s390x.so.1` |
+| staging the rootfs | the seed's artifacts are unsigned and verification was on |
+| posing the loader | `artifact.LoaderNameFor` had no s390x entry — its loader is `ld64.so.1`, not `ld-linux-s390x.so.1` |
 | installing, three times over | `$RUNNER_TEMP` is reused on a self-hosted runner and `InstallFor` reads an existing directory as "already installed", so a half-written tree was inherited in silence |
-| the first `mkdir` | `coreutils` linked the builder's `libselinux`, which no bottle provides |
+| the first `mkdir` | `coreutils` linked the builder's `libselinux`, which no artifact provides |
 | `make install` | `sed` did too |
 | the dependency eval | `libcxx.llvm.org` was never in the seed, and zpkb hands it to **every** `--libc zpkgx` build |
 
@@ -105,14 +105,14 @@ Each was invisible until the previous was lifted. A one-package pilot costs a
 staging; the same sequence found seventy builds in would have cost a day.
 
 **Two tools came out of it, and they are the reason the list above is short.**
-`zpkb builder --dry-run` answers "does this architecture have the bottles"
+`zpkb builder --dry-run` answers "does this architecture have the artifacts"
 without taking a runner, naming **every** blocked root rather than the first —
-and telling a conflict between roots apart from a missing bottle. After
+and telling a conflict between roots apart from a missing artifact. After
 staging, `zpkb builder` reports every `NEEDED` soname the tree does not contain,
 **with who asks**: that turned "one contaminated package per failed build"
 into five names at once.
 
-Neither is sufficient. A bottle that resolves may still fail to unpack, and a
+Neither is sufficient. An artifact that resolves may still fail to unpack, and a
 census is not a worklist — of the five sonames, `lldb` and texinfo's `info`
 are on no build path at all, and the second generation rebuilds them clean
 inside a rootfs where the host libraries do not exist.

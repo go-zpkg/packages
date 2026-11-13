@@ -16,7 +16,7 @@ edits = [
     # declares AC_ARG_WITH([selinux], ..., [], [with_selinux=maybe]) -- `maybe`
     # is AUTO-DETECTION -- and coreutils' configure.ac spells out "Honor
     # --without-selinux to force disable". On a builder that HAS libselinux,
-    # which every Ubuntu one does, the bottle comes out linked against a
+    # which every Ubuntu one does, the artifact comes out linked against a
     # library nothing in this factory provides.
     #
     # Found by `bk builder`'s soname census over the staged s390x rootfs

@@ -17,7 +17,7 @@ advisories:
   #                                registry.npmjs.org/@bitwarden/cli/-/cli-2026.4.0.tgz
   #                                answers 404 — the release was withdrawn
   #
-  # So no published bottle contains it and no rebuild can reach it. The VEX
+  # So no published artifact contains it and no rebuild can reach it. The VEX
   # justification is `component_not_present`: the affected component is not
   # included in the product.
   #
@@ -30,7 +30,7 @@ advisories:
     events:
       # ⛔ `detected-version` is what keeps this determination attached to the
       # artefact it was made about. Without it the OpenVEX document published
-      # with the bottle does not say `not_affected` at all: it says
+      # with the artifact does not say `not_affected` at all: it says
       # `under_investigation`, because a record that names no version says
       # nothing about the one in hand (go-zpkg/bk#340). The prose below names
       # 1.22.1 and always did — this is the machine-readable half of it.
@@ -50,5 +50,5 @@ advisories:
         note: >-
           The advisory affects @bitwarden/cli 2026.4.0 alone. The only version
           tag published for bitwarden.com is 1.22.1, and npm has withdrawn the
-          2026.4.0 tarball (404), so no bottle contains the malicious release
+          2026.4.0 tarball (404), so no artifact contains the malicious release
           and no rebuild can fetch it.

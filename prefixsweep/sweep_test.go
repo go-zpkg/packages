@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // fakeRegistry drives run() through the two seams, so everything the sweep
 // does with an installed tree is tested without reaching ghcr.io.
 //
-// Each project maps to the files its bottle "unpacks", keyed by the path
+// Each project maps to the files its artifact "unpacks", keyed by the path
 // under <store>/<project>/.
 type fakeRegistry struct {
 	versions map[string]string            // project -> version the registry offers
@@ -31,17 +31,17 @@ func (f *fakeRegistry) install(t *testing.T) {
 	oldPick, oldInstall := pickVersion, install
 	t.Cleanup(func() { pickVersion, install = oldPick, oldInstall })
 
-	pickVersion = func(project, _, _, _ string) (bottle.Ver, error) {
+	pickVersion = func(project, _, _, _ string) (artifact.Ver, error) {
 		if err := f.pickErr[project]; err != nil {
-			return bottle.Ver{}, err
+			return artifact.Ver{}, err
 		}
 		v, ok := f.versions[project]
 		if !ok {
-			return bottle.Ver{}, fmt.Errorf("no such project %q", project)
+			return artifact.Ver{}, fmt.Errorf("no such project %q", project)
 		}
-		return bottle.Ver{Raw: v}, nil
+		return artifact.Ver{Raw: v}, nil
 	}
-	install = func(r bottle.Resolved, dir, _, _ string) (bool, error) {
+	install = func(r artifact.Resolved, dir, _, _ string) (bool, error) {
 		if err := f.instErr[r.Project]; err != nil {
 			return false, err
 		}
@@ -78,7 +78,7 @@ func sweep(t *testing.T, f *fakeRegistry, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// The whole report, on a store holding one baked bottle and one clean one.
+// The whole report, on a store holding one baked artifact and one clean one.
 func TestTheReportNamesWhatBakesAndWhatDoesNot(t *testing.T) {
 	f := &fakeRegistry{
 		versions: map[string]string{"baked.example": "1.0.0", "clean.example": "2.0.0"},
@@ -143,7 +143,7 @@ func TestEveryFailurePathCountsAsUnreadableNotClean(t *testing.T) {
 			marker: "SKIP",
 		},
 		{
-			name: "the bottle does not install",
+			name: "the artifact does not install",
 			reg: &fakeRegistry{
 				versions: map[string]string{"p": "1.0.0"},
 				instErr:  map[string]error{"p": boom},
@@ -276,7 +276,7 @@ func TestWithoutAStoreItMakesAndRemovesATemporaryOne(t *testing.T) {
 
 	var seen string
 	oldInstall := install
-	install = func(r bottle.Resolved, dir, osn, arch string) (bool, error) {
+	install = func(r artifact.Resolved, dir, osn, arch string) (bool, error) {
 		seen = dir
 		return oldInstall(r, dir, osn, arch)
 	}
@@ -392,7 +392,7 @@ func needleRegistry() *fakeRegistry {
 func TestTheNeedleIsFoundOnAFixtureThatContainsIt(t *testing.T) {
 	out, err := sweep(t, needleRegistry(), "-needle", cacheRoot, "leaky.example")
 	if err == nil {
-		t.Fatalf("a bottle holding the cache root passed the needle sweep:\n%s", out)
+		t.Fatalf("an artifact holding the cache root passed the needle sweep:\n%s", out)
 	}
 	for _, want := range []string{"⛔ BAKED", "leaky.example", "v1.0.0/bin/tool", cacheRoot, "1 swept · 1 bake their own prefix"} {
 		if !strings.Contains(out, want) {
@@ -401,10 +401,10 @@ func TestTheNeedleIsFoundOnAFixtureThatContainsIt(t *testing.T) {
 	}
 }
 
-func TestTheNeedleSweepIsCleanOnANormalisedBottleAndIgnoresRpath(t *testing.T) {
+func TestTheNeedleSweepIsCleanOnANormalisedArtifactAndIgnoresRpath(t *testing.T) {
 	out, err := sweep(t, needleRegistry(), "-needle", cacheRoot, "fixed.example")
 	if err != nil {
-		t.Fatalf("a normalised bottle failed the needle sweep: %v\n%s", err, out)
+		t.Fatalf("a normalised artifact failed the needle sweep: %v\n%s", err, out)
 	}
 	if !strings.Contains(out, "1 swept · 0 bake their own prefix · 1 clean") {
 		t.Errorf("want one clean project:\n%s", out)

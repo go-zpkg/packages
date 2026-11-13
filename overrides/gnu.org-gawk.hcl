@@ -1,5 +1,5 @@
 project = "gnu.org/gawk"
-why     = "gawk links gettext's libintl on darwin and did not declare it, so the darwin bottle does not start from an empty store."
+why     = "gawk links gettext's libintl on darwin and did not declare it, so the darwin artifact does not start from an empty store."
 
 edits = [
   {

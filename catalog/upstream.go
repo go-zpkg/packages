@@ -112,7 +112,7 @@ func sortGaps(gs []gap) {
 }
 
 // manifestTag is the name a version's platform manifest is pushed under:
-// `<ver>--<os>-<arch>`, which go-zpkg/bottle#37 introduced so a version's index
+// `<ver>--<os>-<arch>`, which go-zpkg/artifact#37 introduced so a version's index
 // could be composed from tags no two publishers contend for.
 func manifestTag(g gap) string {
 	return g.version + "--" + strings.ReplaceAll(g.platform, "/", "-")
@@ -124,7 +124,7 @@ func manifestTag(g gap) string {
 // The distinction is the difference between a minute and an hour, and between
 // 221 rebuilds and however few actually lost their bytes. A LOST entry means
 // upstream carries that version for that platform and our index does not; it
-// does NOT mean we ever pushed the bottle. The interior hole that made the
+// does NOT mean we ever pushed the artifact. The interior hole that made the
 // entry a defect proves we built the PLATFORM for the project at other
 // versions — nothing about this one.
 //
@@ -151,8 +151,8 @@ func splitByPlatformTag(lost []gap, have map[string]map[string]bool) (reindexabl
 // inferred from a project's shape. Publishing an index is a read-modify-write
 // on one mutable tag and four publishers race on it; a writer whose read
 // predated another's write re-tags without that platform, verifies its own,
-// and exits happy. The bottle is pushed, valid, signed — and not listed. Since
-// go-zpkg/bottle#37 each platform's manifest also gets an uncontended tag of
+// and exits happy. The artifact is pushed, valid, signed — and not listed. Since
+// go-zpkg/artifact#37 each platform's manifest also gets an uncontended tag of
 // its own, so the evidence of that race is sitting in the tag listing.
 //
 // It cannot have a false positive: the manifest is there or it is not.
@@ -160,9 +160,9 @@ func splitByPlatformTag(lost []gap, have map[string]map[string]bool) (reindexabl
 // It CAN be blind, and the reason is HISTORY rather than a gap anyone has to
 // close. Measured 2026-09-27, openssl.org carries 62 linux platform tags while
 // zlib.net and curl.se carry only darwin ones and gnu.org/gperf none at all —
-// which first read like publishers that disagree. They do not: bottle's push
+// which first read like publishers that disagree. They do not: artifact's push
 // is the single publish path for a build and a mirror alike, and it has tagged
-// every platform manifest since go-zpkg/bottle#37. What has no tag is what was
+// every platform manifest since go-zpkg/artifact#37. What has no tag is what was
 // published BEFORE that, and the set shrinks on its own as the catalogue is
 // rebuilt.
 //

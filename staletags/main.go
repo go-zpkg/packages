@@ -2,7 +2,7 @@
 // identity, and nothing else.
 //
 // ⛔⛔ WHY A TOOL AND NOT A LIST OF COMMANDS. On 2026-11-05 the wasip1 lane
-// published thirty bottles before the factory could compute a Concrete, so
+// published thirty artifacts before the factory could compute a Concrete, so
 // every one of them landed on the bare address `<version>`. The same projects
 // were republished on 2026-11-06 at `<version>-h<hash>`. Both now resolve, so
 // `filippo.io/age@1.3.2` names TWO different artefacts and a reader cannot
@@ -15,7 +15,7 @@
 // the next time a lane regresses. What makes a version defective is that its
 // tags carry no identity, so that is what this asks.
 //
-// ⛔ A VERSION IS KEPT IF ANY OF ITS TAGS IS IDENTIFIED. The bottles are built
+// ⛔ A VERSION IS KEPT IF ANY OF ITS TAGS IS IDENTIFIED. The artifacts are built
 // reproducibly (SOURCE_DATE_EPOCH is pinned), so an old publish and a new one
 // can produce byte-identical bytes — and then the registry holds ONE version
 // wearing both the bare tag and the hashed one. Deleting it because of the
@@ -58,7 +58,7 @@ import (
 // Concrete, optionally followed by `--<os>-<arch>` for the platform image of a
 // multi-arch index.
 //
-// The hash is lowercase base32 without padding, as bottle writes it.
+// The hash is lowercase base32 without padding, as artifact writes it.
 var identityRE = regexp.MustCompile(`-h[0-9a-z]{16}(--[a-z0-9-]+)?$`)
 
 // referrerRE matches the tag under which an attachment (signature,

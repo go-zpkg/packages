@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // The command-line surface, which is what CI actually invokes. The check
@@ -48,9 +48,9 @@ func TestRunRefusesAnIncompleteInvocation(t *testing.T) {
 // check is exercised and not only each half.
 func TestRunEndToEnd(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", fakePE(pe.IMAGE_FILE_MACHINE_AMD64)})
-	// dist carries more than bottles — checksums, manifests, logs. They must
+	// dist carries more than artifacts — checksums, manifests, logs. They must
 	// be stepped over rather than opened, and must not reach the archive
 	// count that the "published nothing" verdict rests on.
 	for _, n := range []string{"v1.3.2.sha256", "manifest.json"} {
@@ -67,7 +67,7 @@ func TestRunEndToEnd(t *testing.T) {
 		t.Errorf("output %q", out.String())
 	}
 	if !strings.Contains(out.String(), "opened 1 archive(s)") {
-		t.Errorf("output %q, want the non-bottle files left out of the count", out.String())
+		t.Errorf("output %q, want the non-artifact files left out of the count", out.String())
 	}
 }
 
@@ -89,7 +89,7 @@ func TestMainExitsNonZeroOnFailure(t *testing.T) {
 	// otherwise pass by never being looked at.
 	code = 0
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", fakePE(pe.IMAGE_FILE_MACHINE_AMD64)})
 	os.Args = []string{"pecheck", "-dir", dir, "-member", "bin/minigzip.exe"}
 	main()
@@ -98,18 +98,18 @@ func TestMainExitsNonZeroOnFailure(t *testing.T) {
 	}
 }
 
-// ⛔ EVERY COMPRESSION WE PUBLISH MUST BE OPENED. The factory's bottles are
+// ⛔ EVERY COMPRESSION WE PUBLISH MUST BE OPENED. The factory's artifacts are
 // .tar.zst today and .tar.xz and .tar.gz exist in the registry; a checker
 // that silently skipped one extension would report "the build published
 // nothing" for a build that published it in the other.
-func TestEveryBottleExtensionIsRecognised(t *testing.T) {
-	for _, ext := range []string{bottle.ExtTarXz, bottle.ExtTarZst, bottle.ExtTarGz} {
+func TestEveryArtifactExtensionIsRecognised(t *testing.T) {
+	for _, ext := range []string{artifact.ExtTarXz, artifact.ExtTarZst, artifact.ExtTarGz} {
 		if got := archiveExt("dist/zlib.net/v1.3.2" + ext); got != ext {
 			t.Errorf("archiveExt(…%s) = %q, want %q", ext, got, ext)
 		}
 	}
 	// And nothing else is mistaken for one: dist carries checksums and
-	// manifests beside the bottles.
+	// manifests beside the artifacts.
 	for _, p := range []string{"dist/v1.3.2.sha256", "dist/manifest.json", "dist/notes.txt", "dist/v1.3.2.gz"} {
 		if got := archiveExt(p); got != "" {
 			t.Errorf("archiveExt(%q) = %q, want none", p, got)
@@ -118,12 +118,12 @@ func TestEveryBottleExtensionIsRecognised(t *testing.T) {
 }
 
 // ⛔ A MEMBER MAY NOT BE READ WITHOUT BOUND. A tar header declares its own
-// size, and a bottle is untrusted input here exactly as it is in the
+// size, and an artifact is untrusted input here exactly as it is in the
 // installer. The cap is a var so this test can prove it fires without
 // building half a gigabyte — a bound nothing exercises is a comment.
 func TestAnOversizedMemberIsRefused(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", bytes.Repeat([]byte("x"), 4096)})
 
 	old := maxMember
@@ -143,7 +143,7 @@ func TestAnOversizedMemberIsRefused(t *testing.T) {
 // silent "not found" that would send someone to look at the build.
 func TestACorruptArchiveIsNamed(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "zlib.net-1.3.2"+bottle.ExtTarGz)
+	p := filepath.Join(dir, "zlib.net-1.3.2"+artifact.ExtTarGz)
 	if err := os.WriteFile(p, []byte("this is not gzip"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestATruncatedMemberIsAnError(t *testing.T) {
 		t.Fatal(err)
 	}
 	gz.Close() // deliberately no tw.Close(): the archive ends early
-	p := filepath.Join(dir, "zlib.net-1.3.2"+bottle.ExtTarGz)
+	p := filepath.Join(dir, "zlib.net-1.3.2"+artifact.ExtTarGz)
 	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestATruncatedMemberIsAnError(t *testing.T) {
 
 // ⛔ AND A BAD HEADER FAILS IN tar.Next, WHICH IS A DIFFERENT LINE. Garbage
 // where the next header belongs is what a partially-written or tampered
-// bottle looks like, and it must be an error rather than a quiet end of
+// artifact looks like, and it must be an error rather than a quiet end of
 // archive — a silent stop would report the members seen so far as the whole
 // count, which is the denominator defect in yet another costume.
 func TestGarbageWhereAHeaderBelongsIsAnError(t *testing.T) {
@@ -205,7 +205,7 @@ func TestGarbageWhereAHeaderBelongsIsAnError(t *testing.T) {
 		t.Fatal(err)
 	}
 	gz.Close()
-	if err := os.WriteFile(filepath.Join(dir, "z"+bottle.ExtTarGz), buf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "z"+artifact.ExtTarGz), buf.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Asking for a member that is NOT in the archive, so the walk must reach
@@ -215,7 +215,7 @@ func TestGarbageWhereAHeaderBelongsIsAnError(t *testing.T) {
 	}
 }
 
-// Directories and symlinks inside a bottle are not members to check, and
+// Directories and symlinks inside an artifact are not members to check, and
 // counting them would inflate the denominator this tool exists to report.
 func TestOnlyRegularFilesAreCounted(t *testing.T) {
 	dir := t.TempDir()
@@ -239,7 +239,7 @@ func TestOnlyRegularFilesAreCounted(t *testing.T) {
 	}
 	tw.Close()
 	gz.Close()
-	if err := os.WriteFile(filepath.Join(dir, "z"+bottle.ExtTarGz), buf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "z"+artifact.ExtTarGz), buf.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -259,7 +259,7 @@ func TestAnUnreadableArchiveIsReported(t *testing.T) {
 		t.Skip("root reads anything, so the refusal cannot be staged")
 	}
 	dir := t.TempDir()
-	p := filepath.Join(dir, "zlib.net-1.3.2"+bottle.ExtTarGz)
+	p := filepath.Join(dir, "zlib.net-1.3.2"+artifact.ExtTarGz)
 	if err := os.WriteFile(p, []byte("x"), 0o000); err != nil {
 		t.Fatal(err)
 	}

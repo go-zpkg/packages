@@ -10,7 +10,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// ⛔⛔ A LANE PINNED BEHIND THE FACTORY PUBLISHES BOTTLES THE REGISTRY CANNOT
+// ⛔⛔ A LANE PINNED BEHIND THE FACTORY PUBLISHES ARTIFACTS THE REGISTRY CANNOT
 // DESCRIBE, AND NOTHING SAID SO.
 //
 // This is the second time a pin in this repository has drifted behind what
@@ -30,8 +30,8 @@ import (
 //   - or a signature referrer with no signer key id (v0.64.0), which a
 //     verifier holding several trusted keys has to brute-force.
 //
-// `zpkgs builds` can only report such a bottle as `nothing recorded`. That is
-// indistinguishable, to a reader, from a bottle we never built — which is the
+// `zpkgs builds` can only report such an artifact as `nothing recorded`. That is
+// indistinguishable, to a reader, from an artifact we never built — which is the
 // whole failure this gate exists to stop.
 //
 // ⛔ A REPEATED LESSON BECOMES A GATE, NOT A COMMENT. The comments beside
@@ -56,16 +56,16 @@ const zpkbIdentityFloor = "v0.69.0"
 // zpkbFloorReason says what THIS floor buys, and moves with it.
 //
 // ⛔⛔ A FIXED SENTENCE WOULD HAVE LIED THE FIRST TIME THE FLOOR MOVED. The
-// message used to read "a bottle built by it carries no usable build
+// message used to read "an artifact built by it carries no usable build
 // identity", which was exactly right while the floor was v0.64.0 and became
 // false the moment it was v0.65.0 — a lane at v0.64.0 computes a perfectly
 // good identity and simply will not refuse to overwrite one. A failure that
 // names the wrong cause sends the reader to fix the wrong thing, and it reads
 // as authoritative because it came from a gate.
-const zpkbFloorReason = "from v0.66.0 the factory REFUSES to publish a bottle that is unsigned or " +
+const zpkbFloorReason = "from v0.66.0 the factory REFUSES to publish an artifact that is unsigned or " +
 	"unidentified, v0.67.0 added --spec-recipe-from so a lane with no pantry plan can state its " +
 	"identity instead of hashing one in the shell, and v0.69.0 carries the trust set as it stands " +
-	"after the 2026-11-06 key rotation — a lane below that reports a bottle signed by the retired " +
+	"after the 2026-11-06 key rotation — a lane below that reports an artifact signed by the retired " +
 	"key as signed by nobody it knows (go-zpkg/zpkb#416)"
 
 // zpkbPinRE matches an install or run of our factory at an explicit version.

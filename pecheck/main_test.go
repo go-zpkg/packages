@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // fakePE builds the smallest byte sequence debug/pe accepts: a DOS stub whose
@@ -64,9 +64,9 @@ type member struct {
 	body []byte
 }
 
-// bottleWith writes a .tar.gz holding the given members in the given order,
+// artifactWith writes a .tar.gz holding the given members in the given order,
 // as the factory's dist directory does.
-func bottleWith(t *testing.T, dir, name string, members ...member) string {
+func artifactWith(t *testing.T, dir, name string, members ...member) string {
 	t.Helper()
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
@@ -85,18 +85,18 @@ func bottleWith(t *testing.T, dir, name string, members ...member) string {
 	if err := gz.Close(); err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(dir, name+bottle.ExtTarGz)
+	p := filepath.Join(dir, name+artifact.ExtTarGz)
 	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return p
 }
 
-// The ordinary case: the member is inside the packaged bottle, under the
+// The ordinary case: the member is inside the packaged artifact, under the
 // install prefix, which is why the match is on the suffix.
-func TestFindsThePEInsideTheBottle(t *testing.T) {
+func TestFindsThePEInsideTheArtifact(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", fakePE(pe.IMAGE_FILE_MACHINE_AMD64)},
 		member{"zlib.net/v1.3.2/lib/libz.a", []byte("!<arch>\n")},
 	)
@@ -131,7 +131,7 @@ func TestTheCountDoesNotDependOnWhereTheHitIs(t *testing.T) {
 	} {
 		var out bytes.Buffer
 		dir := t.TempDir()
-		bottleWith(t, dir, "zlib.net-1.3.2", c.members...)
+		artifactWith(t, dir, "zlib.net-1.3.2", c.members...)
 		if err := check(dir, "bin/minigzip.exe", "x86-64", pe.IMAGE_FILE_MACHINE_AMD64, &out); err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
@@ -141,13 +141,13 @@ func TestTheCountDoesNotDependOnWhereTheHitIs(t *testing.T) {
 	}
 }
 
-// And the same one level up: a second bottle after the hit is still opened
+// And the same one level up: a second artifact after the hit is still opened
 // and still counted.
 func TestEveryArchiveIsOpened(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "a-zlib.net-1.3.2",
+	artifactWith(t, dir, "a-zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", fakePE(pe.IMAGE_FILE_MACHINE_AMD64)})
-	bottleWith(t, dir, "b-other-1.0",
+	artifactWith(t, dir, "b-other-1.0",
 		member{"other/v1.0/bin/other", []byte("x")})
 
 	var out bytes.Buffer
@@ -164,7 +164,7 @@ func TestEveryArchiveIsOpened(t *testing.T) {
 // a green job, and the first person to find out runs it on Windows.
 func TestAnELFIsRefused(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", fakeELF()})
 	err := check(dir, "bin/minigzip.exe", "x86-64", pe.IMAGE_FILE_MACHINE_AMD64, &bytes.Buffer{})
 	if err == nil {
@@ -179,7 +179,7 @@ func TestAnELFIsRefused(t *testing.T) {
 // lane runs nowhere, and both are PEs, so the format check alone would pass.
 func TestAPEForTheWrongMachineIsRefused(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/bin/minigzip.exe", fakePE(pe.IMAGE_FILE_MACHINE_ARM64)})
 	err := check(dir, "bin/minigzip.exe", "x86-64", pe.IMAGE_FILE_MACHINE_AMD64, &bytes.Buffer{})
 	if err == nil {
@@ -206,12 +206,12 @@ func TestAnEmptyDistIsNotAMissingMember(t *testing.T) {
 
 func TestAMissingMemberNamesTheDenominator(t *testing.T) {
 	dir := t.TempDir()
-	bottleWith(t, dir, "zlib.net-1.3.2",
+	artifactWith(t, dir, "zlib.net-1.3.2",
 		member{"zlib.net/v1.3.2/lib/libz.a", []byte("!<arch>\n")})
 	var out bytes.Buffer
 	err := check(dir, "bin/minigzip.exe", "x86-64", pe.IMAGE_FILE_MACHINE_AMD64, &out)
 	if err == nil {
-		t.Fatal("a bottle without the binary passed")
+		t.Fatal("an artifact without the binary passed")
 	}
 	if !strings.Contains(err.Error(), "1 archive(s)") {
 		t.Errorf("err = %v, want it to name how many archives it opened", err)

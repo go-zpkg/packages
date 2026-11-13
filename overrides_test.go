@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // ⛔ A RECIPE MAY DECLARE THE SAME VARIABLE IN TWO PLACES, AND AN OVERRIDE
@@ -63,7 +63,7 @@ func TestAnOverrideThatNamesAnArchForTheBuildNamesItForTheTest(t *testing.T) {
 // kept beside the general one because the general one passes vacuously if
 // somebody deletes the s390x entry from BOTH tables.
 //
-// An empty loader name is not a missing feature, it is a bottle that builds,
+// An empty loader name is not a missing feature, it is an artifact that builds,
 // publishes and then fails in somebody else's build with "No such file or
 // directory" against a path that plainly exists.
 func TestGlibcNamesALoaderForEveryArchItClaims(t *testing.T) {
@@ -116,7 +116,7 @@ func overrideDoc(t *testing.T, path string) map[string]any {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := bottle.HCLToMap(b, path)
+	doc, err := artifact.HCLToMap(b, path)
 	if err != nil {
 		t.Fatalf("%s: %v", path, err)
 	}

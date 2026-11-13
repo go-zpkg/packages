@@ -96,7 +96,7 @@ func carriesThePins(path string, paths []logical.Path) (bool, error) {
 // reason is what the override says about itself. `why` is required, and this
 // is the field that lets somebody DELETE the override one day: the condition
 // for removing it is written down.
-const reason = `This recipe pins openssl to a 1.x line. Our registry holds no 1.x bottle — ` +
+const reason = `This recipe pins openssl to a 1.x line. Our registry holds no 1.x artifact — ` +
 	`every one of them is 3.x or 4.x — so the recipe dies in the resolver before a compiler runs: ` +
 	`no version of openssl.org satisfies ^1.1. openssl 1.1.1 has been end-of-life since ` +
 	`September 2023, so pinning it is not a real alternative. This does NOT prove the recipe ` +

@@ -7,7 +7,7 @@
 // On 2026-10-12 the darwin lane failed twice in a row, ninety seconds in,
 // having built nothing:
 //
-//	../../../go/pkg/mod/github.com/go-zpkg/bottle@v0.44.0/hcl.go:13:2:
+//	../../../go/pkg/mod/github.com/go-zpkg/artifact@v0.44.0/hcl.go:13:2:
 //	  reading gopkg.in/yaml.v3/go.mod at revision v3.0.1: git ls-remote ...
 //	  exit status 128:
 //	fatal: unable to access 'https://gopkg.in/yaml.v3/':

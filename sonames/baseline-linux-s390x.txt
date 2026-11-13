@@ -1,6 +1,6 @@
 # linux/s390x — no known-unresolvable references.
 #
-# Swept 2026-10-26, both chunks: 66 bottled projects, 0 unresolvable
+# Swept 2026-10-26, both chunks: 66 packaged projects, 0 unresolvable
 # references. This file is empty of ENTRIES on purpose, and that is not
 # the same as missing: missing means nothing was read and sonamesweep
 # refuses; present-and-empty means nothing is known bad here, so the

@@ -204,7 +204,7 @@ func bkOnly() []toolchainSource {
 // and several explanations run over lines of their own. A parser that took a
 // comment line for a package would demand a pin on `#`.
 func TestParseBuilderToolchainIgnoresComments(t *testing.T) {
-	const in = `# the build toolchain, bottles only
+	const in = `# the build toolchain, artifacts only
 
 llvm.org                    # clang, lld, compiler-rt
 kernel.org/linux-headers@~7.2

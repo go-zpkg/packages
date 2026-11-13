@@ -5,9 +5,9 @@ package main
 // ⛔⛔ A SPELLED NEEDLE CERTIFIES THE LANE IT WAS WRITTEN FOR AND NO OTHER.
 // The check agreed for go-zpkg/bk#387 was
 // `-needle /Users/runner/Library/Caches/brewkit`, which is right on darwin.
-// Run on linux it returns clean on every bottle whatever they contain,
+// Run on linux it returns clean on every artifact whatever they contain,
 // because that lane builds with `HOME=/github/home` and the string was never
-// going to be there. Measured 2026-11-03: four pre-fix linux bottles swept
+// going to be there. Measured 2026-11-03: four pre-fix linux artifacts swept
 // "4 clean" against `/home/runner`, which meant nothing at all.
 //
 // A derivation table — darwin is /Users/runner, linux is /github/home — only
@@ -60,7 +60,7 @@ var allowedPrefixes = []string{
 // opposed to text an author wrote.
 //
 // ⛔⛔ IT IS THE DIFFERENCE BETWEEN A REVIEW TOOL AND A GATE. Measured over six
-// linux bottles: 38 hits, of which 30 were documentation — curl's man pages
+// linux artifacts: 38 hits, of which 30 were documentation — curl's man pages
 // are full of worked examples (`/tmp/cookies.txt`,
 // `/home/clarkkent/.ssh/id_rsa`), sqlite3.h explains itself with
 // `/home/fred/data.db`, and a Romanian man page mentions `/apel/salt`. None
@@ -139,7 +139,7 @@ func absoluteHits(root string) ([]hit, error) {
 // absolutePaths pulls absolute-looking byte runs out of a file.
 //
 // The thresholds exist to keep the result readable rather than to be clever,
-// and each one was chosen against a real bottle:
+// and each one was chosen against a real artifact:
 //
 //   - at least two separators and eight characters, so `/x` and `/dev` do not
 //     flood the report;
@@ -156,7 +156,7 @@ func absolutePaths(b []byte) []string {
 		// IS NOT PART OF A PATH. Scanning from the slash alone turns
 		// `@rpath/p/v1/lib/libp.dylib` into `/p/v1/lib/libp.dylib` — a
 		// RELATIVE load path reported as an absolute one, and `@rpath` is in
-		// every well-formed bottle, so the check would fail the clean case it
+		// every well-formed artifact, so the check would fail the clean case it
 		// exists to certify. Same for `@loader_path/../..` and `$ORIGIN/..`.
 		if i > 0 && absPathByte(b[i-1]) {
 			continue

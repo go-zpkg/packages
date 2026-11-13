@@ -1,5 +1,5 @@
 project = "ffmpeg.org"
-why     = "ffmpeg's rebuild dies before it links anything, building manual pages the bottle does not ship. Nothing consumes them and they need a texinfo the closure does not carry."
+why     = "ffmpeg's rebuild dies before it links anything, building manual pages the artifact does not ship. Nothing consumes them and they need a texinfo the closure does not carry."
 
 edits = [
   {

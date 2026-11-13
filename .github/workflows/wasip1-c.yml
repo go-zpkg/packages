@@ -3,8 +3,8 @@
 # ghcr.io/go-pkgx/packages with OCI platform os=wasip1, architecture=wasm.
 # Sibling of wasip1.yml (Go).
 #
-# The toolchain is not a prebuilt wasi-sdk: it is the llvm.org bottle (clang,
-# wasm-ld, llvm-ar) plus bottles built from source in the pantry overlay,
+# The toolchain is not a prebuilt wasi-sdk: it is the llvm.org artifact (clang,
+# wasm-ld, llvm-ar) plus artifacts built from source in the pantry overlay,
 # compiler-rt.llvm.org/wasi (builtins + clang headers as a resource dir),
 # github.com/WebAssembly/wasi-libc (the sysroot) and libcxx.llvm.org/wasi
 # (libc++, libc++abi). `zpkb --platform wasip1/wasm build` adds them to the
@@ -15,7 +15,7 @@
 #
 # SOVEREIGN: the build runs in the rootfs `zpkb builder` stages from
 # builder/toolchain.txt, entered with unshare+chroot (builder/sovereign-bk.sh),
-# so make, sh, coreutils, clang and wasm-ld all come from bottles in that tree and
+# so make, sh, coreutils, clang and wasm-ld all come from artifacts in that tree and
 # nothing from the runner's distribution takes part. The runner contributes three
 # static Go binaries, a mount namespace and — to RUN the result — wasmtime, which
 # is the runtime under test, not a build tool. The "what ran, from where" step
@@ -80,7 +80,7 @@ jobs:
           # planning is instant, large enough to exercise a codelet.
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: fftw.org, version: "3.3.11", bin: fftw-wisdom, smoke: '-o /dev/null cof16', stdin: /dev/null }
           # linux/aarch64: the same rootfs, staged for aarch64 on GitHub's native
-          # arm runner. The toolchain bottles (compiler-rt, wasi-libc, libcxx) are
+          # arm runner. The toolchain artifacts (compiler-rt, wasi-libc, libcxx) are
           # published for linux/aarch64 hosts too; the wasm they produce is the same.
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: zlib.net, version: "1.3.2", bin: minigzip, smoke: "", stdin: t.txt }
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: lua.org, version: "5.4.9", bin: lua, smoke: '-e "assert(not pcall(error, 1)); assert(_VERSION == [[Lua 5.4]])"', stdin: /dev/null }
@@ -121,10 +121,10 @@ jobs:
         # requirement above is still satisfied, by a wide margin.
         #
         # ⛔⛔ v0.64.0 NOW, AND THIS TIME BECAUSE SOMETHING DOES NEED A NEWER
-        # FACTORY. A bottle built by anything before v0.62.0 carries no build
+        # FACTORY. An artifact built by anything before v0.62.0 carries no build
         # identity at all; v0.63.0 made that identity a real Merkle hash, and
         # v0.64.0 stamps the signer's key id on the signature referrer. Left
-        # at v0.59.0 this lane would go on publishing bottles that `zpkgs
+        # at v0.59.0 this lane would go on publishing artifacts that `zpkgs
         # builds` can only describe as "nothing recorded".
         #
         # ⛔⛔ v0.65.0 now, for a SECOND reason: from that tag the factory
@@ -163,7 +163,7 @@ jobs:
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,
       # in the same chroot, through the same pkgx environment the build had.
-      # Anything under /zpkg came from a bottle in the rootfs; /bin and /usr are
+      # Anything under /zpkg came from an artifact in the rootfs; /bin and /usr are
       # the rootfs's own (staged from the same toolchain list), never the runner's.
       # A name that prints nothing is a tool that is NOT there.
       - name: what ran, from where
@@ -219,7 +219,7 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
         run: |
           SIGN_ARGS=()
           if [ -n "${SIGNING_KEY:-}" ]; then

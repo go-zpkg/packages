@@ -1,14 +1,14 @@
 # `FROM scratch` image builder
 
 Build a genuine `docker FROM scratch` Linux image whose **only** contents are
-pkgx bottles pulled from `ghcr.io/go-pkgx/packages` — no debian, no distro, no
-system libc. This is the consumer proof for Isolation Phase B: the bottles this
+pkgx artifacts pulled from `ghcr.io/go-pkgx/packages` — no debian, no distro, no
+system libc. This is the consumer proof for Isolation Phase B: the artifacts this
 factory publishes are self-sufficient enough to run with nothing underneath them
 but the kernel.
 
 The whole flow is a **pure-Go** `bk` subcommand — [`bk fromscratch`](https://github.com/go-zpkg/zpkb)
 (package `cmd/bk`). No interpreter and no shell glue: `bk` already has the OCI
-bottle pull, pantry-recipe parsing and version resolution in Go, and reads ELF
+artifact pull, pantry-recipe parsing and version resolution in Go, and reads ELF
 `DT_NEEDED` natively via `debug/elf`. The only external command is `docker`
 (the container builder itself). A static Go binary is itself deployable in a
 `FROM scratch` image; an interpreted helper is not — so Go is the only fit for
@@ -39,7 +39,7 @@ to `./pantry`. External dependency: `docker` (plus a Go toolchain to install
 
 ## How it works
 
-A compiled-C bottle binary (e.g. `lz4.org/.../bin/lz4`) as published carries two
+A compiled-C artifact binary (e.g. `lz4.org/.../bin/lz4`) as published carries two
 things that a scratch image can't satisfy on its own:
 
 1. **`PT_INTERP`** = an absolute path to the *build container's* ELF loader
@@ -61,13 +61,13 @@ things that a scratch image can't satisfy on its own:
    `/zpkg/<proj>/v<ver>`. If any closure member is not published for the arch it
    aborts (**exit 3**) instead of building a broken image.
 3. **readelf-driven completion**: scan every laid-out ELF's `DT_NEEDED`
-   sonames (pure Go, `debug/elf`) and pull the bottle that provides each
+   sonames (pure Go, `debug/elf`) and pull the artifact that provides each
    unsatisfied one — the undeclared runtime libraries that recipe graphs omit.
    The canonical case is `libcrypt.so.1`: glibc 2.38+ removed libcrypt, so
    `perl` NEEDs it without declaring `github.com/besser82/libxcrypt`; the
    completion pulls it automatically. Iterates to a fixpoint.
 4. **Loader symlink**: link glibc's loader to the arch-standard `PT_INTERP` path
-   so unmodified bottles start.
+   so unmodified artifacts start.
 5. **`LD_LIBRARY_PATH`**: auto-discover every dir in the closure that holds a
    shared object (glibc's `libc.so.6` lives in a nested `lib/glibc-<v>/`, so a
    plain `<prefix>/lib` assumption is wrong).

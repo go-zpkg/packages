@@ -403,7 +403,7 @@ func TestOverlayUnwritable(t *testing.T) {
 func TestOverlayKeepsAHandWrittenEntry(t *testing.T) {
 	p, ovl := t.TempDir(), t.TempDir()
 	writeRecipe(t, p, "a.org", "dependencies:\n  openssl.org: ^1.1\n")
-	annotated := "dependencies:\n  # ^3 because the published bottle links libssl.so.3\n  openssl.org: ^3\n"
+	annotated := "dependencies:\n  # ^3 because the published artifact links libssl.so.3\n  openssl.org: ^3\n"
 	if err := os.MkdirAll(filepath.Join(ovl, "a.org"), 0o755); err != nil {
 		t.Fatal(err)
 	}
