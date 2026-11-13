@@ -112,10 +112,10 @@ func TestItNamesTheChunkItSwept(t *testing.T) {
 	}
 	for _, want := range []string{
 		"linux/x86-64: chunk 0 of 2",
-		// Four of five projects carry a bottle; aerc-mail.org does not, and
+		// Four of five projects carry an artifact; aerc-mail.org does not, and
 		// asking about it would spend a closure install to learn what the
 		// catalogue already says.
-		"2 of 4 bottled project(s)",
+		"2 of 4 packaged project(s)",
 		"chunk 0 of 2 clean over 2 project(s)",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -141,7 +141,7 @@ func TestItNamesTheChunkItSwept(t *testing.T) {
 	}
 }
 
-// Sorted and contiguous: the two chunks together are every bottled project,
+// Sorted and contiguous: the two chunks together are every packaged project,
 // once each. A rotating sweep whose chunks overlapped would cover some twice
 // and others never, and would still print "clean" for each of them.
 func TestTheChunksCoverEverythingOnce(t *testing.T) {
@@ -168,9 +168,9 @@ func TestTheChunksCoverEverythingOnce(t *testing.T) {
 			t.Errorf("%s was swept %d time(s), want exactly 1", p, seen[p])
 		}
 	}
-	// aerc-mail.org has no bottle and must never be installed.
+	// aerc-mail.org has no artifact and must never be installed.
 	if seen["aerc-mail.org"] != 0 {
-		t.Error("a project with no bottle was swept")
+		t.Error("a project with no artifact was swept")
 	}
 }
 
@@ -178,11 +178,11 @@ func TestTheChunksCoverEverythingOnce(t *testing.T) {
 // assert the opposite, that any catalogue but the host's was REFUSED.
 // That refusal was right while `bk unresolved` installed for the host:
 // handed another platform's catalogue it would have reported this
-// machine's bottles under that platform's name, a judge and a subject
+// machine's artifacts under that platform's name, a judge and a subject
 // counting differently. It was also what capped the audit at one platform
 // of six.
 //
-// bottle v0.55.0 made the closure platform-explicit and bk v0.34.0
+// artifact v0.55.0 made the closure platform-explicit and bk v0.34.0
 // exposed it, so the same fact is now an instruction. What has to be
 // pinned is that it REACHES bk: a run that quietly dropped it would be
 // the old wrong answer with none of the old refusal.
@@ -245,7 +245,7 @@ func TestItRefusesToSweepNothing(t *testing.T) {
 		{"no catalogue named", []string{}, published, "-catalog is required"},
 		{"a chunk outside the range", []string{"-chunk", "9", "-chunks", "2"}, published, "not in 0..1"},
 		{"a negative chunk", []string{"-chunk", "-1", "-chunks", "2"}, published, "not in 0..1"},
-		{"a catalogue with no bottle at all", []string{}, `{"generated":"x","projects":[{"project":"aerc-mail.org","platforms":["linux/x86-64"]}]}`, "none of them has a bottle"},
+		{"a catalogue with no artifact at all", []string{}, `{"generated":"x","projects":[{"project":"aerc-mail.org","platforms":["linux/x86-64"]}]}`, "none of them has an artifact"},
 		{"a catalogue that names no platform", []string{}, `{"generated":"x","projects":[{"project":"curl.se","versions":["8.20.0"]}]}`, "names no platform"},
 		// 10 chunks over 4 projects leaves most of them empty: chunk 1
 		// spans [0,0). That is a misconfiguration, not a clean sweep, and a
@@ -403,7 +403,7 @@ func TestAnUnreadableBaselineIsAnError(t *testing.T) {
 	// a platform that is genuinely clean, that is the CORRECT behaviour,
 	// not a failure mode.
 	//
-	// Measured 2026-10-26: linux/s390x swept clean, 66 bottled projects
+	// Measured 2026-10-26: linux/s390x swept clean, 66 packaged projects
 	// and 0 unresolvable references, so its baseline is legitimately
 	// empty. The refusal made the cleanest platform in the fleet the one
 	// whose gate could never be wired.
@@ -586,7 +586,7 @@ func TestMergeAcceptsACleanChunkAndDedupes(t *testing.T) {
 	if out.String() != want {
 		t.Errorf("merged to:\n%q\nwant:\n%q", out.String(), want)
 	}
-	if !strings.Contains(errb.String(), "2 reference(s) over 2 project(s), owned by 1 bottle(s), from 3 chunk(s)") {
+	if !strings.Contains(errb.String(), "2 reference(s) over 2 project(s), owned by 1 artifact(s), from 3 chunk(s)") {
 		t.Errorf("the tally is wrong: %s", errb.String())
 	}
 }
@@ -674,7 +674,7 @@ func TestChunksMustBeACount(t *testing.T) {
 // `chunk-abc.txt` is not chunk zero.
 //
 // The owner list is capped, and the cap announces itself: a top ten
-// printed as if it were the whole set would read as "ten bottles to
+// printed as if it were the whole set would read as "ten artifacts to
 // rebuild" when there are a hundred.
 func TestMergeIgnoresLitterAndAnnouncesTheCap(t *testing.T) {
 	// 12 owners, so the cap of 10 has something to hide.
@@ -696,7 +696,7 @@ func TestMergeIgnoresLitterAndAnnouncesTheCap(t *testing.T) {
 	if strings.Contains(out.String(), "not a chunk") {
 		t.Errorf("litter reached the baseline:\n%s", out.String())
 	}
-	if !strings.Contains(errb.String(), "owned by 12 bottle(s)") {
+	if !strings.Contains(errb.String(), "owned by 12 artifact(s)") {
 		t.Errorf("the tally is wrong: %s", errb.String())
 	}
 	if !strings.Contains(errb.String(), "… 2 more owner(s)") {

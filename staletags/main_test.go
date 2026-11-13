@@ -80,7 +80,7 @@ func TestClassifyDeletesTheUnidentifiedAndItsAttachments(t *testing.T) {
 	}
 }
 
-// ⛔⛔ THE QUESTION IS ASKED OF THE VERSION, NEVER OF THE TAG. The bottles are
+// ⛔⛔ THE QUESTION IS ASKED OF THE VERSION, NEVER OF THE TAG. The artifacts are
 // built reproducibly, so a republish can produce byte-identical bytes and the
 // registry then holds ONE version wearing both the bare tag and the hashed
 // one. Deciding per tag would delete the artefact the hashed tag addresses —

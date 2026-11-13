@@ -11,7 +11,7 @@ import (
 //
 // A `-needle` certifies the lane it was written for. `/Users/runner/...` is
 // right on darwin and finds nothing on linux, which builds with
-// HOME=/github/home — measured 2026-11-03, four pre-fix linux bottles swept
+// HOME=/github/home — measured 2026-11-03, four pre-fix linux artifacts swept
 // "4 clean" against `/home/runner` and it meant nothing at all.
 //
 // This fixture holds three builder roots nobody would think to enumerate,
@@ -183,7 +183,7 @@ func TestADirectoryThatCannotBeWalkedFailsTheAbsoluteSweep(t *testing.T) {
 }
 
 // ⛔⛔ THE FILTER THAT MAKES -absolute GATEABLE, and the measurement that says
-// it is safe: over six linux bottles it turned 38 hits into 8, and not one of
+// it is safe: over six linux artifacts it turned 38 hits into 8, and not one of
 // the 30 dropped was a builder path. They were curl man-page examples,
 // a comment in sqlite3.h and a Romanian man page.
 func TestCompiledOnlyDropsDocumentationAndKeepsBuilderPaths(t *testing.T) {

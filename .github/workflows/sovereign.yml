@@ -10,7 +10,7 @@ name: sovereign build
 #   * on debian 12 every compile died at `env: … version GLIBC_2.38 not found`,
 #     because bk installs a MIRRORED coreutils linked against a newer glibc;
 #   * on debian 13 the first recipe through, jonas.github.io/tig, failed on a
-#     C23 diagnostic from the runner's GCC — not from the llvm.org bottle we
+#     C23 diagnostic from the runner's GCC — not from the llvm.org artifact we
 #     ship and intend to compile with.
 #
 # Both are the same defect wearing different clothes. go-zpkg owns its build and
@@ -29,7 +29,7 @@ on:
         required: false
         default: "=1.10.0"
       force:
-        description: "rebuild even when the bottle is already published (blank = skip). The point of this job is to COMPILE, and a skipped build proves nothing."
+        description: "rebuild even when the artifact is already published (blank = skip). The point of this job is to COMPILE, and a skipped build proves nothing."
         required: false
         default: "1"
       arch:
@@ -92,7 +92,7 @@ jobs:
       # every job on this machine would otherwise pull it from ghcr again.
       # Detected rather than configured: a GitHub-hosted runner cannot reach
       # 10.46.81.1 and simply keeps ghcr. Signature verification is unaffected —
-      # zot proxies the cosign referrer along with the bottle.
+      # zot proxies the cosign referrer along with the artifact.
       - name: point at the pull-through cache if it answers
         run: |
           # The cache accelerates BLOB pulls only. It must not become ZPKG_DIST:
@@ -101,13 +101,13 @@ jobs:
           # string from there, and asks the cache for a tag our registry does not
           # use — `gnu.org/bash` is published as `5.3`, not `5.3.0`:
           #   install gnu.org/bash 5.3.0: …/gnu.org/bash:5.3.0: not found
-          # Listing stays on ghcr; ZPKG_CACHE is consulted for the bottle itself.
+          # Listing stays on ghcr; ZPKG_CACHE is consulted for the artifact itself.
           echo "ZPKG_DIST=oci://ghcr.io/go-pkgx/packages" >> "$GITHUB_ENV"
           if curl -fsS -m 3 http://10.46.81.1:5111/v2/ >/dev/null 2>&1; then
-            echo "pull-through cache answers — bottles will be pulled through it"
+            echo "pull-through cache answers — artifacts will be pulled through it"
             echo "ZPKG_CACHE=oci://http://10.46.81.1:5111/go-zpkg/packages" >> "$GITHUB_ENV"
           else
-            echo "no cache on this runner — bottles come straight from ghcr"
+            echo "no cache on this runner — artifacts come straight from ghcr"
           fi
 
       - name: stage the sovereign rootfs
@@ -145,12 +145,12 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
           # builder/Containerfile's ENV lines, not just its ENTRYPOINT. Without
           # ZPKG_DIR the chroot inherits pkgx's $HOME/.pkgx default, which
           # (a) re-downloads the toolchain the staged tree already holds and
-          # (b) bakes PT_INTERP=/root/.pkgx/... into the bottle — an absolute
-          # path no consumer has. Measured on the first bottle this job built.
+          # (b) bakes PT_INTERP=/root/.pkgx/... into the artifact — an absolute
+          # path no consumer has. Measured on the first artifact this job built.
           ZPKG_DIR: /zpkg
           HOME: /root
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects

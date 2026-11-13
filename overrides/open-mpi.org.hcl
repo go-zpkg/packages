@@ -10,7 +10,7 @@ why     = <<-WHY
 
   The exclusion costs a package nobody else can repair. fftw.org depends on
   open-mpi.org unconditionally, so fftw cannot be BUILT for darwin/x86-64 at
-  all, and the bottle published there is not relocatable: `otool -L` on
+  all, and the artifact published there is not relocatable: `otool -L` on
   bin/fftw-wisdom shows /Users/runner/.pkgx/fftw.org/v3.3.11/lib/libfftw3.3.dylib
   as an LC_LOAD_DYLIB entry, so it looks for its own libraries in a build
   machine's home directory and finds them on no other machine. It cannot be

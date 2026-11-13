@@ -35,9 +35,9 @@ why     = "an UNEXPLAINED upper bound on the compiler, `llvm.org: <19`, which no
 #
 # ⛔ AND THE TEST DOES NOT BELONG ON x86-64, for a reason I weighed second.
 # x86-64 has a control — it builds perl today with 18.1.8 — but perl.org IS
-# PUBLISHED there, so forcing a rebuild replaces a production bottle under its
+# PUBLISHED there, so forcing a rebuild replaces a production artifact under its
 # existing tag. That is exactly the tag-replacement go-zpkg/packages#393 is
-# open about, and spending a production bottle to answer a question is the
+# open about, and spending a production artifact to answer a question is the
 # wrong trade when a free venue exists.
 #
 # The free venue is the s390x seed registry: `RECIPES="perl.org"

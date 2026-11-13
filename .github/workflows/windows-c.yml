@@ -66,7 +66,7 @@ jobs:
           # carry an identity only from v0.62.0, that identity only became a
           # real Merkle hash in v0.63.0, and v0.64.0 puts the signer's key id
           # on the signature referrer. A lane left at v0.59.0 keeps publishing
-          # bottles with no identity, which `zpkgs builds` can only report as
+          # artifacts with no identity, which `zpkgs builds` can only report as
           # "nothing recorded".
           #
           # ⛔⛔ v0.65.0 now, for a SECOND reason: from that tag the factory
@@ -106,11 +106,11 @@ jobs:
       #   x86_64-w64-mingw32-gcc -O3 -Wall -c -o adler32.o adler32.c
       #   bk gcc: gcc is not on PATH outside …/build.libexec
       #
-      # — a question about which compiler names the llvm-mingw bottle actually
+      # — a question about which compiler names the llvm-mingw artifact actually
       # ships, asked of a step that had just been skipped for failing to
       # answer it. A diagnostic that runs only on success is not a diagnostic.
       #
-      # So it also LISTS the bottle's bin rather than probing names guessed in
+      # So it also LISTS the artifact's bin rather than probing names guessed in
       # advance: `command -v` can only confirm a name someone already thought
       # of, and the whole question here is what is there.
       - name: what ran, from where
@@ -122,13 +122,13 @@ jobs:
       # back to the host compiler produces a working ELF and a green job, and
       # the first person to find out is whoever runs it on Windows.
       #
-      # ⛔ AND THE CHECK LOOKS INSIDE THE BOTTLE. This was a `find` for a loose
+      # ⛔ AND THE CHECK LOOKS INSIDE THE ARTIFACT. This was a `find` for a loose
       # .exe under dist, piped into `objdump | grep -o`. It reported
       #
       #   ::error::minigzip.exe was not built
       #
       # for a build that had just SUCCEEDED, because dist holds the packaged
-      # bottle and there is no loose file to find. A pipeline cannot tell "the
+      # artifact and there is no loose file to find. A pipeline cannot tell "the
       # build produced nothing" from "I looked in the wrong place", which is
       # the one distinction this step exists to make — so it is a Go tool with
       # tests, it opens the archives, and it prints its denominator.

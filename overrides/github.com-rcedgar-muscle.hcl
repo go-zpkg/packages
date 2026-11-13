@@ -1,5 +1,5 @@
 project = "github.com/rcedgar/muscle"
-why     = "The published muscle 5.3 darwin/aarch64 bottle does not run — the kernel kills it, because `strip` on PATH was GNU's rather than Apple's and it produced a Mach-O the loader rejects. The stripper has to be named."
+why     = "The published muscle 5.3 darwin/aarch64 artifact does not run — the kernel kills it, because `strip` on PATH was GNU's rather than Apple's and it produced a Mach-O the loader rejects. The stripper has to be named."
 
 edits = [
   {

@@ -149,7 +149,7 @@ func run(stdout, stderr io.Writer, getenv func(string) string, d doer, readFile 
 		for _, g := range rebuild {
 			fmt.Fprintf(stdout, "%s %s: missing %s\n", g.project, g.version, g.platform)
 		}
-		fmt.Fprintf(stdout, "\n--- ABSENT: upstream has no such bottle either — nothing to heal ---\n")
+		fmt.Fprintf(stdout, "\n--- ABSENT: upstream has no such artifact either — nothing to heal ---\n")
 		for _, g := range absent {
 			fmt.Fprintf(stdout, "%s %s: no %s anywhere\n", g.project, g.version, g.platform)
 		}
@@ -176,13 +176,13 @@ func run(stdout, stderr io.Writer, getenv func(string) string, d doer, readFile 
 			n := auditSplitIndexes(rows, stdout)
 			fmt.Fprintf(stderr, "catalog: %d project(s) whose versions disagree on platforms\n", n)
 		}
-		// An OMITTED manifest is a defect: the bottle is in the registry and the
+		// An OMITTED manifest is a defect: the artifact is in the registry and the
 		// index does not list it, so every install for that platform fails on a
 		// package that looks published. Fail, so a scheduled run is a GATE
 		// rather than a report nobody reads — the count went from 137 to 0 by
 		// hand, and the race that produced them is narrowed, not closed.
 		//
-		// Nothing else fails. Absences: upstream never published those bottles
+		// Nothing else fails. Absences: upstream never published those artifacts
 		// either. Uneven entries: measured 2026-09-27, all 221 of them were a
 		// build policy rather than a defect, and a lane that is red on a
 		// permanent list is one everyone learns to ignore — which is the same
@@ -275,7 +275,7 @@ func candidateNames(readFile func(string) ([]byte, error)) ([]string, error) {
 // per-package failure (logged to stderr) so one bad package never aborts the run.
 // collect returns the catalogue rows and, beside them, the per-platform
 // manifest tags each package carries — the evidence that tells a lost index
-// write from a bottle that was never pushed.
+// write from an artifact that was never pushed.
 func (c *client) collect(names []string, workers int) ([]row, map[string]map[string]bool) {
 	in := make(chan string)
 	var (
@@ -402,7 +402,7 @@ func (c *client) ghcrToken(name string) (string, error) {
 // The platform tags are RETURNED rather than dropped because they answer the
 // question the audit could not. An index missing a platform is either a lost
 // index WRITE, with the manifest still sitting under its own uncontended tag,
-// or a bottle that was never pushed at all. The first needs an index
+// or an artifact that was never pushed at all. The first needs an index
 // recomposed; the second needs a build, and telling 221 entries to
 // "re-dispatch" spends a build on every one of them either way.
 //
@@ -566,7 +566,7 @@ func semverTag(t string) bool {
 		return false
 	}
 	// `<ver>--<os>-<arch>` names one platform's manifest, not a version.
-	// go-zpkg/bottle#37 started writing those so a version's index could be
+	// go-zpkg/artifact#37 started writing those so a version's index could be
 	// COMPOSED from uncontended tags instead of merged into blind — and the
 	// first thing it did here was make llvm.org's newest "version"
 	// 19.1.0--darwin-aarch64. Every count this tool feeds would have inflated

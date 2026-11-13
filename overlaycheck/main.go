@@ -6,7 +6,7 @@
 //   - overrides/<name>-new.patch, applied to a fresh pkgxdev/pantry clone, is
 //     what `bk` BUILDS from;
 //   - go-zpkg/pantry-overlay/projects/<project>/package.hcl is what a consumer
-//     RESOLVES over HTTP (bottle's fetchRecipe tries the overlay, then upstream,
+//     RESOLVES over HTTP (artifact's fetchRecipe tries the overlay, then upstream,
 //     and nothing else).
 //
 // The two halves are in DIFFERENT FORMATS and that is deliberate: the patch
@@ -19,7 +19,7 @@
 // cuda-cudart, ROCr — the overlay is the ONLY place a consumer can learn the
 // dependencies and the runtime environment. Four such projects were published,
 // signed and unreachable to any consumer for days because only the build half
-// existed. Nothing said so: the bottles were there, the registry listed them,
+// existed. Nothing said so: the artifacts were there, the registry listed them,
 // and every fetch of a recipe returned 404 from both pantries.
 //
 // This checks only the case where the answer is not a judgement call — a patch
@@ -41,7 +41,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 )
 
@@ -64,7 +64,7 @@ import (
 // teaches people to re-run it until it agrees, which is the same as not having
 // one.
 //
-// Worth knowing beyond this tool: bottle's fetchRecipe reads that same CDN, so
+// Worth knowing beyond this tool: artifact's fetchRecipe reads that same CDN, so
 // a consumer can resolve a stale recipe for minutes after a change merges. That
 // is a property of the delivery path, not of this check, and it is not what
 // this check is for — a maintainer forgetting a half is about what is
@@ -281,7 +281,7 @@ func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer
 	// `build.dependencies` it is FALSE. The factory's CLOSURE reads both
 	// halves — the union in closureOf since go-zpkg/bk#224, the merge in
 	// closureGraph since go-zpkg/bk#232 — and the closure decides the build
-	// ORDER, which decides which bottles exist when. The overlay's own
+	// ORDER, which decides which artifacts exist when. The overlay's own
 	// llvm.org entry says as much in a comment, while this said the opposite.
 	//
 	// They are marked CLOSURE rather than counted with the rest, and they
@@ -346,7 +346,7 @@ const consumerMark = "CONSUMER "
 // and for build.script and build.env it is true. For build.dependencies it is
 // FALSE: the factory's closure reads both halves — the union in closureOf
 // since go-zpkg/bk#224, the merge in closureGraph since go-zpkg/bk#232 — and
-// the closure decides the build ORDER, which decides which bottles exist when.
+// the closure decides the build ORDER, which decides which artifacts exist when.
 // The overlay's own llvm.org entry says so in a comment.
 //
 // So this is reported by its own name rather than hidden in the build count.
@@ -387,10 +387,10 @@ var closureKeys = []string{"build.dependencies"}
 var deliberate = map[string]bool{
 	// ── one declared edge, where upstream's recipe omits it ──
 	//
-	// go-zpkg/pantry-overlay#30: the published bottle links gettext on darwin
+	// go-zpkg/pantry-overlay#30: the published artifact links gettext on darwin
 	// and upstream's recipe names it only as a build dependency.
 	"gnu.org/libiconv": true,
-	// The published perl bottle NEEDs libcrypt.so.1; glibc dropped it, and
+	// The published perl artifact NEEDs libcrypt.so.1; glibc dropped it, and
 	// upstream's perl.org says nothing about the provider.
 	"perl.org": true,
 	// Links openssl 3; upstream's recipe declares no runtime dependency at all.
@@ -421,7 +421,7 @@ var deliberate = map[string]bool{
 	// `patch-(…)\.tar\.gz`; ours stays on `.tar.xz` at 2.8.1, with a
 	// signature-verified `distributable.sha256` upstream does not pin at all.
 	// 2.8.1's only change is "Prevent creation of out-of-tree files
-	// (CVE-2026-115207)", and every bottle published before it predates the fix
+	// (CVE-2026-115207)", and every artifact published before it predates the fix
 	// (go-zpkg/packages#447). The recipe's test asserts the PROPERTY — a diff
 	// whose target escapes the directory must not create the file — so bringing
 	// this project "back in line" with the pantry is the one action this gate
@@ -550,7 +550,7 @@ func keysDiff(a, b map[string]any, keys []string) string {
 			}
 			out = append(out, k+": "+side)
 		default:
-			if d := bottle.DocDiff(map[string]any{k: x}, map[string]any{k: y}); d != "" {
+			if d := artifact.DocDiff(map[string]any{k: x}, map[string]any{k: y}); d != "" {
 				out = append(out, strings.TrimPrefix(d, ".."))
 			}
 		}
@@ -599,7 +599,7 @@ func builtRecipe(set *logical.Set, pantryDir, project string) (map[string]any, e
 // builds.
 //
 // The consumer's side is the overlay MERGED over upstream, not the overlay
-// alone (go-zpkg/bottle#103). An entry states only what it changes now, so
+// alone (go-zpkg/artifact#103). An entry states only what it changes now, so
 // reading it on its own says a reduced entry has no `versions` and no
 // `provides` — which is true of the FILE and false of the recipe. Comparing
 // the file was right while every entry was a full copy, and became wrong the
@@ -628,19 +628,19 @@ func recipeDiffDoc(overlay []byte, overlayName string, b, upstream map[string]an
 	if d := keysDiff(a, b, closureKeys); d != "" {
 		return closureMark + d, nil
 	}
-	return bottle.DocDiff(a, b), nil
+	return artifact.DocDiff(a, b), nil
 }
 
 // recipeDoc reads either format into one document shape.
 func recipeDoc(src []byte, name string) (map[string]any, error) {
 	if strings.HasSuffix(name, ".yml") {
-		converted, err := bottle.YAMLToHCL(src, name)
+		converted, err := artifact.YAMLToHCL(src, name)
 		if err != nil {
 			return nil, err
 		}
 		src, name = converted, name+".hcl"
 	}
-	return bottle.HCLToMap(src, name)
+	return artifact.HCLToMap(src, name)
 }
 
 // upstreamDoc reads the pantry's own copy, unoverridden — the baseline a
@@ -657,7 +657,7 @@ func upstreamDoc(pantryDir, project string) map[string]any {
 	return doc
 }
 
-// mergeOver is bottle's rule: a key the overlay states replaces that key, a
+// mergeOver is artifact's rule: a key the overlay states replaces that key, a
 // key it omits is inherited, and a list replaces rather than merges.
 func mergeOver(base, over map[string]any) map[string]any {
 	out := make(map[string]any, len(base)+len(over))

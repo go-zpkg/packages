@@ -18,7 +18,7 @@ import (
 // other branch.
 //
 // Found the hard way: `NO_PUBLISH=1`, added so a recipe could be built twice
-// and the two bottles compared without pushing, was set in the workflow and
+// and the two artifacts compared without pushing, was set in the workflow and
 // absent from the list. The run would have PUBLISHED. Every other name on
 // that line changes what gets built; that one changes whether the result is
 // irreversible.

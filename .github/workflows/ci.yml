@@ -1,7 +1,7 @@
 name: ci
 
 # The Go in this repo is not a side-show: `catalog` IS the index-audit gate that
-# runs at 04:00 and fails the day a published bottle drops out of its index,
+# runs at 04:00 and fails the day a published artifact drops out of its index,
 # `browsergw` is the CORS front the browser package store talks through, and
 # `openssl3` generates the override patches the factory applies. Until this lane
 # existed, nothing compiled or tested any of it before merge — a change that
@@ -123,7 +123,7 @@ jobs:
       # a patch the builder refused, and it was merged.
       #
       # The advisory records are the factory's own answer to "why was this
-      # rebuilt?", and `zpkb publish --advisories` attaches them to the bottle as
+      # rebuilt?", and `zpkb publish --advisories` attaches them to the artifact as
       # an OpenVEX document. A record that does not parse is therefore not a
       # documentation problem: it STOPS a publish, in the middle of a factory
       # run, hours in.
@@ -133,7 +133,7 @@ jobs:
       # edited. `zpkb advisories` refuses a file whose `project:` disagrees with
       # its directory, because nothing else in the record says which package it
       # is about — and the findings would be attached, signed, to the wrong
-      # bottle.
+      # artifact.
       #
       # An EMPTY tree fails too, which is deliberate: a validator that cannot
       # find its corpus reports the same "no problems" as one that read it all.
@@ -196,7 +196,7 @@ jobs:
       # used to live in two — a patch that created the recipe, and the overlay
       # — and four such projects were published, signed and unreachable to any
       # consumer because only the build half existed. Nothing said so: the
-      # bottles were there, and only a RECIPE fetch would have failed.
+      # artifacts were there, and only a RECIPE fetch would have failed.
       #
       # That risk is not gone, it has moved: the overlay's copy has to be
       # SERVED. A checkout can be right while the contents API still returns

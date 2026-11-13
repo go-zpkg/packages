@@ -33,7 +33,7 @@ build and run it, and the rest of this file measures what that image proved.
 
 Measured on a six-recipe panel (nine with their closure), built inside this image
 in sovereign mode. `lz4.org` (linux/aarch64) is the reference case: the build
-completes inside the image and the bottle it produces carries
+completes inside the image and the artifact it produces carries
 
 ```
 PT_INTERP  /zpkg/gnu.org/glibc/v2.44.0/lib/glibc-2.44/ld-linux-aarch64.so.1
@@ -42,7 +42,7 @@ references to /usr/lib, /lib/aarch64-linux-gnu, debian:  0
 ```
 
 Pair it with `zpkb factory --libc zpkgx`, which points the compiler at our own
-glibc bottle: the environment and the output are then both free of the
+glibc artifact: the environment and the output are then both free of the
 distribution.
 
 ## What a scratch image forced us to fix
@@ -51,10 +51,10 @@ Each of these was found by running the thing, not by reading code:
 
 | symptom | fix |
 |---|---|
-| `context deadline exceeded` on a 969 MiB bottle | a 5-minute *whole-request* timeout could never fetch one — bounded a stall instead (go-zpkg/bottle#12) |
-| `PROTOCOL_ERROR` mid-blob from ghcr | HTTP/2 forced by mistake; bottle pulls are one long body (bottle#13) |
-| `expected 1762228910, got 1247805440: unexpected EOF` | a cut transfer lost 1.19 GiB — resume with `Range`, verify size+digest (bottle#14) |
-| `x509: certificate signed by unknown authority` | no system trust store on scratch — bk installs bottle's embedded bundle, including on go-git's own client (bottle#15, bk#26) |
+| `context deadline exceeded` on a 969 MiB artifact | a 5-minute *whole-request* timeout could never fetch one — bounded a stall instead (go-zpkg/artifact#12) |
+| `PROTOCOL_ERROR` mid-blob from ghcr | HTTP/2 forced by mistake; artifact pulls are one long body (artifact#13) |
+| `expected 1762228910, got 1247805440: unexpected EOF` | a cut transfer lost 1.19 GiB — resume with `Range`, verify size+digest (artifact#14) |
+| `x509: certificate signed by unknown authority` | no system trust store on scratch — bk installs artifact's embedded bundle, including on go-git's own client (artifact#15, bk#26) |
 | `eval "$(pkgx +deps)"` produced nothing | our pkgx had no env-printing mode; it also now exports `lib64/pkgconfig`, which upstream omits (pkgx#1) |
 | `mkdir: libc.so.6: cannot open shared object file` | the sanitised build env dropped an explicitly-set `LD_LIBRARY_PATH` (bk#27) |
 | `make: /bin/sh: No such file or directory` | `pkgm install -s` now poses the loader **and** `/bin/sh` (pkgm#9) |
@@ -69,9 +69,9 @@ this table is a list and not a lookup:
 
 | symptom | fix |
 |---|---|
-| `mkdir: libc.so.6: cannot open shared object file`, again | the glibc bottle puts libc.so.6 in `lib/glibc-2.44/` and `lib/` holds nothing else, so `eval "$(pkgx +…)"` exported a directory with no shared object in it. `pkgx -- cmd` was right all along because it hands `bottle.LibPath` to OUR loader (pkgx#60). The fix is **conditional**: exporting our glibc on a distribution pairs it with the HOST's `ld.so` and breaks a private contract — `undefined symbol: __pointer_chk_guard` (pkgx#62) |
-| `bottle: … is unsigned (no signature referrer)` while staging | the loopback seed registry answers **404** on `/v2/<repo>/referrers/<digest>`: it does not serve the Referrers API, so bk signs and has nowhere to put it. `ZPKG_VERIFY=0` for that registry — and it must travel through `sudo --preserve-env` with `ZPKG_DIST`, or staging sees it and the chroot does not |
-| `no s390x loader (ld64.so.1) in the staged glibc` | `bottle.LoaderNameFor` had no entry. s390x's loader is **not** named after its architecture — the neighbours read `ld-linux-<arch>.so.N` and extending that pattern gives a file that does not exist (bottle#105) |
+| `mkdir: libc.so.6: cannot open shared object file`, again | the glibc artifact puts libc.so.6 in `lib/glibc-2.44/` and `lib/` holds nothing else, so `eval "$(pkgx +…)"` exported a directory with no shared object in it. `pkgx -- cmd` was right all along because it hands `artifact.LibPath` to OUR loader (pkgx#60). The fix is **conditional**: exporting our glibc on a distribution pairs it with the HOST's `ld.so` and breaks a private contract — `undefined symbol: __pointer_chk_guard` (pkgx#62) |
+| `artifact: … is unsigned (no signature referrer)` while staging | the loopback seed registry answers **404** on `/v2/<repo>/referrers/<digest>`: it does not serve the Referrers API, so bk signs and has nowhere to put it. `ZPKG_VERIFY=0` for that registry — and it must travel through `sudo --preserve-env` with `ZPKG_DIST`, or staging sees it and the chroot does not |
+| `no s390x loader (ld64.so.1) in the staged glibc` | `artifact.LoaderNameFor` had no entry. s390x's loader is **not** named after its architecture — the neighbours read `ld-linux-<arch>.so.N` and extending that pattern gives a file that does not exist (artifact#105) |
 | `builder: 42 packages` and nothing installed | a self-hosted runner reuses `$RUNNER_TEMP`, and `InstallFor` reads an existing `<project>/v<ver>` as "already present". A tree left by a run that died is inherited in silence. Remove it before staging — with `sudo`, since the chroot wrote it as root. `bk builder` now says when it is reusing (bk#277) |
 | `mkdir`, then `sed`, want `libselinux.so.1` | their configure AUTO-DETECTS the builder's SELinux (`with_selinux=maybe` in gnulib's `m4/selinux-selinux-h.m4`). `--without-selinux` in the override. Do not find these one failed build at a time: `bk builder` reports every NEEDED soname the tree lacks, with who asks (bk#276) |
 | `fork/exec …/build/configure: no such file or directory`, with the tree FULL | `bk build` removed `paths.Install` before building, and for `gnu.org/bash` that is what `/bin/sh` points at — a symlink and not a copy, because `$ORIGIN` in bash's RUNPATH must resolve from the real location. **Rebuilding bash deleted the shell**, and the next `#!/bin/sh` exec died naming the SCRIPT, which exists, not the interpreter, which did not. Measured: bash is built 74th of 78 and all five packages after it fail, the 73 before do not; `gzip` alone builds, `bash` alone fails. Rebuilding `gnu.org/glibc` is the same wound one level deeper — it removes the loader every ELF names — which is why gen1 could not rebuild its toolchain at all (bk#292) |
@@ -80,11 +80,11 @@ this table is a list and not a lookup:
 Before dispatching anything on a new architecture, `bk builder --dry-run
 --platform <target> --toolchain builder/toolchain.txt` names every root that
 cannot resolve — all of them, not the first — and tells a CONFLICT between
-roots apart from a missing bottle. It is necessary and not sufficient: a bottle
+roots apart from a missing artifact. It is necessary and not sufficient: an artifact
 that resolves may still fail to unpack.
 
 Several toolchain packages (gawk, m4, bison, texinfo, autoconf, libtool) had no
-**linux** bottle in our registry at all — only darwin ones. `bk factory
+**linux** artifact in our registry at all — only darwin ones. `bk factory
 --mirror-from https://dist.pkgx.dev` filled them.
 
 ## A local pull-through cache
@@ -115,7 +115,7 @@ docker build -f builder/Containerfile \
 
 Measured: the same install takes **45.7 s** the first time and **2.2 s** after,
 and **signature verification stays on** — the cache proxies the cosign referrer
-alongside the bottle (checked: the referrer tag in the cache carries
+alongside the artifact (checked: the referrer tag in the cache carries
 `application/vnd.dev.cosign.artifact.sig.v1+json`).
 
 llvm.org also gets its own `RUN` layer, so editing the rest of the toolchain

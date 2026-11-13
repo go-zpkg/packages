@@ -4,13 +4,13 @@
 # The rule this file exists to hold (user, 2026-10-04): *`sovereign=0` ne doit
 # servir qu'à construire la graine, après on veut être autonome.* Generation 0
 # takes its compiler, make and shell from the runner's distribution because on
-# an architecture with no bottles at all there is nothing else to take them
+# an architecture with no artifacts at all there is nothing else to take them
 # from. That licence ends the moment the seed exists.
 #
 # So this dispatch differs from dispatch-seed.sh in exactly two inputs, and
 # both are the whole point:
 #
-#   bootstrap=      the toolchain is bottles now, not host tools
+#   bootstrap=      the toolchain is artifacts now, not host tools
 #   sovereign=1     `zpkb builder` stages a rootfs FROM the seed registry and
 #                   the build happens inside it, under chroot
 #

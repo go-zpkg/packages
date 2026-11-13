@@ -14,10 +14,10 @@ import (
 // Publishing a version's index is a read-modify-write on one mutable tag, and
 // the arch jobs — plus the separate darwin workflow — race on it. A writer whose
 // read predated another's write re-tags without that platform, verifies its own,
-// and exits happy. The bottle is pushed, valid, and simply not in the index, so
+// and exits happy. The artifact is pushed, valid, and simply not in the index, so
 // every install for that platform fails with
 //
-//	pkgx: no bottle for gnu.org/gperf v3.3 (linux/aarch64): platform not in index
+//	pkgx: no artifact for gnu.org/gperf v3.3 (linux/aarch64): platform not in index
 //
 // naming a package that looks published and is not. Two were found by tripping
 // over them in a build (python.org 3.14.7 lost linux/arm64; gnu.org/gperf 3.3

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // askedFor records the constraint the resolver was handed, and stages an
@@ -18,11 +18,11 @@ func askedFor(t *testing.T, reportVersion string) *[]string {
 	t.Cleanup(func() { pickVersion, install = oldPick, oldInstall })
 
 	var asked []string
-	pickVersion = func(_, constraint, _, _ string) (bottle.Ver, error) {
+	pickVersion = func(_, constraint, _, _ string) (artifact.Ver, error) {
 		asked = append(asked, constraint)
-		return bottle.Ver{Raw: reportVersion}, nil
+		return artifact.Ver{Raw: reportVersion}, nil
 	}
-	install = func(r bottle.Resolved, dir, _, _ string) (bool, error) {
+	install = func(r artifact.Resolved, dir, _, _ string) (bool, error) {
 		p := filepath.Join(dir, filepath.FromSlash(r.Project), "v"+r.Version.Raw, "bin", "tool")
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return false, err

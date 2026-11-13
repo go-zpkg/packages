@@ -1,6 +1,6 @@
 name: fromscratch
-# Continuous PROOF + COVERAGE that published ghcr bottles run FROM SCRATCH —
-# only pkgx bottles, no debian, no system libc.
+# Continuous PROOF + COVERAGE that published ghcr artifacts run FROM SCRATCH —
+# only pkgx artifacts, no debian, no system libc.
 #
 # For each witness tool, `zpkgm image` emits a `FROM scratch` Containerfile whose
 # `RUN` step uses pkgm ITSELF, inside the image, to install the tool's whole
@@ -15,7 +15,7 @@ name: fromscratch
 #
 # Why not docker: this runs on our own Incus pool, whose runner image carries
 # neither docker nor podman. A chroot needs neither, and proves the same thing
-# more directly — there is no image layer machinery between the bottles and the
+# more directly — there is no image layer machinery between the artifacts and the
 # assertion. Measured 2026-08-27: lz4 installs itself from ghcr into an empty
 # directory and prints its version, inside an Incus container.
 on:
@@ -39,7 +39,7 @@ env:
 jobs:
   scratch:
     # Our own GARM/Incus pool: linux/x86-64, so the amd64 closures install and
-    # run natively (no qemu). Bottles are pulled anonymously from the public
+    # run natively (no qemu). Artifacts are pulled anonymously from the public
     # ghcr.io/go-pkgx/packages registry by pkgm, from inside the chroot.
     runs-on: [self-hosted, incus, amd64]
     steps:

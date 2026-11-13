@@ -101,7 +101,7 @@ missing field, it is a field no recipe is required to carry and almost none
 does — **0 of our 213** overlay recipes and **1 of upstream's 1932**. A field
 that is optional and unused is indistinguishable from an absent one, except
 that it reads as though we had the information. We have just spent a day
-establishing that an unstated licence is not an absent one; shipping bottles
+establishing that an unstated licence is not an absent one; shipping artifacts
 with no record of their terms repeats upstream's mistake at our own expense.
 So the change here is a *requirement*, not a field.
 
@@ -232,7 +232,7 @@ provides = ["bin/minigzip"]
 
 # ⛔ DEPENDENCIES ARE SLOTTED, as Guix and Spack slot them. `build` runs on the
 # machine doing the building; `host` is linked into the artefact and must be
-# built for the target; `run` is needed when the bottle is used. A cross build
+# built for the target; `run` is needed when the artifact is used. A cross build
 # resolves `build` natively and `host` for the target — the distinction that
 # `windows-c.yml` has no way to state today.
 deps {
@@ -331,7 +331,7 @@ Steps 1–4 are what the first bootstrap tranche needs; 5–6 can follow the
 recipes.
 
 Both front-ends have to move together: `zpkb/pantry/hcl` converts HCL to YAML
-through `bottle.HCLToYAML` and validates with the same schema, deliberately,
+through `artifact.HCLToYAML` and validates with the same schema, deliberately,
 "because the CLIENT has to read these files too — the overlay is fetched at
 install time". A field the factory honours and the installer ignores would be
 two readings of one recipe.

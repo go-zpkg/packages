@@ -1,9 +1,9 @@
 project = "gnu.org/glibc"
-why     = "two faults that only show once the bottle MOVES. (1) build.env names a dynamic loader for x86-64 and aarch64 and for no other architecture, so on s390x $LDSO is empty and the `ld.so` symlink points at a DIRECTORY. (2) glibc compiles its gconv directory in at $libdir/gconv, which here is inside the `+brewing` prefix, so after the rename iconv can convert nothing and the recipe declares no runtime env to say otherwise."
+why     = "two faults that only show once the artifact MOVES. (1) build.env names a dynamic loader for x86-64 and aarch64 and for no other architecture, so on s390x $LDSO is empty and the `ld.so` symlink points at a DIRECTORY. (2) glibc compiles its gconv directory in at $libdir/gconv, which here is inside the `+brewing` prefix, so after the rename iconv can convert nothing and the recipe declares no runtime env to say otherwise."
 
 merge {
   # GCONV_PATH, because glibc's charset modules are found by a path baked
-  # in AT BUILD TIME and this bottle does not stay where it was built.
+  # in AT BUILD TIME and this artifact does not stay where it was built.
   #
   # The recipe puts libdir at {{prefix}}/lib/glibc-<marketing> -- its own
   # comment says "--libdir alone only affects gconv/audit plugins" -- so
@@ -12,7 +12,7 @@ merge {
   #   <prefix>/lib/glibc-2.44/gconv
   #
   # with <prefix> the `+brewing` staging path. That directory is gone by
-  # the time anyone installs the bottle, and iconv silently falls back to
+  # the time anyone installs the artifact, and iconv silently falls back to
   # the charsets built into libc. The second sovereign generation shows
   # what that costs a consumer:
   #
@@ -25,7 +25,7 @@ merge {
   #
   # `runtime.env` is the mechanism pkgx already has for this -- gnu.org/
   # guile uses it for GUILE_LOAD_PATH -- and glibc declared none at all.
-  # The modules ship in the bottle; only the pointer to them was missing.
+  # The modules ship in the artifact; only the pointer to them was missing.
   #
   # NOT caught by the recipe's own test, which asserts `bin/iconv
   # --version` prints a version. A converter that can convert nothing
@@ -45,7 +45,7 @@ merge {
         # s390x's loader is NOT ld-linux-s390x.so.1 -- the name cannot be
         # derived from the other two, which is half of why it was missed.
         # The s390x ABI calls it ld64.so.1, glibc installs it as that, and
-        # bk's own bottle.LoaderNameFor already carries the same value for
+        # bk's own artifact.LoaderNameFor already carries the same value for
         # the builder's sake.
         LDSO = "ld64.so.1"
       }
@@ -87,7 +87,7 @@ edits = [
     #   exec "$libdir/" --library-path …     <- exec a directory
     #
     # Neither fails where it happens. The symlink is created, the wrapper is
-    # written, `make install` is happy, and the bottle is published; the
+    # written, `make install` is happy, and the artifact is published; the
     # failure arrives much later in somebody else's build, wearing
     # "No such file or directory" against a path that plainly exists.
     #

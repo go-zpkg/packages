@@ -12,7 +12,7 @@
 #   build and the publish, /bin/sh for the evidence step. It is exec'd through
 #   `pkgx +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org --`, which is
 #   builder/Containerfile's ENTRYPOINT: make, clang, wasm-ld and llvm-ar come
-#   from bottles in the rootfs, never from the runner.
+#   from artifacts in the rootfs, never from the runner.
 #
 # Bound in: <recipes-dir> at /recipes, <advisories-dir> at /advisories, and
 # $root/dist is /dist (it is a plain directory of the rootfs). Every piece below

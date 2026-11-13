@@ -9,7 +9,7 @@ import (
 
 // ⛔⛔ THE NEEDLE COMES FROM WHAT LANDED, NOT FROM WHAT WAS ASKED FOR.
 //
-// A bottle is installed under the directory it CARRIES, which is not always
+// An artifact is installed under the directory it CARRIES, which is not always
 // the version that was requested: the rebuild published as `3.3.11_1` unpacks
 // to `v3.3.11`. The first form of this tool searched for `v3.3.11_1` inside a
 // tree named `v3.3.11`, found nothing, and printed "clean" — a scan that could
@@ -97,7 +97,7 @@ func TestANeighbouringVersionIsNotThisOne(t *testing.T) {
 }
 
 // ⛔ BINARY CONTENT IS WHERE BAKED PREFIXES LIVE. The measurement I first
-// published on go-zpkg/bk#386 — "fftw's bottle bakes nothing" — came from a
+// published on go-zpkg/bk#386 — "fftw's artifact bakes nothing" — came from a
 // `grep -rl` that resolved to ugrep with `-I`, skipping binary files. Every
 // one of fftw's 9 hits is a Mach-O dylib, an executable or a -config script.
 // A text-only search cannot see a baked prefix at all.

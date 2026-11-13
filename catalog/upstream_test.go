@@ -142,7 +142,7 @@ func TestSortGapsIsStableAndOrdered(t *testing.T) {
 }
 
 // A LOST entry says upstream has the platform and our index does not. It says
-// NOTHING about whether we hold the bottle: the interior hole that made it a
+// NOTHING about whether we hold the artifact: the interior hole that made it a
 // defect proves we built that platform for the project at OTHER versions.
 //
 // The per-platform manifest tag is what tells the two apart, and they want
@@ -157,7 +157,7 @@ func TestSplitByPlatformTag(t *testing.T) {
 	have := map[string]map[string]bool{
 		"python.org": {
 			manifestKey("3.14.7", "linux/aarch64"): true,
-			// 3.14.8 darwin/x86-64 is NOT here: that bottle was never pushed.
+			// 3.14.8 darwin/x86-64 is NOT here: that artifact was never pushed.
 		},
 		"curl.se": {manifestKey("8.12.0", "linux/x86-64"): true},
 		// never.listed has no entry at all — its tags could not be read.

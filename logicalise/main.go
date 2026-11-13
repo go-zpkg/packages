@@ -265,7 +265,7 @@ func whyFor(dir, project string) string {
 func knownReason(patch string) (string, bool) {
 	switch {
 	case strings.HasSuffix(patch, "-openssl3.patch"):
-		return "This recipe pins openssl to a 1.x line. Our registry holds no 1.x bottle — " +
+		return "This recipe pins openssl to a 1.x line. Our registry holds no 1.x artifact — " +
 			"every one of the 48 is 3.x or 4.x — so the recipe dies in the resolver before a " +
 			"compiler runs: `no version of openssl.org satisfies \"^1.1\"`. openssl 1.1.1 has " +
 			"been end-of-life since September 2023, so pinning it is not an alternative. " +

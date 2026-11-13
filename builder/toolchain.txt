@@ -1,4 +1,4 @@
-# The build toolchain of the sovereign builder image — bottles only, no distro.
+# The build toolchain of the sovereign builder image — artifacts only, no distro.
 #
 # One <pkg>[@version] per line. This file is the reason the image is
 # reproducible: it is reviewed, diffed and committed like the code it builds,
@@ -47,7 +47,7 @@ kernel.org/linux-headers@~7.2
                             # A pin written for a stale mirror had become the
                             # thing stopping the architecture that needs no
                             # mirror at all.
-gnu.org/binutils            # ar/ranlib: the llvm bottle ships llvm-ar, not `ar`
+gnu.org/binutils            # ar/ranlib: the llvm artifact ships llvm-ar, not `ar`
 
 gnu.org/make                # the build driver most recipes use
 gnu.org/bash                # `make` runs every recipe line through /bin/sh
@@ -73,7 +73,7 @@ freedesktop.org/pkg-config  # configure scripts probe deps through it
 curl.se                     # recipes that fetch in their own script (ca-certs)
 
 gnu.org/gcc/libstdcxx       # clang itself is a C++ program, and the llvm.org
-                            # bottle we install is MIRRORED — linked against the
+                            # artifact we install is MIRRORED — linked against the
                             # libstdc++ of whatever distro built it. In a tree
                             # that has no distro, clang does not start:
                             #   clang: error while loading shared libraries:

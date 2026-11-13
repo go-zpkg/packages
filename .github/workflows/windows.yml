@@ -87,7 +87,7 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
         run: |
           start=$(( ${{ matrix.chunk }} * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
           # Signing key → temp file, as factory.sh does; skip --sign if unset.
@@ -154,7 +154,7 @@ jobs:
   #
   # Derived from the PANTRY, not from windows/go-projects.txt, because the
   # pantry is what a Windows pkgx resolves against. Most of it will come
-  # back marked "no bottle here", and that is the point: naming a project
+  # back marked "no artifact here", and that is the point: naming a project
   # and saying there is nothing for you tells somebody it exists and that
   # building it is the thing to do next, where silence tells them it does
   # not exist.
@@ -185,7 +185,7 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
         run: |
           set -eu
           zpkb catalog \

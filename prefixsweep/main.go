@@ -1,11 +1,11 @@
 // Command prefixsweep answers one question about the published set: does a
-// bottle's content name its own version directory?
+// artifact's content name its own version directory?
 //
-// ⛔ IT DECIDES WHETHER A BOTTLE CAN BE RENAMED. `bottle.InstallFor` installs
-// a bottle under the directory the bottle CARRIES rather than under the
+// ⛔ IT DECIDES WHETHER A ARTIFACT CAN BE RENAMED. `artifact.InstallFor` installs
+// an artifact under the directory the artifact CARRIES rather than under the
 // version that was requested, and the reason given is that "absolute paths
 // baked inside it point there". That premise decides go-zpkg/bk#386: if no
-// bottle bakes its own prefix, a rebuild published as `3.3.11_1` can simply be
+// artifact bakes its own prefix, a rebuild published as `3.3.11_1` can simply be
 // installed under that name; if some do, renaming them is unsafe and the
 // rebuild counter has to be decided before the build instead.
 //
@@ -16,7 +16,7 @@
 // It installs each named project into a THROWAWAY store and greps the
 // extracted tree for its own `v<version>` component. A hit is a file that
 // would be wrong if the directory were renamed; the file is named, because
-// "some bottles do" is not a worklist.
+// "some artifacts do" is not a worklist.
 //
 //	prefixsweep -platform darwin/aarch64 curl.se zlib.net …
 //	prefixsweep -platform linux/x86-64 -list recipes.txt -n 20
@@ -33,7 +33,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 var osExit = os.Exit
@@ -48,8 +48,8 @@ var osExit = os.Exit
 // a wrapper body is code that only a network call can execute, so it would sit
 // uncovered forever and the 100% gate would be bought by excusing it.
 var (
-	pickVersion = bottle.PickVersionFor
-	install     = bottle.InstallFor
+	pickVersion = artifact.PickVersionFor
+	install     = artifact.InstallFor
 )
 
 func main() {
@@ -68,7 +68,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	store := fs0.String("store", "", "install into this directory instead of a temporary one")
 	needle := fs0.String("needle", "", "sweep for this literal (e.g. the builder's cache root) instead of the package's own version directory; any hit fails the run")
 	absolute := fs0.Bool("absolute", false, "sweep for ANY absolute path outside an allowlist of platform paths, instead of a literal; any hit fails the run. A spelled -needle certifies only the lane it was written for — this asserts the property, so a lane nobody anticipated fails rather than passes")
-	compiledOnly := fs0.Bool("compiled", false, "with -absolute, search only artefacts a path is COMPILED into (bin/, *.so*, *.dylib, *.a). Measured over six linux bottles: 38 hits become 8, the 30 dropped are all documentation — man-page examples and header comments — and not one of them is a builder path")
+	compiledOnly := fs0.Bool("compiled", false, "with -absolute, search only artefacts a path is COMPILED into (bin/, *.so*, *.dylib, *.a). Measured over six linux artifacts: 38 hits become 8, the 30 dropped are all documentation — man-page examples and header comments — and not one of them is a builder path")
 	constraint := fs0.String("constraint", "*", "which build to sweep, as a pkgx constraint (`=3.3.11` for one exact build). The default sweeps the newest, which is what a user gets; an exact pin is how to ask whether a REBUILD came out clean, since the newest is by then the one you are trying to replace")
 	if err := fs0.Parse(args); err != nil {
 		return err
@@ -117,7 +117,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	// ⛔ SAY WHAT WAS SEARCHED FOR, BEFORE ANY RESULT. A clean run is only
 	// readable if the reader can see the question: `-needle /home/runner`
-	// printed "4 clean" against four linux bottles that were full of builder
+	// printed "4 clean" against four linux artifacts that were full of builder
 	// paths, because the lane builds with HOME=/github/home.
 	if *absolute {
 		reportAllowed(stdout)
@@ -131,13 +131,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 			unreadable++
 			continue
 		}
-		if _, err := install(bottle.Resolved{Project: project, Version: v}, dir, osn, arch); err != nil {
+		if _, err := install(artifact.Resolved{Project: project, Version: v}, dir, osn, arch); err != nil {
 			fmt.Fprintf(stdout, "UNREAD    %-34s %v\n", project, err)
 			unreadable++
 			continue
 		}
 		// ⛔ THE NEEDLE COMES FROM WHAT LANDED, NOT FROM WHAT WAS ASKED FOR.
-		// A bottle is installed under the directory it CARRIES, which is not
+		// An artifact is installed under the directory it CARRIES, which is not
 		// always the requested version — a rebuild published as `3.3.11_1`
 		// unpacks to `v3.3.11`. Searching for `v3.3.11_1` in a tree that calls
 		// itself `v3.3.11` finds nothing and reports "clean", which is a scan
@@ -152,7 +152,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 			// ⛔ A CALLER-SUPPLIED NEEDLE REPLACES THE VERSION-DIRECTORY ONE. That
 			// one cannot see a builder path lacking the package's own directory,
 			// and a path normalised to /build/... no longer contains it at all, so
-			// re-running the default sweep on a fixed bottle would print a vacuous
+			// re-running the default sweep on a fixed artifact would print a vacuous
 			// zero (go-zpkg/bk#387).
 			hits, err = findNeedle(home, []byte(*needle))
 		default:
@@ -184,7 +184,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	// ⛔ THE TOTALS ALWAYS, INCLUDING THE ZEROS, and "could not be read" never
-	// folded into "clean": a bottle that failed to install has told us nothing
+	// folded into "clean": an artifact that failed to install has told us nothing
 	// about whether it bakes its prefix, and counting it as clean would be a
 	// census that could not read reporting zero.
 	fmt.Fprintf(stdout, "\n%d swept · %d bake their own prefix · %d clean · %d unreadable\n",
@@ -204,7 +204,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-// installedComponent is the `v<something>` directory the bottle actually
+// installedComponent is the `v<something>` directory the artifact actually
 // unpacked as — the real one, never a `v*`/`v3`/`v3.3` convenience symlink
 // and never the alias a rebuild leaves behind.
 //

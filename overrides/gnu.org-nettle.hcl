@@ -1,5 +1,5 @@
 project = "gnu.org/nettle"
-why     = "nettle links libraries it did not declare, so a bottle installed into an empty store cannot start."
+why     = "nettle links libraries it did not declare, so an artifact installed into an empty store cannot start."
 
 edits = [
   {

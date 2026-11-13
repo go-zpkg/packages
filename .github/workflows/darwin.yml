@@ -1,6 +1,6 @@
 name: darwin
 
-# macOS bottles for ghcr.io/go-pkgx/packages. Same pure-Go bk pipeline and the
+# macOS artifacts for ghcr.io/go-pkgx/packages. Same pure-Go bk pipeline and the
 # same signed-OCI registry as the linux factory (build.yml) — the ONLY difference
 # is native macOS runners instead of a debian container (GitHub's macOS runners
 # are already clean, ephemeral VMs, so they are the isolation). `zpkb factory` is
@@ -38,7 +38,7 @@ on:
         required: false
         default: ""
       mirror_from:
-        description: "copy the bottles from this upstream dist instead of building them, e.g. https://dist.pkgx.dev — the cheap way to restore a platform an index lost"
+        description: "copy the artifacts from this upstream dist instead of building them, e.g. https://dist.pkgx.dev — the cheap way to restore a platform an index lost"
         required: false
         default: ""
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
@@ -95,12 +95,12 @@ jobs:
       #
       # `std::atomic_ref` is C++20 library and macos-14's libc++ lacks it.
       # x86-64 published 26.10.0 from the newer image while aarch64 was stuck
-      # on a 26.8.1 bottle that cannot even start (it links openssl v1, #330),
+      # on a 26.8.1 artifact that cannot even start (it links openssl v1, #330),
       # so the gap had gone from delaying a publish to FREEZING a defect.
       #
       # Safe for consumers because the deployment target is set by the builder,
       # not inherited from it: bk's wrapper exports MACOSX_DEPLOYMENT_TARGET=11.0
-      # on every darwin build, so a newer host still produces macOS 11 bottles.
+      # on every darwin build, so a newer host still produces macOS 11 artifacts.
       - id: gen
         run: |
           if [ -n "${{ github.event.inputs.recipes }}" ]; then
@@ -140,7 +140,7 @@ jobs:
         #
         #   PATH  20 entries under ~/.pkgx, 0 under /opt/homebrew or /usr/local
         #
-        # so msgfmt comes from a bottle like every other tool. `brew install
+        # so msgfmt comes from an artifact like every other tool. `brew install
         # gettext && brew link --force gettext` used to run here and was the
         # factory inviting the host in through the front door.
         run: |
@@ -150,10 +150,10 @@ jobs:
       #
       # `macos-15` is a rolling label: it pins the macOS generation and the
       # Xcode inside it drifts. Measured 2026-11-03 by rebuilding
-      # sourceware.org/bzip2 1.0.8 and comparing it with the bottle it
+      # sourceware.org/bzip2 1.0.8 and comparing it with the artifact it
       # replaced — the SDK path baked into libbz2.a had moved from
       # Xcode_15.4.app to Xcode_16.4.app, and nothing in any log said so. It
-      # was found by sweeping the BOTTLE, which is the expensive way to learn
+      # was found by sweeping the ARTIFACT, which is the expensive way to learn
       # what your own builder is.
       #
       # This does not pin anything and changes no build. Pinning Xcode is the
@@ -162,7 +162,7 @@ jobs:
       # toolchain split (macos-14's libc++ has no `std::atomic_ref`). Record
       # first, so that decision can be made from data.
       #
-      # ⛔ The SDK path is deliberately NOT rewritten out of the bottles. It is
+      # ⛔ The SDK path is deliberately NOT rewritten out of the artifacts. It is
       # PROVENANCE: two builds against different SDKs produce different code,
       # and normalising the string would make them byte-identical in the one
       # place that recorded the difference — improving the reproducibility
@@ -217,7 +217,7 @@ jobs:
         # bk already strips Homebrew from PATH, CPATH, LIBRARY_PATH,
         # PKG_CONFIG_PATH, CMAKE_PREFIX_PATH and LD_LIBRARY_PATH — measured, 0
         # entries in all six. It is not enough, and twice in one afternoon a
-        # bottle was refused because of it:
+        # artifact was refused because of it:
         #
         #   openjpeg  bin/opj_compress -> /opt/homebrew/opt/little-cms2/lib/liblcms2.2.dylib
         #   gawk      bin/gawk         -> /usr/local/opt/mpfr/lib/libmpfr.6.dylib
@@ -268,13 +268,13 @@ jobs:
           # way. The token the job already holds for the registry raises the
           # ceiling to 5000/hour; it just was never handed to the build.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
           VERSIONS: ${{ github.event.inputs.versions }}
           MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
           # Resolve from OUR signed registry and OUR overlay, exactly as the
-          # linux lane does. Without these two the darwin bottles were resolved
+          # linux lane does. Without these two the darwin artifacts were resolved
           # against upstream's dist and upstream's recipes — a different closure
           # from the one we publish, and the reason a recipe corrected in the
           # overlay (openssl ^1.1 → ^3) still failed here.
@@ -289,7 +289,7 @@ jobs:
           # Measured on 2026-09-02: three projects dispatched to relink against
           # openssl 3 came back "successful" having rebuilt none of them, with a
           # 130-line failure list of 2014-era cargo releases nobody asked for,
-          # after two hours of runner time. The bottles that had to change kept
+          # after two hours of runner time. The artifacts that had to change kept
           # their digests, so the recipes they block stayed blocked.
           FORCE=""
           if [ "${{ matrix.chunk }}" = "manual" ]; then
@@ -308,8 +308,8 @@ jobs:
           # failed at the publish step. It is asked for explicitly or not at all.
           REBUILD="${{ github.event.inputs.rebuild }}"
           export RECIPES NO_CLOSURE FORCE REBUILD
-          # --advisories on EVERY lane, not just linux. A darwin bottle with no
-          # OpenVEX document beside its SBOM is a bottle whose consumer has to
+          # --advisories on EVERY lane, not just linux. A darwin artifact with no
+          # OpenVEX document beside its SBOM is an artifact whose consumer has to
           # re-triage what we already decided — and a flag added to one lane is
           # the half-a-pair defect this repository has paid for before.
           zpkb factory \
@@ -318,7 +318,7 @@ jobs:
             --overlay overlay \
             --advisories advisories \
             --to oci://ghcr.io/go-pkgx/packages \
-            --bottles dist \
+            --artifacts dist \
             ${VERSIONS:+--versions "$VERSIONS"} \
             ${MAX_VERSIONS:+--max-versions "$MAX_VERSIONS"} \
             ${MIRROR_FROM:+--mirror-from "$MIRROR_FROM"} \
@@ -379,7 +379,7 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
         run: |
           set -eu
           zpkb catalog \

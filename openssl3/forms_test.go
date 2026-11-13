@@ -6,7 +6,7 @@ import "testing"
 // openssl 1.x line, and the one form that only LOOKS stale.
 //
 // The set is not guessed: each was checked against the published registry with
-// bottle's own semver, and `>=1.1` came back satisfiable — it is unbounded
+// artifact's own semver, and `>=1.1` came back satisfiable — it is unbounded
 // above, so openssl 3.x meets it and the recipe already resolves. Matching it
 // would rewrite a working pin.
 func TestDepLineCoversEveryStaleForm(t *testing.T) {

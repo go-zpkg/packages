@@ -1,5 +1,5 @@
 project = "freetype.org"
-why     = "freetype links brotli and did not declare it, so the published darwin bottle asks dyld for a path that exists on the runner that built it and on no user's machine."
+why     = "freetype links brotli and did not declare it, so the published darwin artifact asks dyld for a path that exists on the runner that built it and on no user's machine."
 
 edits = [
   {

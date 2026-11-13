@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// ⛔⛔ go-pkgx IS THE REGISTRY CLIENTS STILL READ. bottle.DistBase points
+// ⛔⛔ go-pkgx IS THE REGISTRY CLIENTS STILL READ. artifact.DistBase points
 // there, so every `zpkgs install` in existence resolves against it. Nothing
 // in it carries a build identity — it predates them — so the criterion this
 // tool applies would condemn the entire live registry. The guard is here and

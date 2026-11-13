@@ -16,7 +16,7 @@ import "sort"
 // does not. The audit reported 0 lost entries that morning, and the first
 // anyone knew was freetype.org failing hours later with
 //
-//	pkgx: no bottle for cmake.org v4.4.2 (linux/x86-64): platform not in index
+//	pkgx: no artifact for cmake.org v4.4.2 (linux/x86-64): platform not in index
 //
 // This is deliberately NOT wired into the gate. For an interior hole the shape
 // is the evidence — a platform that was there, went missing, and came back was

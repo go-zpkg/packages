@@ -31,10 +31,10 @@ holding several trusted keys knows which to try first rather than brute-forcing
 them. It carries no signer *name*: a name on the artefact is written by whoever
 pushed it, and the name a reader sees comes from their own trust set.
 
-Two people who build the same inputs get the **same** bottle — deliberately,
+Two people who build the same inputs get the **same** artifact — deliberately,
 since an identity that varied with the builder could never be compared — so
-what tells them apart is who signed it. A second builder reproduces the bottle
-and attaches their own signature with `zpkb sign`, which pushes no bottle and
+what tells them apart is who signed it. A second builder reproduces the artifact
+and attaches their own signature with `zpkb sign`, which pushes no artifact and
 refuses when the rebuild produced different bytes. Setting
 `ZPKG_TRUST_THRESHOLD=2` then means *install nothing a second builder did not
 independently reproduce*.
@@ -42,7 +42,7 @@ independently reproduce*.
 That covers what leaves. What went *in* was recorded by nothing until
 [`bk`#112](https://github.com/go-zpkg/zpkb/issues/112): of 1858 recipes with a
 distributable URL, exactly one declared a checksum and `bk` verified none, so a
-source tarball that changed upstream produced a different bottle, correctly
+source tarball that changed upstream produced a different artifact, correctly
 signed, attesting a URL rather than the bytes that came back from it. The
 provenance now carries the source's SHA-256 (or a git checkout's commit) as a
 SLSA `resolvedDependency`, and where a recipe declares a `sha:` URL — the form
@@ -51,13 +51,13 @@ instead of falling through to the next mirror.
 
 ### `advisories/` — why a package was rebuilt
 
-A rebuild could not say why it existed. `bottle` names one (`3.5.8_1`, the same
+A rebuild could not say why it existed. `artifact` names one (`3.5.8_1`, the same
 upstream source built again) and nothing in the artefact said what it fixed.
 
 `advisories/<project>/advisories.yaml` holds that, one file per project, as an
 ordered list of **timestamped events** — the shape Wolfi uses, because a single
 `status:` field cannot be superseded. **Every publishing lane passes it**, so a
-bottle built on any platform carries the same answer:
+artifact built on any platform carries the same answer:
 
 | lane | how |
 |---|---|
@@ -73,7 +73,7 @@ make `bk` refuse with "no advisories.yaml under advisories" — which reads as
 "the tree is empty" and means "the tree is on the other side of a namespace".
 
 `zpkb factory` validates the whole tree **once, before the first build**, because
-a record that does not parse stops a *publish* — and the fortieth bottle of a
+a record that does not parse stops a *publish* — and the fortieth artifact of a
 fifty-project chunk is six hours into the run. The Windows lanes' publish is
 best-effort by design, so there a refusal lands in the non-fatal branch; the net
 under that is this repository's own `zpkb advisories` check on every pull request.
@@ -93,7 +93,7 @@ recipe states. Three measurements settle it:
 | what we have published | `ghcr.io/go-pkgx/packages/bitwarden.com` lists one version tag: `1.22.1` |
 | what a rebuild would pull | npm's `dist-tags.latest` is `2026.9.1`, and the `2026.4.0` tarball answers **404** — withdrawn |
 
-So no published bottle contains it and no rebuild can reach it:
+So no published artifact contains it and no rebuild can reach it:
 `false-positive-determination`, with the OpenVEX justification
 `component_not_present`. The sweep will return that finding again on every run;
 the record is what stops a decided question from being re-asked.
@@ -116,8 +116,8 @@ All four clean, so this was a gap in **coverage and not an exposure** — which
 is the only reason it could be closed by adding steps rather than by
 rebuilding anything. The three buckets add to **1673** on every one of them,
 the same arithmetic the two original platforms carry: none of them is a silent
-drop. `linux/aarch64` is the largest platform here by bottle count, and
-`linux/s390x` has 39 bottles — a scan that skips the small ones is a scan
+drop. `linux/aarch64` is the largest platform here by artifact count, and
+`linux/s390x` has 39 artifacts — a scan that skips the small ones is a scan
 whose coverage depends on how interesting they looked.
 
 ⛔ **And the list is no longer written down**, which was the actual defect:
@@ -193,11 +193,11 @@ support ticket becomes unanswerable. See
 A project upstream does not carry lives in two places that must agree:
 `overrides/<name>-new.patch`, applied to a fresh pantry clone, is what **`bk`
 builds** from; [`pantry-overlay`](https://github.com/go-zpkg/pantry-overlay) is
-what a consumer **resolves** over HTTP — `bottle`'s `fetchRecipe` tries the
+what a consumer **resolves** over HTTP — `artifact`'s `fetchRecipe` tries the
 overlay, then upstream, and nothing else.
 
 Four of these projects were published, signed and unreachable to every consumer
-because only the build half existed. Nothing said so: the bottles were in the
+because only the build half existed. Nothing said so: the artifacts were in the
 registry and only a *recipe* fetch would have failed. `go run ./overlaycheck`
 now fails a pull request when the two disagree, and found a fifth on its first
 run.
@@ -246,13 +246,13 @@ same afternoon, because another session was publishing while it ran.
 `build.yml` carries a third linux lane, `linux/s390x`, tagged
 `[self-hosted, linux, s390x]` and pointed at a LinuxONE VM. It is **opt-in**:
 absent from the blank matrix, built only when a dispatch names
-`arch: s390x`. Adding an architecture with no bottles to every nightly buys a
+`arch: s390x`. Adding an architecture with no artifacts to every nightly buys a
 matrix of failures nobody reads.
 
 ### The second generation runs (2026-10-04)
 
 `sovereign=0` buys exactly one thing — a first generation on an architecture
-that has no bottles — and that licence ends the moment the seed exists.
+that has no artifacts — and that licence ends the moment the seed exists.
 `seed/dispatch-gen1.sh` spends it: `zpkb builder` stages a rootfs **from the
 seed registry**, and everything is rebuilt inside it under `chroot`.
 
@@ -265,7 +265,7 @@ built. **Once the lane runs, every failure is a report about generation 0.
 That is the point of the lane, not a defect in it.**
 
 Two tools came out of it and both are in `bk`: `builder --dry-run`, which says
-whether an architecture has the bottles without taking a runner, and the
+whether an architecture has the artifacts without taking a runner, and the
 staged-tree soname census, which names every library the tree lacks **and who
 asks for it** — five at once, where before each cost a failed build.
 
@@ -284,13 +284,13 @@ its Open Source Program Office. That is the better end state — native, and no
 agent to rebuild whenever `actions/runner` moves — and it is an email rather
 than a command.
 
-### Bootstrapping an architecture that has no bottles
+### Bootstrapping an architecture that has no artifacts
 
 The sovereign rootfs needs `gnu.org/glibc`, `llvm.org` and
-`kernel.org/linux-headers` as s390x bottles, and there are none. The way out is
+`kernel.org/linux-headers` as s390x artifacts, and there are none. The way out is
 already an input: `sovereign: "0"` falls back to the runner's distribution, so
 the first pass builds the toolchain on the VM's own Ubuntu and the second
-switches to the rootfs those bottles now make possible.
+switches to the rootfs those artifacts now make possible.
 
 ### What this lane is actually for
 
@@ -304,7 +304,7 @@ them to be where the time goes; the matrix entry is the cheap part.
 ## Working the front
 
 What is left is not one problem. `zpkb depgaps` separates the two, ranks each by how
-many recipes it blocks, and reads satisfiability through bottle's own semver so it
+many recipes it blocks, and reads satisfiability through artifact's own semver so it
 agrees with what pkgx will decide at install:
 
     zpkb depgaps --pantry pantry --overrides overrides --registry registry.json \
@@ -319,12 +319,12 @@ agrees with what pkgx will decide at install:
 
 Both are usually a mirror away rather than a build. Check the dist you are
 copying from carries the line first — two mirrors and a glibc rebuild were once
-spent healing a bottle that never existed — then:
+spent healing an artifact that never existed — then:
 
     recipes="python.org@~3.12 rust-lang.org libgit2.org@~1.7"
     mirror_from=<a dist that has them>   max_versions=1   no_closure=1
 
-⛔ We are no longer compatible with pkgx and do not copy bottles from its
+⛔ We are no longer compatible with pkgx and do not copy artifacts from its
 dist (#431); the input defaults to blank, which builds.
 
 One version per line is enough: a recipe wants *a* version in the line, and an
@@ -350,9 +350,9 @@ of the registry. The ratio was not measurable; only these absolutes are.
   ephemeral macOS runners (each a clean, throwaway VM), which are the isolation there.
 - **Phase B (shipped).** Building against pkgx's *own* glibc toolchain, for packages
   self-contained enough to run `FROM scratch`: `zpkb factory --libc=pkgx` retargets the
-  compiler at the `gnu.org/glibc` bottle — its crt objects, its libc, its dynamic
+  compiler at the `gnu.org/glibc` artifact — its crt objects, its libc, its dynamic
   linker — so the output owes nothing to the debian container. `zpkb builder` stages the
-  sovereign rootfs itself (static Go binaries plus toolchain bottles from this signed
+  sovereign rootfs itself (static Go binaries plus toolchain artifacts from this signed
   registry, nothing else), and `builder/` here is what builds that image. Design note:
   [`bk/docs/from-scratch-toolchain.md`](https://github.com/go-zpkg/zpkb/blob/main/docs/from-scratch-toolchain.md).
 
@@ -367,11 +367,11 @@ runner's distribution, which was measured twice on our own pool:
   because bk installs a *mirrored* coreutils linked against a newer glibc than
   the host's;
 - on **debian 13** the first recipe through, `jonas.github.io/tig`, failed on a
-  C23 diagnostic from the runner's GCC — not from the `llvm.org` bottle we ship
+  C23 diagnostic from the runner's GCC — not from the `llvm.org` artifact we ship
   and intend to compile with.
 
 Both are the same defect in different clothes. The job's `force` input defaults to
-1 on purpose: the point is to *compile*, and a build skipped because the bottle is
+1 on purpose: the point is to *compile*, and a build skipped because the artifact is
 already published proves nothing.
 
 ## Install pkgm
@@ -391,7 +391,7 @@ $env:PKGM_VERSION='v0.1.4'; irm https://go-zpkg.github.io/install.ps1 | iex
 or, for Go users, `go install github.com/go-zpkg/zpkgm@latest`. The installer
 grabs the static binary for your os/arch from that release and verifies it
 against the release `SHA256SUMS`; then `zpkgm install lz4.org` verifies each
-bottle against this signed registry by default.
+artifact against this signed registry by default.
 
 The version is named rather than resolved from `/releases/latest` when the line
 runs: a registry whose install instructions change under the reader is a
@@ -469,7 +469,7 @@ control that reports the past.
 **`index-audit.yml` — a gate on the one defect that hides.** Publishing a
 version's OCI index is a read-modify-write on one mutable tag, and four
 publishers race on it (two arches × `build.yml`, plus `darwin.yml`). When one
-loses, the bottle is in the registry, valid and signed, and simply absent from
+loses, the artifact is in the registry, valid and signed, and simply absent from
 the index: `pkgx` says "platform not in index" and the package looks published
 when it is not. 137 such entries had accumulated unnoticed, found by tripping
 over one of them in a build. They are at 0, and this is the daily crawl
@@ -484,23 +484,23 @@ nothing is not a control. What that cost: the published `python.org 3.14.7`
 for linux/x86-64 needs `libssl.so.1.1` and `libcrypto.so.1.1` in `_ssl` and
 `_hashlib`, and this registry publishes no openssl 1.x at all, so python's
 `ssl` could not load and every build that fetches over HTTPS died there. The
-same bottle for linux/aarch64 needs `libssl.so.3` — one project, one version,
+same artifact for linux/aarch64 needs `libssl.so.3` — one project, one version,
 two platforms, one of them wrong. `overrides/python.org.hcl` had already
 moved the recipe's pin to `^3`; an override moves a *recipe*, and a
-`DT_NEEDED` compiled into a bottle published earlier does not move with it.
+`DT_NEEDED` compiled into an artifact published earlier does not move with it.
 
-`./sonamesweep` takes a **chunk** of the platform's bottled projects and says
+`./sonamesweep` takes a **chunk** of the platform's packaged projects and says
 which — "clean for chunk 3 of 14 on linux/x86-64" is a sentence that cannot
 be read as a clean bill of health, and ~1400 closure installs per platform is
 not a thing to pretend to do weekly. It refuses a catalogue for a platform
 this host is not: `zpkb unresolved` installs for the **host**, so that answer
-would be this machine's bottles under another platform's name.
+would be this machine's artifacts under another platform's name.
 
 **The full sweep says how big this is.** Measured 2026-10-24 over all
 fourteen chunks of linux/x86-64:
 
 ```
-967 reference(s) over 259 project(s), owned by 100 bottle(s)
+967 reference(s) over 259 project(s), owned by 100 artifact(s)
     218  tcl-lang.org
     152  haskell.org
      82  python.org
@@ -566,7 +566,7 @@ the same question came up for the same package and there was no `npmtag` —
 not on `PATH`, not in any repository — so the answer was re-derived with
 `curl`. The scratchpad is not durable; a repository is.
 
-### `./prefixsweep` — does a bottle's content name its own version directory?
+### `./prefixsweep` — does an artifact's content name its own version directory?
 
 It installs each named project into a throwaway store and reads every regular
 file in the installed tree, whole, looking for the package's own
@@ -584,7 +584,7 @@ $ go run ./prefixsweep -platform darwin/aarch64 fftw.org zlib.net
 2 swept · 2 bake their own prefix · 0 clean · 0 unreadable
 ```
 
-13 of 13 bottles swept on darwin/aarch64 bake their own prefix, every one
+13 of 13 artifacts swept on darwin/aarch64 bake their own prefix, every one
 through an `@rpath` load command. That is what settled go-zpkg/bk#386: the
 version directory sits in the literal remainder after `@rpath`, so renaming
 it makes `dyld` look for a path that no longer exists, and a rebuild
@@ -594,12 +594,12 @@ into it.
 `-needle <literal>` sweeps for a caller-supplied string instead, and **any
 hit fails the run** — that form is an assertion, not a census. It is how
 go-zpkg/bk#387 is checked: `-needle /Users/runner/Library/Caches/brewkit`
-must find nothing in a bottle built by a lane carrying bk's prefix-map shims.
+must find nothing in an artifact built by a lane carrying bk's prefix-map shims.
 
 ⛔ **A spelled needle certifies the lane it was written for and no other.**
-That darwin needle finds nothing on linux whatever the bottle contains,
+That darwin needle finds nothing on linux whatever the artifact contains,
 because that lane builds with `HOME=/github/home`. Measured 2026-11-03: four
-pre-fix linux bottles swept `4 clean` against `/home/runner`, which meant
+pre-fix linux artifacts swept `4 clean` against `/home/runner`, which meant
 nothing at all. The s390x LinuxONE box is a third convention, and it is the
 lane where a stray absolute path actually costs something, because that
 runner is ours and its paths are not constant between rebuilds.
@@ -629,21 +629,21 @@ into a rubber stamp, and a clean result cannot be read without seeing what
 was forgiven — which is exactly how the `/home/runner` zero passed for a
 question nobody could see was wrong.
 
-Two false-positive classes it had to learn, both from real bottles: a `/`
+Two false-positive classes it had to learn, both from real artifacts: a `/`
 preceded by a path character is a **relative** load path (`@rpath/…`,
 `@loader_path/../..`), not an absolute one; and the path alphabet must be
 strict, because the loose one used elsewhere in this tool swallowed `sed`
 expressions out of `bzgrep` and C comment rules out of `bzlib.h`.
 
 ⛔ **It takes the needle from the directory that LANDED, not from the version
-requested.** A bottle is installed under the directory it *carries*, and a
+requested.** An artifact is installed under the directory it *carries*, and a
 rebuild published as `3.3.11_1` unpacks to `v3.3.11`. The first form of this
 tool searched for `v3.3.11_1` inside a tree named `v3.3.11`, found nothing,
 and printed `clean` — a scan that could not read, reporting zero.
 
 ⛔ **And it reads binary files, because that is where baked prefixes live.**
 The measurement this tool replaces was a `grep -rl` that returned 0 files and
-was published on the issue as "fftw's bottle bakes nothing". That `grep`
+was published on the issue as "fftw's artifact bakes nothing". That `grep`
 resolves to `ugrep` with `-I`: binary files skipped. All nine of fftw's hits
 are Mach-O images. A text-only search cannot see a baked prefix at all.
 
@@ -656,7 +656,7 @@ of them is an answer.
 
 Every publishing lane starts by installing `bk`, `pkgx` or `pkgm` from source,
 and all of them need the *current* `main` rather than whatever a module proxy
-has cached — a catalogue or a bottle built by an old `bk` is the one thing these
+has cached — a catalogue or an artifact built by an old `bk` is the one thing these
 jobs must not publish.
 
 That used to be written `GOPROXY=direct go install …@main`, at fourteen sites
@@ -755,7 +755,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   (slug, pinned tag, main package) rather than a derived list: `go build -o f .` on
   a *library* writes an archive and exits 0. Each module is staged as
   `bin/<name>.wasm` (a recipe's `provides: bin/<name>` stays extension-free;
-  `bottle.ResolveBinPath` finds the `.wasm` on a wasm host, as it finds `.exe` on
+  `artifact.ResolveBinPath` finds the `.wasm` on a wasm host, as it finds `.exe` on
   Windows), **run under wasmtime** (`wasmtime run --dir=/ --env PWD="$PWD" x.wasm <args>`, as Go's own `go_wasip1_wasm_exec` does), then
   `zpkb publish --platform wasip1/wasm`. A publish failure fails the job.
 - **Pilots:** `filippo.io/age` 1.3.2, `github.com/cpuguy83/go-md2man` 2.0.7 and
@@ -799,7 +799,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   and `golang/tools` (`gopls/v...`) have tags without a `v` prefix, but the matrix
   clones `v<version>`. A `tag:` field in the matrix would admit them (follow-up).
 - **C tools (`wasip1-c.yml`).** Built with OUR toolchain, not a prebuilt wasi-sdk:
-  the `llvm.org` bottle (clang, wasm-ld, llvm-ar), plus two cross parts built from
+  the `llvm.org` artifact (clang, wasm-ld, llvm-ar), plus two cross parts built from
   source in the pantry overlay following wasi-sdk's `cmake/wasi-sdk-sysroot.cmake`:
   `compiler-rt.llvm.org/wasi` (libclang_rt.builtins for wasm32-wasip1 + clang's
   headers, laid out as a resource dir) and `github.com/WebAssembly/wasi-libc` (the
@@ -823,7 +823,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   - **Sovereign.** The build runs INSIDE the rootfs `zpkb builder` stages from
     `builder/toolchain.txt` (`builder/sovereign-bk.sh`: unshare + chroot + the pkgx
     environment of `sovereign-build.sh`), so `sh`, `make`, coreutils, clang and
-    wasm-ld are bottles in that tree; the runner supplies three static Go binaries,
+    wasm-ld are artifacts in that tree; the runner supplies three static Go binaries,
     the namespace and wasmtime (the runtime under test). A "what ran, from where"
     step prints `command -v` of each tool from inside the chroot: `/bin/sh`
     (the tree's), `/zpkg/gnu.org/make/…`, `/zpkg/gnu.org/coreutils/…/{install,cp}`,
@@ -847,7 +847,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
     `-D_WASI_EMULATED_SIGNAL`, the 64 KiB default stack) and the fix. A wasip1
     module reaches only the directories `--dir` grants it.
   - **aarch64.** The same four pilots on GitHub's native `ubuntu-24.04-arm` runner,
-    with the toolchain bottles published for linux/aarch64 hosts too (this needed
+    with the toolchain artifacts published for linux/aarch64 hosts too (this needed
     `curl.se` 8.12 for aarch64: cmake's own dependency resolved to a curl linked
     against libssl.so.1.1).
   - Not yet: C++ exceptions (wasi-sdk's "DUAL": `-fwasm-exceptions` + libunwind),

@@ -162,5 +162,5 @@ echo "    gh workflow run build --repo go-zpkg/packages \\"
 echo "      -f arch=s390x -f sovereign=0 -f recipes='gnu.org/make'"
 echo
 echo "sovereign=0 on purpose: the FROM-scratch rootfs needs glibc, llvm and"
-echo "linux-headers as s390x bottles and there are none yet, so the first pass"
+echo "linux-headers as s390x artifacts and there are none yet, so the first pass"
 echo "builds on this VM's own distribution and the second can switch."
