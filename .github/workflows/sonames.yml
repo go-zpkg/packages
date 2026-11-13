@@ -1,7 +1,7 @@
 # Can the bottles we publish actually load?
 #
 # ⛔ WHY IT EXISTS: THE TOOL WAS ALREADY WRITTEN AND NOTHING RAN IT.
-# `zbk unresolved` reads every ELF and Mach-O in an installed closure and
+# `zpkb unresolved` reads every ELF and Mach-O in an installed closure and
 # reports each reference the store cannot answer. It is written and tested,
 # and on 2026-10-23 `git grep unresolved .github/workflows` in this
 # repository returned NOTHING. A control that exists and is not wired to
@@ -84,7 +84,7 @@ jobs:
   sweep:
     needs: plan
     # ⛔ ONE PLATFORM PER RUN, SAID OUT LOUD — but no longer only ONE
-    # platform. Until bk v0.34.0 `zbk unresolved` installed for the host, so
+    # platform. Until bk v0.34.0 `zpkb unresolved` installed for the host, so
     # an ubuntu runner could answer for linux/x86-64 and nothing else, and
     # sonamesweep refused any other catalogue rather than report this
     # machine's bottles under its name. The weekly run found 967
@@ -117,9 +117,9 @@ jobs:
       # @main, and GONOPROXY (workflow env:) keeps that honest against a
       # stale proxy cache: the question "can this load" should be answered
       # by the code that answers it best today.
-      - name: install zbk and zpkgs
+      - name: install zpkb and zpkgs
         run: |
-          go install github.com/go-zpkg/zbk/cmd/zbk@main
+          go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           go install github.com/go-zpkg/zpkgx/cmd/zpkgs@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 

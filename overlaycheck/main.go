@@ -42,7 +42,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/logical"
+	"github.com/go-zpkg/zpkb/logical"
 )
 
 // overlayBase names the overlay's recipes through the GitHub contents API

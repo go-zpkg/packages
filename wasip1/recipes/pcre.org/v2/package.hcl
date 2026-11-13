@@ -8,7 +8,7 @@ build {
     "gnu.org/make" = "*"
   }
   script = [
-    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --disable-jit --disable-pcre2grep-callout --disable-pcre2grep-callout-fork CC=\"$ZBK_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS\" LDFLAGS=\"-lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
+    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --disable-jit --disable-pcre2grep-callout --disable-pcre2grep-callout-fork CC=\"$ZPKB_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2 -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS\" LDFLAGS=\"-lwasi-emulated-signal -lwasi-emulated-process-clocks\"",
     "make --jobs {{ hw.concurrency }} libpcre2-8.la pcre2grep pcre2test",
     "install -D pcre2grep \"{{ prefix }}/bin/pcre2grep.wasm\"",
     "install -D pcre2test \"{{ prefix }}/bin/pcre2test.wasm\"",

@@ -8,7 +8,7 @@
 #
 # Usage:  builder/sovereign-bk.sh <rootfs> <recipes-dir> <advisories-dir> <program> [args...]
 #
-#   <program> is an ABSOLUTE path inside the rootfs: /usr/local/bin/zbk for the
+#   <program> is an ABSOLUTE path inside the rootfs: /usr/local/bin/zpkb for the
 #   build and the publish, /bin/sh for the evidence step. It is exec'd through
 #   `pkgx +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org --`, which is
 #   builder/Containerfile's ENTRYPOINT: make, clang, wasm-ld and llvm-ar come

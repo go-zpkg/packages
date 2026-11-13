@@ -70,7 +70,7 @@ func TestEveryVariableTheInnerScriptReadsIsPreserved(t *testing.T) {
 // not have caught it. This one is the other half.
 //
 // ⛔ MAINTAINED BY HAND, BECAUSE IT CROSSES A REPOSITORY. The list comes from
-// `cmd/zbk/factory.go`'s envOr/envBool calls in go-zpkg/zbk; nothing here can
+// `cmd/zpkb/factory.go`'s envOr/envBool calls in go-zpkg/zpkb; nothing here can
 // read that file, so this is a copy and will drift. It is still worth having:
 // a copy that fails loudly when the factory gains a knob the builder cannot
 // pass beats no check at all, and the failure names the variable.
@@ -81,7 +81,7 @@ func TestTheFactorysEnvironmentKnobsSurviveSudo(t *testing.T) {
 	}
 	preserved := preserveList(t, string(b))
 
-	// From cmd/zbk/factory.go, read 2026-11-04. Deliberately NOT every name:
+	// From cmd/zpkb/factory.go, read 2026-11-04. Deliberately NOT every name:
 	// PANTRY, RECIPES-by-file and PANTRY_OVERLAY_DIR are passed as explicit
 	// flags by this script, and DIST is set as ZPKG_DIST.
 	for _, v := range []string{

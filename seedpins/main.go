@@ -50,7 +50,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/zbk/build"
+	"github.com/go-zpkg/zpkb/build"
 )
 
 // osExit is a seam so a test can exercise main without ending the process,

@@ -106,7 +106,7 @@ const (
 // ⛔⛔ A MODULE SPEC HELD IN A VARIABLE HAS NO LITERAL `@`, AND THIS GUARD
 // COULD NOT SEE IT. wasip1.yml bootstraps with
 //
-//	go install "$BK"          # BK=github.com/go-zpkg/zbk/cmd/zbk@v0.69.0
+//	go install "$BK"          # BK=github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
 //
 // so of the 14 workflows here that fetch a module by version, it examined 13
 // and was silent about that one. It went unnoticed because the file declares

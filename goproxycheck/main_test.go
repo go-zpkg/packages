@@ -22,7 +22,7 @@ jobs:
   b:
     runs-on: ubuntu-latest
     steps:
-      - run: go install github.com/go-zpkg/zbk/cmd/zbk@main
+      - run: go install github.com/go-zpkg/zpkb/cmd/zpkb@main
 `
 
 func complaints(t *testing.T, src string) []string {
@@ -51,7 +51,7 @@ func TestTheConformingFilePasses(t *testing.T) {
 func TestABootstrapThroughAVariableIsSeen(t *testing.T) {
 	const viaVar = "- run: go install \"$BK\""
 	src := strings.Replace(conforming,
-		"- run: go install github.com/go-zpkg/zbk/cmd/zbk@main", viaVar, 1)
+		"- run: go install github.com/go-zpkg/zpkb/cmd/zpkb@main", viaVar, 1)
 	// With the policy present it still passes — the point is not to complain
 	// about the variable, it is to require the policy of such a file.
 	if bad := complaints(t, src); len(bad) != 0 {
@@ -80,7 +80,7 @@ func TestALocalBuildStillNeedsNoPolicy(t *testing.T) {
 		`- run: go run ./x && echo a@b`,
 	} {
 		src := strings.Replace(conforming,
-			"- run: go install github.com/go-zpkg/zbk/cmd/zbk@main", step, 1)
+			"- run: go install github.com/go-zpkg/zpkb/cmd/zpkb@main", step, 1)
 		src = strings.Replace(src, "  GONOPROXY: github.com/go-zpkg/*\n", "", 1)
 		src = strings.Replace(src, "  GOPROXY: https://proxy.golang.org,direct\n", "", 1)
 		if bad := complaints(t, src); len(bad) != 0 {
@@ -92,8 +92,8 @@ func TestALocalBuildStillNeedsNoPolicy(t *testing.T) {
 
 func TestAnInlineAssignmentIsRefused(t *testing.T) {
 	src := strings.Replace(conforming,
-		"- run: go install github.com/go-zpkg/zbk/cmd/zbk@main",
-		"- run: GOPROXY=direct go install github.com/go-zpkg/zbk/cmd/zbk@main", 1)
+		"- run: go install github.com/go-zpkg/zpkb/cmd/zpkb@main",
+		"- run: GOPROXY=direct go install github.com/go-zpkg/zpkb/cmd/zpkb@main", 1)
 	bad := complaints(t, src)
 	if len(bad) != 1 {
 		t.Fatalf("want exactly the inline complaint, got %d:\n%s", len(bad), strings.Join(bad, "\n"))
@@ -126,10 +126,10 @@ func TestACommentExplainingThePolicyIsNotAnAssignment(t *testing.T) {
 // only said so by failing.
 func TestAnAssignmentAfterAQuotedHashIsStillFound(t *testing.T) {
 	src := strings.Replace(conforming,
-		"      - run: go install github.com/go-zpkg/zbk/cmd/zbk@main",
+		"      - run: go install github.com/go-zpkg/zpkb/cmd/zpkb@main",
 		"      - run: |\n"+
 			"          echo \"chunk #1\"\n"+
-			"          GOPROXY=direct go install github.com/go-zpkg/zbk/cmd/zbk@main", 1)
+			"          GOPROXY=direct go install github.com/go-zpkg/zpkb/cmd/zpkb@main", 1)
 	// First: the fixture really does carry the `#` into the script, so a
 	// failure below is about the guard and not about YAML again.
 	var d doc
@@ -191,7 +191,7 @@ func TestAWrongValueIsRefusedAndQuoted(t *testing.T) {
 func TestAFileThatBootstrapsNothingNeedsNoPolicy(t *testing.T) {
 	src := strings.Replace(conforming,
 		"env:\n  GOPROXY: https://proxy.golang.org,direct\n  GONOPROXY: github.com/go-zpkg/*\n", "", 1)
-	src = strings.Replace(src, "go install github.com/go-zpkg/zbk/cmd/zbk@main", "go test ./...", 1)
+	src = strings.Replace(src, "go install github.com/go-zpkg/zpkb/cmd/zpkb@main", "go test ./...", 1)
 	if bad := complaints(t, src); len(bad) != 0 {
 		t.Errorf("`go test ./...` is not a bootstrap; got:\n%s", strings.Join(bad, "\n"))
 	}
@@ -202,7 +202,7 @@ func TestAFileThatBootstrapsNothingNeedsNoPolicy(t *testing.T) {
 func TestGoRunOfARemoteModuleCounts(t *testing.T) {
 	src := strings.Replace(conforming,
 		"env:\n  GOPROXY: https://proxy.golang.org,direct\n  GONOPROXY: github.com/go-zpkg/*\n", "", 1)
-	src = strings.Replace(src, "go install github.com/go-zpkg/zbk/cmd/zbk@main", "go run github.com/go-zpkg/zbk/cmd/zbk@main overrides", 1)
+	src = strings.Replace(src, "go install github.com/go-zpkg/zpkb/cmd/zpkb@main", "go run github.com/go-zpkg/zpkb/cmd/zpkb@main overrides", 1)
 	if bad := complaints(t, src); len(bad) != 2 {
 		t.Errorf("`go run x@main` is a bootstrap; got %d complaints:\n%s", len(bad), strings.Join(bad, "\n"))
 	}

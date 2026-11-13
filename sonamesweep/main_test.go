@@ -57,11 +57,11 @@ func stub(t *testing.T, f func(string, ...string) (string, error)) *[]string {
 // TestACheckerThatNeverRanIsNotACleanSweep is the gate on the defect that made
 // this lane green while it did nothing.
 //
-// ⛔⛔ `zbk unresolved` exits NON-ZERO when it FINDS something, so the baseline
+// ⛔⛔ `zpkb unresolved` exits NON-ZERO when it FINDS something, so the baseline
 // path ignores the error on purpose. An exec that cannot start also returns an
 // error — with empty output — so a missing tool produced no findings, nothing
 // outside the baseline, and exit 0. `sonames.yml` passed on 2026-11-01 and
-// 2026-11-08 that way, after the binary was renamed from `bk` to `zbk`.
+// 2026-11-08 that way, after the binary was renamed from `bk` to `zpkb`.
 //
 // The two cases are told apart by TYPE, not by the exit status: *exec.Error is
 // "never started", *exec.ExitError is "ran and said no". This asserts BOTH
@@ -73,7 +73,7 @@ func TestACheckerThatNeverRanIsNotACleanSweep(t *testing.T) {
 
 	t.Run("could not start is exit 2", func(t *testing.T) {
 		stub(t, func(string, ...string) (string, error) {
-			return "", &exec.Error{Name: "zbk", Err: exec.ErrNotFound}
+			return "", &exec.Error{Name: "zpkb", Err: exec.ErrNotFound}
 		})
 		var out, errb strings.Builder
 		code := run([]string{"-catalog", write(t, published), "-chunk", "0", "-chunks", "2",
@@ -130,7 +130,7 @@ func TestItNamesTheChunkItSwept(t *testing.T) {
 	// instruction to bk now, not a fact to refuse on: without it the audit
 	// would be about whatever machine the job landed on, wearing this
 	// catalogue's name.
-	if got := *argv; len(got) != 6 || got[0] != "zbk" || got[1] != "unresolved" ||
+	if got := *argv; len(got) != 6 || got[0] != "zpkb" || got[1] != "unresolved" ||
 		got[2] != "-platform" || got[3] != "linux/x86-64" || got[4] != "curl.se" {
 		t.Fatalf("bk was not asked about a chunk of two for this platform: %q", got)
 	}

@@ -75,7 +75,7 @@ func TestEveryPublishedPlatformIsScanned(t *testing.T) {
 // the reader to the logs to find out what.
 func TestAFailureNamesThePlatform(t *testing.T) {
 	c := &calls{list: six, out: map[string]string{}, fail: map[string]error{}}
-	key := "zbk vulnfetch -dir p -advisories advisories -catalog s/catalog/linux-s390x.json -fail-on-new"
+	key := "zpkb vulnfetch -dir p -advisories advisories -catalog s/catalog/linux-s390x.json -fail-on-new"
 	c.fail[key] = errors.New("exit 1")
 	c.out[key] = "GHSA-xxxx affects something we publish"
 	c.install(t)

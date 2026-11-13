@@ -15,7 +15,7 @@ import (
 //
 // This is the second time a pin in this repository has drifted behind what
 // the registry needs, and the first time cost a whole platform's worth of
-// artefacts: three lanes — wasip1, wasip1-c, windows-c — sat at zbk v0.59.0
+// artefacts: three lanes — wasip1, wasip1-c, windows-c — sat at zpkb v0.59.0
 // while the rest ran @main. v0.59.0 was chosen as a FLOOR, for a reason that
 // had nothing to do with features: Go verifies the path a module declares,
 // and every earlier tag declares `github.com/go-pkgx/bk`. Nobody revisited it
@@ -23,7 +23,7 @@ import (
 //
 // What those lanes would have published:
 //
-//   - no build identity at all (builds gained a hash in zbk v0.62.0);
+//   - no build identity at all (builds gained a hash in zpkb v0.62.0);
 //   - or an identity that is not a Merkle hash of its closure (v0.63.0 fixed
 //     a composed dependency path that made every edge contribute an empty
 //     hash);
@@ -45,15 +45,15 @@ import (
 // computes the right identity and will still overwrite an address, rewriting
 // what every existing lock, install and signature refers to — the exact
 // failure the hashed layout was introduced to make impossible, through the
-// one door the hash does not cover (go-zpkg/zbk#416).
+// one door the hash does not cover (go-zpkg/zpkb#416).
 //
-// So this constant rises whenever a zbk release adds something a publishing
+// So this constant rises whenever a zpkb release adds something a publishing
 // lane must not be without. It is not a "latest" check and must never become
 // one: a lane pinned behind for a reason of its own is fine until it is
 // behind THIS.
-const zbkIdentityFloor = "v0.69.0"
+const zpkbIdentityFloor = "v0.69.0"
 
-// zbkFloorReason says what THIS floor buys, and moves with it.
+// zpkbFloorReason says what THIS floor buys, and moves with it.
 //
 // ⛔⛔ A FIXED SENTENCE WOULD HAVE LIED THE FIRST TIME THE FLOOR MOVED. The
 // message used to read "a bottle built by it carries no usable build
@@ -62,22 +62,22 @@ const zbkIdentityFloor = "v0.69.0"
 // good identity and simply will not refuse to overwrite one. A failure that
 // names the wrong cause sends the reader to fix the wrong thing, and it reads
 // as authoritative because it came from a gate.
-const zbkFloorReason = "from v0.66.0 the factory REFUSES to publish a bottle that is unsigned or " +
+const zpkbFloorReason = "from v0.66.0 the factory REFUSES to publish a bottle that is unsigned or " +
 	"unidentified, v0.67.0 added --spec-recipe-from so a lane with no pantry plan can state its " +
 	"identity instead of hashing one in the shell, and v0.69.0 carries the trust set as it stands " +
 	"after the 2026-11-06 key rotation — a lane below that reports a bottle signed by the retired " +
-	"key as signed by nobody it knows (go-zpkg/zbk#416)"
+	"key as signed by nobody it knows (go-zpkg/zpkb#416)"
 
-// zbkPinRE matches an install or run of our factory at an explicit version.
+// zpkbPinRE matches an install or run of our factory at an explicit version.
 // `@main` is deliberately NOT matched: this repository runs most lanes from
 // main on purpose, and main is by definition at or ahead of any tag.
-var zbkPinRE = regexp.MustCompile(`github\.com/go-zpkg/zbk/cmd/zbk@(v[0-9][^\s"']*)`)
+var zpkbPinRE = regexp.MustCompile(`github\.com/go-zpkg/zpkb/cmd/zpkb@(v[0-9][^\s"']*)`)
 
 // ⛔ THE DENOMINATOR IS ASSERTED. A regex that stops matching reports zero
 // pins and passes, which is how a scan that could not read reports a clean
 // result. If the spelling of these invocations changes, this fails and says
 // so rather than going quietly green.
-const zbkPinsExpected = 3
+const zpkbPinsExpected = 3
 
 func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {
 	dir := filepath.Join(".github", "workflows")
@@ -96,27 +96,27 @@ func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range zbkPinRE.FindAllStringSubmatch(string(body), -1) {
+		for _, m := range zpkbPinRE.FindAllStringSubmatch(string(body), -1) {
 			found++
 			got := m[1]
 			if !semver.IsValid(got) {
-				t.Errorf("%s pins zbk at %q, which is not a version", path, got)
+				t.Errorf("%s pins zpkb at %q, which is not a version", path, got)
 				continue
 			}
-			if semver.Compare(got, zbkIdentityFloor) < 0 {
-				t.Errorf("%s pins zbk at %s, below %s — %s", path, got, zbkIdentityFloor, zbkFloorReason)
+			if semver.Compare(got, zpkbIdentityFloor) < 0 {
+				t.Errorf("%s pins zpkb at %s, below %s — %s", path, got, zpkbIdentityFloor, zpkbFloorReason)
 			}
 		}
 	}
 
-	if found != zbkPinsExpected {
-		t.Errorf("found %d pinned zbk invocation(s), expected %d — if a lane was added, removed or respelt, "+
-			"move zbkPinsExpected deliberately; a count that drifts on its own is how this gate stops looking",
-			found, zbkPinsExpected)
+	if found != zpkbPinsExpected {
+		t.Errorf("found %d pinned zpkb invocation(s), expected %d — if a lane was added, removed or respelt, "+
+			"move zpkbPinsExpected deliberately; a count that drifts on its own is how this gate stops looking",
+			found, zpkbPinsExpected)
 	}
 }
 
-// The module's own dependency on zbk must clear the same floor: the tools in
+// The module's own dependency on zpkb must clear the same floor: the tools in
 // this repository link it, and one that computed an identity a different way
 // from the factory would be a second definition of the same thing.
 func TestTheModuleDependsOnAFactoryThatRecordsIdentities(t *testing.T) {
@@ -124,12 +124,12 @@ func TestTheModuleDependsOnAFactoryThatRecordsIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	re := regexp.MustCompile(`github\.com/go-zpkg/zbk (v[^\s]+)`)
+	re := regexp.MustCompile(`github\.com/go-zpkg/zpkb (v[^\s]+)`)
 	m := re.FindStringSubmatch(string(body))
 	if m == nil {
-		t.Fatal("go.mod does not require github.com/go-zpkg/zbk — if that is deliberate, this test should go with it")
+		t.Fatal("go.mod does not require github.com/go-zpkg/zpkb — if that is deliberate, this test should go with it")
 	}
-	if semver.Compare(m[1], zbkIdentityFloor) < 0 {
-		t.Errorf("go.mod requires zbk %s, below %s — %s", m[1], zbkIdentityFloor, zbkFloorReason)
+	if semver.Compare(m[1], zpkbIdentityFloor) < 0 {
+		t.Errorf("go.mod requires zpkb %s, below %s — %s", m[1], zpkbIdentityFloor, zpkbFloorReason)
 	}
 }

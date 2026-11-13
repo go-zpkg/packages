@@ -52,14 +52,14 @@ jobs:
           # ⛔ v0.58.0 IS THE FLOOR FOR THIS LANE, not a routine bump. Below it,
           # bk's own compiler shim shadowed llvm-mingw and could not delegate:
           # compilerShimsFor shims the TRIPLE-PREFIXED names and puts them first
-          # on PATH, and with no $ZBK_CC (which bk deliberately does not set for
+          # on PATH, and with no $ZPKB_CC (which bk deliberately does not set for
           # windows) the shim reduced `x86_64-w64-mingw32-gcc` to a bare `gcc`
           # that llvm-mingw does not ship. go-zpkg/bk#405.
           #
           # ⛔ v0.59.0 was the floor, and not because anything here needed a
           # newer factory: Go verifies the path a module DECLARES, and v0.58.0
           # declares `github.com/go-pkgx/bk`. v0.59.0 is the first tag
-          # declaring `github.com/go-zpkg/zbk`. The #405 requirement above
+          # declaring `github.com/go-zpkg/zpkb`. The #405 requirement above
           # still holds.
           #
           # ⛔⛔ v0.64.0 NOW, AND THIS TIME A FEATURE DOES REQUIRE IT. Builds
@@ -72,28 +72,28 @@ jobs:
           # ⛔⛔ v0.65.0 now, for a SECOND reason: from that tag the factory
           # refuses to publish bytes that differ from what a hashed tag
           # already holds. A lane at v0.64.0 computes a good identity and will
-          # still overwrite an address (go-zpkg/zbk#416).
-          CGO_ENABLED=0 go install github.com/go-zpkg/zbk/cmd/zbk@v0.69.0
+          # still overwrite an address (go-zpkg/zpkb#416).
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkgx@main
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkgm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: stage the sovereign rootfs
         run: |
           sudo rm -rf "$RUNNER_TEMP/rootfs"
-          zbk builder \
+          zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zbk`/`zpkgx` since the rename: `pkgx` is upstream's binary and
+            # `zpkb`/`zpkgx` since the rename: `pkgx` is upstream's binary and
             # can be on the same PATH. See sovereign.yml.
-            --zbk "$(command -v zbk)" \
+            --zpkb "$(command -v zpkb)" \
             --zpkgx "$(command -v zpkgx)" \
             --container
       - name: build ${{ matrix.slug }} ${{ matrix.version }} for windows/x86-64, in the rootfs
         run: |
           chmod +x builder/sovereign-bk.sh
           builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/windows/recipes" "$PWD/advisories" \
-            /usr/local/bin/zbk --platform windows/x86-64 build --libc=zpkgx \
+            /usr/local/bin/zpkb --platform windows/x86-64 build --libc=zpkgx \
             --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
             --dist /dist "${{ matrix.slug }}"
       # WHAT RAN, FROM WHERE — the same negative claim the wasm lane makes: a

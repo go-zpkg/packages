@@ -1,6 +1,6 @@
 # Windows package factory (Go) — cross-builds pantry Go projects to Windows PE
 # packages and publishes them to BOTH channels, exactly like linux/darwin:
-#   - the signed OCI registry ghcr.io/go-pkgx/packages (via `zbk publish`), and
+#   - the signed OCI registry ghcr.io/go-pkgx/packages (via `zpkb publish`), and
 #   - the GitHub Pages pkgx dist mirror (via the central pages.yml aggregator,
 #     which unions the `dist-*` artifact this job uploads).
 # Go tools cross-build to Windows for free (GOOS=windows CGO_ENABLED=0 → a
@@ -81,7 +81,7 @@ jobs:
           done
           # The proxy policy is the workflow-level env:, so it covers this and
           # every other go invocation here, and ./goproxycheck keeps it level.
-          go install github.com/go-zpkg/zbk/cmd/zbk@main
+          go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Cross-build chunk ${{ matrix.chunk }} → Windows packages
         env:
@@ -126,9 +126,9 @@ jobs:
             printf 'provides:\n  - bin/%s\n' "$bin" > "$GITHUB_WORKSPACE/out/$slug/package.yml"
             # Publish the same package to the signed OCI registry (best-effort:
             # a publish failure must not abort the chunk). windows/x86-64 is as
-            # os/arch-generic to `zbk publish` as linux/darwin are.
+            # os/arch-generic to `zpkb publish` as linux/darwin are.
             if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
-               zbk publish --to oci://ghcr.io/go-pkgx/packages --project "$slug" \
+               zpkb publish --to oci://ghcr.io/go-pkgx/packages --project "$slug" \
                  --version "$ver" --platform windows/x86-64 "${SIGN_ARGS[@]}" \
                  --advisories "$GITHUB_WORKSPACE/advisories" \
                  "$d/v$ver.tar.gz"; then
@@ -174,7 +174,7 @@ jobs:
         with: { go-version: '1.27.4' }
       - name: install bk
         run: |
-          go install github.com/go-zpkg/zbk/cmd/zbk@main
+          go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: clone pantry and overlay
         run: |
@@ -188,7 +188,7 @@ jobs:
           SIGNING_KEY: ${{ secrets.BOTTLE_SIGNING_KEY }}
         run: |
           set -eu
-          zbk catalog \
+          zpkb catalog \
             --pantry pantry \
             --overlay overlay \
             --overrides overrides \

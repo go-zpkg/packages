@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/logical"
-	"github.com/go-zpkg/zbk/overrides"
+	"github.com/go-zpkg/zpkb/logical"
+	"github.com/go-zpkg/zpkb/overrides"
 )
 
 // gitPantry builds the shape overrides.Apply needs: a git worktree, because it

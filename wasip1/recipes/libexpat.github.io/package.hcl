@@ -7,7 +7,7 @@ build {
     "gnu.org/make" = "*"
   }
   script = [
-    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --without-docbook CC=\"$ZBK_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2\"",
+    "./configure --prefix=\"{{ prefix }}\" --host=wasm32-wasi --disable-shared --enable-static --without-docbook CC=\"$ZPKB_CC\" AR=llvm-ar RANLIB=llvm-ranlib CFLAGS=\"-O2\"",
     "make --jobs {{ hw.concurrency }} -C lib libexpat.la",
     "make --jobs {{ hw.concurrency }} -C xmlwf xmlwf",
     "install -D xmlwf/xmlwf \"{{ prefix }}/bin/xmlwf.wasm\"",

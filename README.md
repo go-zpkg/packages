@@ -3,7 +3,7 @@
 [![build](https://github.com/go-zpkg/packages/actions/workflows/build.yml/badge.svg)](https://github.com/go-zpkg/packages/actions/workflows/build.yml)
 
 A pure-Go package factory. Builds pantry recipes with
-[`zbk`](https://github.com/go-zpkg/zbk) and publishes **signed, attested
+[`zpkb`](https://github.com/go-zpkg/zpkb) and publishes **signed, attested
 packages** to `ghcr.io/go-pkgx/packages`.
 
 Recipes come from our own overlay and from this repository's platform trees
@@ -34,13 +34,13 @@ pushed it, and the name a reader sees comes from their own trust set.
 Two people who build the same inputs get the **same** bottle — deliberately,
 since an identity that varied with the builder could never be compared — so
 what tells them apart is who signed it. A second builder reproduces the bottle
-and attaches their own signature with `zbk sign`, which pushes no bottle and
+and attaches their own signature with `zpkb sign`, which pushes no bottle and
 refuses when the rebuild produced different bytes. Setting
 `ZPKG_TRUST_THRESHOLD=2` then means *install nothing a second builder did not
 independently reproduce*.
 
 That covers what leaves. What went *in* was recorded by nothing until
-[`bk`#112](https://github.com/go-zpkg/zbk/issues/112): of 1858 recipes with a
+[`bk`#112](https://github.com/go-zpkg/zpkb/issues/112): of 1858 recipes with a
 distributable URL, exactly one declared a checksum and `bk` verified none, so a
 source tarball that changed upstream produced a different bottle, correctly
 signed, attesting a URL rather than the bytes that came back from it. The
@@ -61,29 +61,29 @@ bottle built on any platform carries the same answer:
 
 | lane | how |
 |---|---|
-| `build.yml` (linux) | `zbk factory --advisories advisories` |
+| `build.yml` (linux) | `zpkb factory --advisories advisories` |
 | `build.yml` sovereign chunk | `SOVEREIGN_ADVISORIES`, bound in at `/advisories` |
 | `sovereign.yml` | the same variable |
-| `darwin.yml` | `zbk factory --advisories advisories` |
-| `windows.yml`, `windows-rust.yml` | `zbk publish --advisories "$GITHUB_WORKSPACE/advisories"` |
+| `darwin.yml` | `zpkb factory --advisories advisories` |
+| `windows.yml`, `windows-rust.yml` | `zpkb publish --advisories "$GITHUB_WORKSPACE/advisories"` |
 
 The sovereign lane needs a **mount**, not a path: a workspace path means
 nothing inside the rootfs, and `--advisories advisories` without the bind would
 make `bk` refuse with "no advisories.yaml under advisories" — which reads as
 "the tree is empty" and means "the tree is on the other side of a namespace".
 
-`zbk factory` validates the whole tree **once, before the first build**, because
+`zpkb factory` validates the whole tree **once, before the first build**, because
 a record that does not parse stops a *publish* — and the fortieth bottle of a
 fifty-project chunk is six hours into the run. The Windows lanes' publish is
 best-effort by design, so there a refusal lands in the non-fatal branch; the net
-under that is this repository's own `zbk advisories` check on every pull request.
+under that is this repository's own `zpkb advisories` check on every pull request.
 
-`zbk publish --advisories advisories`
-turns it into the OpenVEX referrer above, and `zbk advisories` validates the
+`zpkb publish --advisories advisories`
+turns it into the OpenVEX referrer above, and `zpkb advisories` validates the
 tree on every pull request.
 
 The first record is a worked example of why the file exists rather than a
-re-derivation each time. `zbk vulnfetch` reported `MAL-2026-3020`, *"Malicious
+re-derivation each time. `zpkb vulnfetch` reported `MAL-2026-3020`, *"Malicious
 code in @bitwarden/cli (npm)"*, against the npm identity `bitwarden.com`'s
 recipe states. Three measurements settle it:
 
@@ -102,7 +102,7 @@ the record is what stops a decided question from being re-asked.
 
 ⛔ The daily lane had its platform list **written into the workflow**, and the
 list said `linux/x86-64` and `darwin/aarch64`. The registry carries six.
-Measured 2026-10-20 with `zbk vulnfetch` against the published catalogues, the
+Measured 2026-10-20 with `zpkb vulnfetch` against the published catalogues, the
 four nobody had ever asked about:
 
 | platform | asked | unanswerable | not asked | Σ | findings |
@@ -214,11 +214,11 @@ x86-64, `max-parallel: 6` because macOS runner concurrency is scarce, with
 `recipes.txt` chunked 50 projects at a time across both — both dispatched on demand (`workflow_dispatch`; the daily crons are
 commented out since 2026-08-12 to leave the runners free for targeted jobs, and only
 `index-audit.yml` still runs on a schedule) and both publishing signed packages to the same `ghcr.io/go-pkgx/packages` OCI registry via the
-identical, platform-agnostic `zbk factory` (which also writes a pkgx dist tree, uploaded
+identical, platform-agnostic `zpkb factory` (which also writes a pkgx dist tree, uploaded
 as a `dist-*` artifact for the Pages mirror). Auth to ghcr uses the workflow's **native
 `GITHUB_TOKEN`** (`permissions.packages: write`) — no long-lived PAT to rotate. Each
 run installs pkgx (bk sources its own toolchain via `zpkgx +deps`) and bk, clones the
-pantry, then runs `zbk factory` — one pure-Go command (no bash, no curl/jq, no `git apply`), which:
+pantry, then runs `zpkb factory` — one pure-Go command (no bash, no curl/jq, no `git apply`), which:
 
 - expands the requested projects to their **topologically-ordered runtime-dependency
   closure** (deps built before dependents), and
@@ -253,7 +253,7 @@ matrix of failures nobody reads.
 
 `sovereign=0` buys exactly one thing — a first generation on an architecture
 that has no bottles — and that licence ends the moment the seed exists.
-`seed/dispatch-gen1.sh` spends it: `zbk builder` stages a rootfs **from the
+`seed/dispatch-gen1.sh` spends it: `zpkb builder` stages a rootfs **from the
 seed registry**, and everything is rebuilt inside it under `chroot`.
 
 The first package through end to end was `pass lz4.org 1.10.0 linux/s390x`,
@@ -303,11 +303,11 @@ them to be where the time goes; the matrix entry is the cheap part.
 
 ## Working the front
 
-What is left is not one problem. `zbk depgaps` separates the two, ranks each by how
+What is left is not one problem. `zpkb depgaps` separates the two, ranks each by how
 many recipes it blocks, and reads satisfiability through bottle's own semver so it
 agrees with what pkgx will decide at install:
 
-    zbk depgaps --pantry pantry --overrides overrides --registry registry.json \
+    zpkb depgaps --pantry pantry --overrides overrides --registry registry.json \
                --platform linux/x86-64
 
 - A **version line** the registry does not carry. `python.org ~3.12` blocked 23
@@ -349,12 +349,12 @@ of the registry. The ratio was not measurable; only these absolutes are.
   host-tool leakage and reproducible output. macOS builds run directly on GitHub's
   ephemeral macOS runners (each a clean, throwaway VM), which are the isolation there.
 - **Phase B (shipped).** Building against pkgx's *own* glibc toolchain, for packages
-  self-contained enough to run `FROM scratch`: `zbk factory --libc=pkgx` retargets the
+  self-contained enough to run `FROM scratch`: `zpkb factory --libc=pkgx` retargets the
   compiler at the `gnu.org/glibc` bottle — its crt objects, its libc, its dynamic
-  linker — so the output owes nothing to the debian container. `zbk builder` stages the
+  linker — so the output owes nothing to the debian container. `zpkb builder` stages the
   sovereign rootfs itself (static Go binaries plus toolchain bottles from this signed
   registry, nothing else), and `builder/` here is what builds that image. Design note:
-  [`bk/docs/from-scratch-toolchain.md`](https://github.com/go-zpkg/zbk/blob/main/docs/from-scratch-toolchain.md).
+  [`bk/docs/from-scratch-toolchain.md`](https://github.com/go-zpkg/zpkb/blob/main/docs/from-scratch-toolchain.md).
 
 `.github/workflows/sovereign.yml` is that claim as a job: stage the rootfs from
 `builder/toolchain.txt`, enter it with `chroot`, and run `bk` through pkgx exactly
@@ -476,7 +476,7 @@ over one of them in a build. They are at 0, and this is the daily crawl
 (04:00 UTC) that keeps them there. It is also why two dispatches of the same
 publishing workflow must never run at once.
 
-**`sonames.yml` — can what we publish actually load?** `zbk unresolved` reads
+**`sonames.yml` — can what we publish actually load?** `zpkb unresolved` reads
 every ELF and Mach-O in an installed closure and reports each reference the
 store cannot answer. It was written and tested, and until 2026-10-23
 **nothing in this repository ran it** — a control that exists and is wired to
@@ -493,7 +493,7 @@ moved the recipe's pin to `^3`; an override moves a *recipe*, and a
 which — "clean for chunk 3 of 14 on linux/x86-64" is a sentence that cannot
 be read as a clean bill of health, and ~1400 closure installs per platform is
 not a thing to pretend to do weekly. It refuses a catalogue for a platform
-this host is not: `zbk unresolved` installs for the **host**, so that answer
+this host is not: `zpkb unresolved` installs for the **host**, so that answer
 would be this machine's bottles under another platform's name.
 
 **The full sweep says how big this is.** Measured 2026-10-24 over all
@@ -518,7 +518,7 @@ once per dependent.
 
 Against a backlog that size a gate that fails on *any* finding is red every
 week, and red on everything is furniture. So the gate goes red only on a
-reference **not** in `sonames/baseline-<os>-<arch>.txt` — `zbk vulnfetch -fail-on-new`
+reference **not** in `sonames/baseline-<os>-<arch>.txt` — `zpkb vulnfetch -fail-on-new`
 in the shape this measurement has.
 
 `-out` writes each chunk in the format `-baseline` reads, and
@@ -699,7 +699,7 @@ all** — a scan that could not reach its input must not report a clean tree.
 Every platform — linux, darwin **and** windows — publishes to **both** channels:
 
 - the **signed OCI registry** `ghcr.io/go-pkgx/packages` (SBOM + provenance +
-  signature, via `zbk publish`), and
+  signature, via `zpkb publish`), and
 - the **GitHub Pages pkgx dist mirror** `https://go-zpkg.github.io/packages`.
 
 The four build workflows (`build.yml`, `darwin.yml`, `windows.yml`,
@@ -723,7 +723,7 @@ signed `ghcr.io/go-pkgx/packages` OCI registry and the
   no per-recipe work. For each `slug|github-repo|bin` row it finds the newest tag,
   clones it, builds, lays the `.exe` out as a pkgx dist tree
   `<slug>/windows/x86-64/{versions.txt, v<ver>.tar.gz}` + `package.yml`, and
-  `zbk publish`es it (signed) to the OCI registry as `windows/x86-64`.
+  `zpkb publish`es it (signed) to the OCI registry as `windows/x86-64`.
 - **`.github/workflows/windows-rust.yml` (Rust).** Cross-builds the Rust projects
   in `windows/rust-projects.txt` with mingw-w64 (colocating the mingw runtime DLLs
   for self-containment), signs and publishes each to the OCI registry, and uploads
@@ -757,7 +757,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   `bin/<name>.wasm` (a recipe's `provides: bin/<name>` stays extension-free;
   `bottle.ResolveBinPath` finds the `.wasm` on a wasm host, as it finds `.exe` on
   Windows), **run under wasmtime** (`wasmtime run --dir=/ --env PWD="$PWD" x.wasm <args>`, as Go's own `go_wasip1_wasm_exec` does), then
-  `zbk publish --platform wasip1/wasm`. A publish failure fails the job.
+  `zpkb publish --platform wasip1/wasm`. A publish failure fails the job.
 - **Pilots:** `filippo.io/age` 1.3.2, `github.com/cpuguy83/go-md2man` 2.0.7 and
   `mvdan.cc/sh` (`shfmt`) 3.14.1.
 - **Go lane, wave 2 (27 more, 30 in all).** Each was built for `wasip1/wasm` and run
@@ -803,14 +803,14 @@ spelling; the pkgx slug is `wasip1/wasm`.
   source in the pantry overlay following wasi-sdk's `cmake/wasi-sdk-sysroot.cmake`:
   `compiler-rt.llvm.org/wasi` (libclang_rt.builtins for wasm32-wasip1 + clang's
   headers, laid out as a resource dir) and `github.com/WebAssembly/wasi-libc` (the
-  sysroot). `zbk --platform wasip1/wasm build` adds the three and imposes
+  sysroot). `zpkb --platform wasip1/wasm build` adds the three and imposes
   `clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1
-  --rtlib=compiler-rt` through `$ZBK_CC` (the shims re-exec it, so a recipe cannot
+  --rtlib=compiler-rt` through `$ZPKB_CC` (the shims re-exec it, so a recipe cannot
   lose it). Each project has its own small recipe under
   `wasip1/recipes/<slug>/package.hcl` (static, no dlopen, no threads) — HCL2,
   which is the default recipe format, and `recipefile.Names` tries it first.
   ⛔ **That makes bk `>= v0.50.0` a hard requirement for this lane**, not
-  hygiene: `zbk build --recipe` read every path as YAML until then
+  hygiene: `zpkb build --recipe` read every path as YAML until then
   (go-zpkg/bk#389), and an older pin does not warn — it fails with a yaml
   unmarshal error about the first attribute of a perfectly good HCL file.
   Pilots, built, run under wasmtime 50 and
@@ -820,7 +820,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   `-mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false -lsetjmp`; a
   `pcall(error)` is run). wasi-libc declares but does not define
   `tmpfile`/`tmpnam`/`system`, which lua stubs.
-  - **Sovereign.** The build runs INSIDE the rootfs `zbk builder` stages from
+  - **Sovereign.** The build runs INSIDE the rootfs `zpkb builder` stages from
     `builder/toolchain.txt` (`builder/sovereign-bk.sh`: unshare + chroot + the pkgx
     environment of `sovereign-build.sh`), so `sh`, `make`, coreutils, clang and
     wasm-ld are bottles in that tree; the runner supplies three static Go binaries,
@@ -830,7 +830,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
     `/pkgx/llvm.org/…/{clang,clang++,wasm-ld,llvm-ar,llvm-ranlib}`; `gcc` is absent.
   - **C++.** `libcxx.llvm.org/wasi` (libc++ + libc++abi for wasm32-wasip1, from
     wasi-sdk's `define_libcxx_sub`; no exceptions, `-fno-exceptions` in the
-    `$ZBK_CXX` stencil). Pilot: `github.com/simdjson/simdjson` 5.0.5 (the library
+    `$ZPKB_CXX` stencil). Pilot: `github.com/simdjson/simdjson` 5.0.5 (the library
     from upstream plus a 15-line stdin-to-stdout minifier; upstream's tools fetch
     cxxopts at configure time), run under wasmtime.
   - **More C tools.** Eight recipes added after the pilots, each built with
