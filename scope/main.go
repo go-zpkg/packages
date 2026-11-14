@@ -36,27 +36,34 @@ var osExit = os.Exit
 // the union over whatever is asked for is the answer.
 const defaultPlatforms = "linux/x86-64,linux/aarch64,darwin/x86-64,darwin/aarch64"
 
-func main() {
-	var (
-		plats   = flag.String("platforms", defaultPlatforms, "comma-separated os/arch to measure and UNION")
-		depth   = flag.Int("depth", 64, "closure depth to walk")
-		atLeast = flag.Int("at-least", 0, "fail unless the scope is at least this many recipes (0 reports only)")
-	)
-	flag.Parse()
-
-	if err := run(os.Stdout, strings.Split(*plats, ","), *depth, *atLeast, fetchFromRegistry); err != nil {
-		fmt.Fprintln(os.Stderr, "scope:", err)
-		osExit(1)
-	}
-}
-
-// fetchFromRegistry reads one platform's published catalogue artifact.
-func fetchFromRegistry(osn, arch string) (artifact.Catalog, error) {
+// fetchCatalog is the one place this command touches the network, as a var so
+// a test can drive run() and main() from a fixture instead.
+var fetchCatalog = func(osn, arch string) (artifact.Catalog, error) {
 	c, err := artifact.NewOCIClient(artifact.DistBase)
 	if err != nil {
 		return artifact.Catalog{}, err
 	}
 	return artifact.FetchCatalog(c, osn, arch)
+}
+
+func main() {
+	// A fresh FlagSet, not the package-level default: main is called more
+	// than once by its own test, and re-registering a flag on flag.CommandLine
+	// panics.
+	fs := flag.NewFlagSet("scope", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	plats := fs.String("platforms", defaultPlatforms, "comma-separated os/arch to measure and UNION")
+	depth := fs.Int("depth", 64, "closure depth to walk")
+	atLeast := fs.Int("at-least", 0, "fail unless the scope is at least this many recipes (0 reports only)")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		osExit(2)
+		return
+	}
+
+	if err := run(os.Stdout, strings.Split(*plats, ","), *depth, *atLeast, fetchCatalog); err != nil {
+		fmt.Fprintln(os.Stderr, "scope:", err)
+		osExit(1)
+	}
 }
 
 func run(w io.Writer, platforms []string, depth, atLeast int, fetch func(osn, arch string) (artifact.Catalog, error)) error {
@@ -73,6 +80,10 @@ func run(w io.Writer, platforms []string, depth, atLeast int, fetch func(osn, ar
 	fmt.Fprintf(w, "%-18s %9s %9d %9d\n", "UNION", "-", len(r.Published), len(r.Closure))
 	fmt.Fprintf(w, "\nTOTAL %d recipe(s) to write for this scope\n", r.Total())
 
+	// Named, not just counted, while the list is short enough to read: a
+	// closure-only project is the one kind of scope entry nobody would think
+	// to look for, and four of the five found on 2026-11-14 turned out to be
+	// published on another platform.
 	if n := len(r.Closure); n > 0 && n <= 40 {
 		fmt.Fprintln(w, "\nrequired by a closure, published nowhere:")
 		for _, p := range sortedKeys(r.Closure) {
