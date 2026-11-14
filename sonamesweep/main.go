@@ -92,7 +92,19 @@ var runCmd = func(name string, args ...string) (string, error) {
 	// projects on stdin when it is given none, so an inherited terminal
 	// would make it wait for a list it has already been handed in argv.
 	cmd.Stdin = nil
-	return buf.String(), cmd.Run()
+	// ⛔ RUN FIRST, THEN READ THE BUFFER. `return buf.String(), cmd.Run()`
+	// reads it BEFORE the child has started — Go evaluates a return's
+	// operands left to right — so this seam returned "" for every command
+	// that ever succeeded. Found 2026-11-14 by the first test ever to call
+	// it, which #458 explains: the body of a `var f = func(){…}` was invisible
+	// to the 100 % coverage gate, so nothing ever ran this line.
+	//
+	// It is the SECOND silent pass this file has carried, and it is the one
+	// the header above describes without naming: no output → no findings →
+	// nothing outside the baseline → exit 0. The missing binary was fixed;
+	// this made every successful run report nothing too.
+	err := cmd.Run()
+	return buf.String(), err
 }
 
 // neverRan reports whether a command failed to START, as opposed to running and
