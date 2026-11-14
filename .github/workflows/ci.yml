@@ -278,16 +278,18 @@ jobs:
             --overrides overrides \
             $(grep -vE '^[[:space:]]*(#|$)' seed/order.txt | tr '\n' ' ')
 
+      # The verdict comes from the PROFILE, not from `go tool cover -func`.
+      # -func attributes every block to the enclosing function DECLARATION and
+      # drops the ones that have none — the body of a package-level
+      # `var f = func(){…}` — from its per-function list AND from the `total:`
+      # line this step used to compare against "100.0%". On 2026-11-14 that
+      # hid 12 uncovered statements behind a green 100.0%: npmtag's httpGet
+      # and sonamesweep's runCmd, in each program the only code that opens a
+      # socket or execs a child. One of the two was broken. See #458.
       - name: test + 100% coverage gate
         run: |
           go test ./... -covermode=atomic -coverprofile=cov.out
-          total=$(go tool cover -func=cov.out | awk '/^total:/{print $3}')
-          echo "total coverage: $total"
-          if [ "$total" != "100.0%" ]; then
-            echo "coverage below 100%"; go tool cover -func=cov.out | awk '$3!="100.0%"'
-            echo "== uncovered blocks =="; awk 'NR>1 && $NF==0' cov.out
-            exit 1
-          fi
+          go run ./covgate -profile cov.out
 
   # Same reason as `test` above: this workflow triggers on pull_request, so a
   # fork's own copy of this file decides where its code runs. A cross-compile
