@@ -197,7 +197,7 @@ func TestAFileThatBootstrapsNothingNeedsNoPolicy(t *testing.T) {
 	}
 }
 
-// `go run x@v` is how ci.yml bootstraps bk, and a guard that only knew
+// `go run x@v` is how ci.yml bootstraps zpkb, and a guard that only knew
 // `go install` would have passed three of the fourteen sites.
 func TestGoRunOfARemoteModuleCounts(t *testing.T) {
 	src := strings.Replace(conforming,

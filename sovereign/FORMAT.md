@@ -121,7 +121,7 @@ known-broken.
 runtime, flat. Guix's manual is explicit that the `native-inputs` /`inputs`
 distinction "is necessary when considering cross-compilation": native inputs
 are built for the **build** machine, inputs for the **target**. We have
-already paid for not having this. `windows-c.yml` records that bk
+already paid for not having this. `windows-c.yml` records that zpkb
 deliberately does not inject `llvm.org` for a Windows cross build and the
 recipe must name `llvm.org/mingw-w64` itself, and that a recipe which forgets
 gets "C compiler cannot create executables" rather than a missing-dependency
@@ -161,7 +161,7 @@ seed ours, given they carry no licence — is answered: they cannot. Where the
 licence is missing, **the recipes are written, not converted**
 ([#431](https://github.com/go-zpkg/packages/issues/431)).
 
-So `bk tohcl` is not the route into our pantry, and the step it was the gate
+So `zpkb tohcl` is not the route into our pantry, and the step it was the gate
 for is gone from [#420](https://github.com/go-zpkg/packages/issues/420)'s
 plan. A recipe is authored from the project's own `configure`,
 `CMakeLists.txt`, `Makefile`, `INSTALL` or `README` — the files it publishes

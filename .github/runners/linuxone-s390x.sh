@@ -44,7 +44,7 @@
 # Another repository in the fleet reaches the same VM a different way: an
 # ubuntu-latest job that SSHes in with a key from a repo secret. That is right
 # for what it does — `go vet && go test` is one self-contained command on a
-# public repo — and wrong here. `bk factory` checks out a workspace, runs
+# public repo — and wrong here. `zpkb factory` checks out a workspace, runs
 # inside a container, uploads artefacts and PUSHES TO GHCR with a token;
 # reproducing that over SSH means rewriting the lane and shipping a registry
 # credential to the VM. The job body is built to run where the work happens, so

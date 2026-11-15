@@ -1,5 +1,5 @@
 project = "mozilla.org/nss"
-why     = "nss records an absolute rpath, so its own dylibs cannot resolve nspr once installed anywhere else — bk's fixup guard refuses to publish that. It also needs -Werror relaxed and its test library left unbuilt."
+why     = "nss records an absolute rpath, so its own dylibs cannot resolve nspr once installed anywhere else — zpkb's fixup guard refuses to publish that. It also needs -Werror relaxed and its test library left unbuilt."
 
 edits = [
   {

@@ -1,5 +1,5 @@
 // Command seedpins checks that the seed order pins every base-toolchain
-// member bk constrains, to the constraint bk itself states.
+// member zpkb constrains, to the constraint zpkb itself states.
 //
 // The seed reached 77 of 77 on 2026-09-29 and was not a usable toolchain.
 // The first attempt to build anything on top of it without --bootstrap died
@@ -7,19 +7,19 @@
 //
 //	pkgx: no version of gnu.org/gawk satisfies "~5.3" (available: 1)
 //
-// The seed had built gawk 5.4.1 — the newest — and bk pins the base
+// The seed had built gawk 5.4.1 — the newest — and zpkb pins the base
 // toolchain to ~5.3 ON PURPOSE, because 5.4.1 mishandles autoconf's
 // option-resolution scripts: 186 `/*#undef` where 5.3.2 writes 202
 // `#define`, so a libpng built under it would be a libpng with no features
-// (see bk's build.ToolchainGawk). The seed order names projects and not
+// (see zpkb's build.ToolchainGawk). The seed order names projects and not
 // versions, so it took the latest and nothing said otherwise.
 //
 // "Complete" answered the wrong question. Every project in the order was
 // published, and the one thing the order exists to produce — a toolchain
 // other builds can use — did not work.
 //
-// The constraint is READ FROM bk, never copied. A second copy of "~5.3" in
-// this repository would be right until bk moved, and then wrong silently,
+// The constraint is READ FROM zpkb, never copied. A second copy of "~5.3" in
+// this repository would be right until zpkb moved, and then wrong silently,
 // which is the same failure one layer up.
 //
 // # Two sources of constraints, and this check only read one
@@ -34,7 +34,7 @@
 //	satisfies "~7.1" (available: 1)
 //
 // Exactly the shape this command exists to refuse, and it passed, because it
-// compared the order against bk's base toolchain alone. builder/toolchain.txt
+// compared the order against zpkb's base toolchain alone. builder/toolchain.txt
 // is the other list a seed has to satisfy and nothing was reading it.
 //
 // So both are read, and each refusal names WHICH list asks. A check aimed at
@@ -63,12 +63,12 @@ func main() {
 	fs := flag.NewFlagSet("seedpins", flag.ContinueOnError)
 	order := fs.String("order", "seed/order.txt", "the seed build order")
 	builderTC := fs.String("builder-toolchain", "builder/toolchain.txt",
-		"the sovereign rootfs toolchain list; \"\" to check bk's alone")
+		"the sovereign rootfs toolchain list; \"\" to check zpkb's alone")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		osExit(2)
 		return
 	}
-	sources := []toolchainSource{{"bk's base toolchain", build.BaseToolchain()}}
+	sources := []toolchainSource{{"zpkb's base toolchain", build.BaseToolchain()}}
 	if *builderTC != "" {
 		specs, err := readBuilderToolchain(*builderTC)
 		if err != nil {
@@ -95,7 +95,7 @@ type toolchainSource struct {
 //
 // That file's form is `project[@constraint]  # why it is here`, one per line,
 // with comments that run to the end of the line AND onto lines of their own.
-// bk's base toolchain writes the pkgspec form instead (`gnu.org/gawk~5.3`),
+// zpkb's base toolchain writes the pkgspec form instead (`gnu.org/gawk~5.3`),
 // so the `@` comes off here and the rest of this command compares one shape.
 func readBuilderToolchain(path string) ([]string, error) {
 	f, err := os.Open(path)
@@ -147,7 +147,7 @@ func run(orderPath string, sources []toolchainSource, stdout, stderr io.Writer) 
 	total := 0
 	// askedBy records which source first constrained a project, so two lists
 	// demanding different versions of one package is itself reported. It
-	// cannot happen today — bk constrains gawk and perl, builder/toolchain.txt
+	// cannot happen today — zpkb constrains gawk and perl, builder/toolchain.txt
 	// constrains linux-headers — and it is the next thing to go wrong when
 	// someone pins the same package twice, in two files, for two reasons.
 	askedBy := map[string]toolchainSource{}
@@ -201,7 +201,7 @@ func run(orderPath string, sources []toolchainSource, stdout, stderr io.Writer) 
 // would be a pin nobody asked for.
 //
 // It takes the list rather than calling build.BaseToolchain itself, so the
-// refusal below can be exercised. That refusal guards against a bk entry
+// refusal below can be exercised. That refusal guards against a zpkb entry
 // that is a bare constraint with no project — it cannot happen today, and a
 // check that cannot be tested is a check nobody has read.
 func constrainedToolchain(toolchain []string) (map[string]string, error) {
@@ -223,7 +223,7 @@ func constrainedToolchain(toolchain []string) (map[string]string, error) {
 // it names none.
 //
 // The order's form is `project@constraint`, with the `@` and the operator
-// AFTER it — `gnu.org/gawk@~5.3`. That is not a cosmetic choice: bk's own
+// AFTER it — `gnu.org/gawk@~5.3`. That is not a cosmetic choice: zpkb's own
 // readOrder cuts a line at the first `@` and splitPin does the same for a
 // dispatch, so `gnu.org/gawk~5.3` would be read as a PROJECT of that name
 // and the closure gate would look for a recipe nobody has. The base

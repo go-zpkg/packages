@@ -6,8 +6,8 @@ system libc. This is the consumer proof for Isolation Phase B: the artifacts thi
 factory publishes are self-sufficient enough to run with nothing underneath them
 but the kernel.
 
-The whole flow is a **pure-Go** `bk` subcommand — [`bk fromscratch`](https://github.com/go-zpkg/zpkb)
-(package `cmd/bk`). No interpreter and no shell glue: `bk` already has the OCI
+The whole flow is a **pure-Go** `zpkb` subcommand — [`zpkb fromscratch`](https://github.com/go-zpkg/zpkb)
+(package `cmd/bk`). No interpreter and no shell glue: `zpkb` already has the OCI
 artifact pull, pantry-recipe parsing and version resolution in Go, and reads ELF
 `DT_NEEDED` natively via `debug/elf`. The only external command is `docker`
 (the container builder itself). A static Go binary is itself deployable in a
@@ -22,7 +22,7 @@ git clone --depth 1 https://github.com/pkgxdev/pantry
 
 # Resolve + pull the closure, build a scratch image, and smoke-run it. `{V}` in
 # the entrypoint is replaced by the root project's resolved version dir. Args
-# after `--` are passed to the container (its real exit code is bk's).
+# after `--` are passed to the container (its real exit code is zpkb's).
 zpkb fromscratch -arch amd64 -tag myimg:lz4 \
     -entrypoint '/zpkg/lz4.org/{V}/bin/lz4' -run lz4.org -- --version
 
@@ -35,7 +35,7 @@ zpkb fromscratch -arch arm64 -resolve-only sqlite.org
 
 `-arch` is `amd64` or `arm64` (aliases `x86-64` / `aarch64`). `-pantry` defaults
 to `./pantry`. External dependency: `docker` (plus a Go toolchain to install
-`bk`). CGO is not required — `bk` is a static pure-Go binary.
+`zpkb`). CGO is not required — `zpkb` is a static pure-Go binary.
 
 ## How it works
 
@@ -48,7 +48,7 @@ things that a scratch image can't satisfy on its own:
 2. **`NEEDED libc.so.6`** (and `libssl`/… for multi-lib tools) — resolved by the
    loader's default search path, which finds nothing in a scratch image.
 
-`bk fromscratch` reproduces pkgx's own runtime model inside the image:
+`zpkb fromscratch` reproduces pkgx's own runtime model inside the image:
 
 1. **Closure-resolve**: parse each pantry recipe's top-level `dependencies:` (a
    key is a project iff it looks like a host `something.tld[/path]`; non-dotted
@@ -77,8 +77,8 @@ things that a scratch image can't satisfy on its own:
 ## CI
 
 [`.github/workflows/fromscratch.yml`](../.github/workflows/fromscratch.yml)
-(`workflow_dispatch`) installs `bk`, clones the pantry, and runs
-`bk fromscratch … -run` for a panel of witness tools (`lz4`, `openssl`, `xz`,
+(`workflow_dispatch`) installs `zpkb`, clones the pantry, and runs
+`zpkb fromscratch … -run` for a panel of witness tools (`lz4`, `openssl`, `xz`,
 `zstd`, `sqlite`, `rsync`, `perl`, …). A closure not yet fully published is
 reported as a coverage SKIP (exit 3); a tool that builds but fails its smoke
 test FAILS the job (exit 1).

@@ -102,7 +102,7 @@ EOT
     ]
     expect = [
       # The four lines upstream added on 2026-10-20. `expect` is what this
-      # override claims the recipe currently says: without them `bk
+      # override claims the recipe currently says: without them `zpkb
       # overrides` reports the premise as gone, which is exactly what it did
       # — the check working, not failing.
       "test \"{{deps.github.com/facebookincubator/fizz.version}}\" = \"{{version}}\"",

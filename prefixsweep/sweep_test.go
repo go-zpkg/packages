@@ -366,7 +366,7 @@ func TestMainReportsFailureThroughTheExitCode(t *testing.T) {
 	}
 }
 
-// ⛔ THE NEEDLE SWEEP (go-zpkg/bk#387). Each test below fails for the reason it
+// ⛔ THE NEEDLE SWEEP (go-zpkg/zpkb#387). Each test below fails for the reason it
 // names: the positive one gives hits > 0 on a fixture that holds the cache
 // root, so the zero in the negative one means something.
 const cacheRoot = "/Users/runner/Library/Caches/brewkit"
@@ -380,7 +380,7 @@ func needleRegistry() *fakeRegistry {
 				"v1.0.0/bin/tool":   "assert: " + cacheRoot + "/darwin+aarch64/leaky.example/v1.0.0/build/x.c\x00",
 				"v1.0.0/lib/liba.a": "clean bytes",
 			},
-			// normalised, plus a legitimate @rpath load command (bk#386), which is
+			// normalised, plus a legitimate @rpath load command (zpkb#386), which is
 			// out of scope and must NOT count.
 			"fixed.example": {
 				"v1.0.0/bin/tool": "assert: /build/darwin+aarch64/fixed.example/v1.0.0/build/x.c\x00@rpath/fixed.example/v1.0.0/lib/liba.dylib\x00",

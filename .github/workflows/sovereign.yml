@@ -1,14 +1,14 @@
 name: sovereign build
 
 # Proof that a recipe can be compiled with NO distribution involved: the rootfs
-# `zpkb builder` stages from builder/toolchain.txt, entered with chroot, bk run
+# `zpkb builder` stages from builder/toolchain.txt, entered with chroot, zpkb run
 # through pkgx exactly as builder/Containerfile's ENTRYPOINT does.
 #
 # Why this exists: with the ordinary path, what can be built is decided by the
 # runner's distribution. Measured, twice, on our own pool:
 #
 #   * on debian 12 every compile died at `env: … version GLIBC_2.38 not found`,
-#     because bk installs a MIRRORED coreutils linked against a newer glibc;
+#     because zpkb installs a MIRRORED coreutils linked against a newer glibc;
 #   * on debian 13 the first recipe through, jonas.github.io/tig, failed on a
 #     C23 diagnostic from the runner's GCC — not from the llvm.org artifact we
 #     ship and intend to compile with.
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
 
-      - name: build bk, pkgx and pkgm (static)
+      - name: build zpkb, pkgx and pkgm (static)
         run: |
           # ⛔⛔ ASSEMBLED FROM A VARIABLE, SO THE RENAME DID NOT SEE IT. The
           # go-pkgx → go-zpkg pass is a rule table over literal text, and
@@ -114,16 +114,27 @@ jobs:
         env:
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
         run: |
+          # ⛔⛔ `command -v pkgx` WOULD NOW FIND SOMEBODY ELSE'S PROGRAM.
+          # Ours is `zpkx` since the rename, and `pkgx` is upstream's — a
+          # different implementation that can sit on the same PATH, which is
+          # the whole reason the rename happened. A lookup left as `pkgx`
+          # does not fail loudly; it either finds nothing or finds upstream
+          # and stages a rootfs with it.
+          #
+          # ⛔⛔ AND THIS NOTE BELONGS ABOVE THE COMMAND, NOT INSIDE IT. It sat
+          # between `--toolchain …\` and `--zpkb …`, where a `#` line does NOT
+          # comment out one line of a continued command: the backslash before
+          # it is itself swallowed by the comment, so the continuation ENDS
+          # there. `zpkb builder` then ran without `--zpkb`, `--zpkx` or
+          # `--container`, and `--zpkb "$(command -v zpkb)"` ran as a COMMAND
+          # — 127, step dead. Measured with a positive control: the same block
+          # without the comment line passes every word to one command.
+          # `actionlint` reports it as SC2215 and found four of these, all
+          # written by a rename pass like the one that wrote this note.
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "$PLATFORM" \
             --toolchain builder/toolchain.txt \
-            # ⛔⛔ `command -v pkgx` WOULD NOW FIND SOMEBODY ELSE'S PROGRAM.
-            # Ours is `zpkx` since the rename, and `pkgx` is upstream's — a
-            # different implementation that can sit on the same PATH, which is
-            # the whole reason the rename happened. A lookup left as `pkgx`
-            # does not fail loudly; it either finds nothing or finds upstream
-            # and stages a rootfs with it.
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
             --container

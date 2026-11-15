@@ -18,7 +18,7 @@
 //	go run ./openssl3 -n                      # list what would change, write nothing
 //
 // There are two halves and they are not interchangeable: `overrides/` patches
-// the pantry bk BUILDS from, while pkgx resolves an INSTALL by fetching the
+// the pantry zpkb BUILDS from, while pkgx resolves an INSTALL by fetching the
 // recipe itself through ZPKG_PANTRY_OVERLAY. Fixing only the build half leaves
 // every CONSUMER of those packages broken.
 //
@@ -171,7 +171,7 @@ func pinned(projectsDir string) ([]string, error) {
 
 // writeOverlay writes the corrected recipe WHOLE into a pantry-overlay tree.
 // The two halves are not interchangeable: `overrides/` patches the pantry that
-// bk BUILDS from, while pkgx resolves an INSTALL by fetching the recipe itself,
+// zpkb BUILDS from, while pkgx resolves an INSTALL by fetching the recipe itself,
 // through ZPKG_PANTRY_OVERLAY. Fixing only the build half leaves every consumer
 // of those packages broken at install time — measured three times over in the
 // sovereign builder, where gnutls, p11-kit and linux-pam each died on

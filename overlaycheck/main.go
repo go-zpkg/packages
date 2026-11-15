@@ -4,7 +4,7 @@
 // The factory keeps a recipe in two places and they must agree:
 //
 //   - overrides/<name>-new.patch, applied to a fresh pkgxdev/pantry clone, is
-//     what `bk` BUILDS from;
+//     what `zpkb` BUILDS from;
 //   - go-zpkg/pantry-overlay/projects/<project>/package.hcl is what a consumer
 //     RESOLVES over HTTP (artifact's fetchRecipe tries the overlay, then upstream,
 //     and nothing else).
@@ -106,7 +106,7 @@ func main() {
 	//
 	// There used to be a second mode, reading a directory of patches that
 	// CREATED a project and checking each was in the published overlay. Those
-	// patches are gone: a recipe of ours lives in the overlay and bk builds it
+	// patches are gone: a recipe of ours lives in the overlay and zpkb builds it
 	// from there. The mode did not fail when its subject disappeared — it
 	// printed "0 projects, both halves in agreement" and passed. Its question
 	// is now an arm of the walk below, where it has eight real subjects.
@@ -145,7 +145,7 @@ func main() {
 // override patch, so the same project is expressed twice — once as a YAML
 // patch the builder reads, once as HCL a consumer resolves — and until now
 // nothing compared those two for a project that already existed upstream.
-// bk builds from the first and pkgx resolves dependencies from the second, in
+// zpkb builds from the first and pkgx resolves dependencies from the second, in
 // the same build.
 func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer) int {
 	// The pantry on disk is no longer the recipe the factory builds. Since the
@@ -200,7 +200,7 @@ func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer
 		return 2
 	}
 
-	bad, checked, broken, ours := 0, 0, 0, 0
+	bad, checked, broken, ours, undecided := 0, 0, 0, 0, 0
 	var unexplained []string
 	for _, project := range projects {
 		builtDoc, err := builtRecipe(set, pantryDir, project)
@@ -216,8 +216,8 @@ func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer
 		}
 		if err != nil {
 			// Not in the pantry at ALL. Upstream does not carry this project,
-			// so the overlay's copy is the only recipe there is — bk builds it
-			// from there (go-zpkg/bk#231) and a consumer resolves it from
+			// so the overlay's copy is the only recipe there is — zpkb builds it
+			// from there (go-zpkg/zpkb#231) and a consumer resolves it from
 			// there. There are no two halves to compare.
 			//
 			// There is still a way for it to go wrong, and it is the one that
@@ -229,11 +229,34 @@ func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer
 			// a list of project-creating patches; there are none left, and it
 			// reported "0 projects, both halves in agreement" and passed.
 			ours++
-			if _, status, _, err := fetchOverlayRecipe(project); err != nil || status != 200 {
-				fmt.Fprintf(out, "✗ %-30s upstream has no such project and the overlay does not SERVE it (%d %v)\n",
-					project, status, err)
+			// ⛔⛔ AN ANSWER NOT OBTAINED IS NOT A NEGATIVE ANSWER, and this arm
+			// read every non-200 as "the recipe is not served". On 2026-11-15
+			// that printed, for all 37 projects at once,
+			//
+			//   ✗ kernel.org/linux  upstream has no such project and the
+			//                       overlay does not SERVE it (403 <nil>)
+			//
+			// and failed the lane. Every one of the 37 WAS served: the same
+			// command run locally, with no token at all, got 200 for all of
+			// them. A 403 from api.github.com is the rate limit — the step
+			// passed no GITHUB_TOKEN, so it was spending the unauthenticated
+			// 60-an-hour budget on 37 requests — and 429 is the same thing
+			// said differently. Neither says anything about the file.
+			//
+			// So: 200 is served, 404 is NOT served and fails the lane, and
+			// anything else is the API declining to answer, which is a
+			// REFUSAL TO DECIDE rather than a verdict either way.
+			_, status, _, err := fetchOverlayRecipe(project)
+			switch {
+			case err == nil && status == 200:
+			case err == nil && status == http.StatusNotFound:
+				fmt.Fprintf(out, "✗ %-30s upstream has no such project and the overlay does not SERVE it (404)\n", project)
 				broken++
 				bad++
+			default:
+				fmt.Fprintf(out, "⛔ %-30s the contents API declined to answer (%d %v) — this is NOT a verdict about the recipe\n",
+					project, status, err)
+				undecided++
 			}
 			continue
 		}
@@ -279,14 +302,14 @@ func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer
 	//
 	// That reason used to be given for the WHOLE build section, and for
 	// `build.dependencies` it is FALSE. The factory's CLOSURE reads both
-	// halves — the union in closureOf since go-zpkg/bk#224, the merge in
-	// closureGraph since go-zpkg/bk#232 — and the closure decides the build
+	// halves — the union in closureOf since go-zpkg/zpkb#224, the merge in
+	// closureGraph since go-zpkg/zpkb#232 — and the closure decides the build
 	// ORDER, which decides which artifacts exist when. The overlay's own
 	// llvm.org entry says as much in a comment, while this said the opposite.
 	//
 	// They are marked CLOSURE rather than counted with the rest, and they
 	// still do not fail, on a MEASUREMENT rather than on that claim: on
-	// 2026-09-28 all six were checked with `bk closure --build`, with and
+	// 2026-09-28 all six were checked with `zpkb closure --build`, with and
 	// without --overlay, and every one gave the same set. The only difference
 	// anywhere was github.com/besser82/libxcrypt, which comes from perl.org's
 	// deliberate entry and not from these. Re-measure that before trusting
@@ -310,8 +333,18 @@ func runAgainstPantry(pantryDir, overlayHint, overridesDir string, out io.Writer
 	// conflation has had to be fixed — twice here and once in logicalise —
 	// and every time it came from counting successes where the question is
 	// about attempts.
-	if checked == 0 && broken == 0 {
+	if checked == 0 && broken == 0 && undecided == 0 {
 		fmt.Fprintln(out, "overlaycheck: not one overlay project was found in the pantry — are these the right trees?")
+		return 2
+	}
+	// ⛔ Asked BEFORE the verdicts below, and answered with 2 rather than 1: a
+	// run that could not reach the API has not measured the thing it reports
+	// on, and "red" would be read as "a recipe is unserved". Exit 2 is this
+	// tool's "refused to decide" everywhere else in this function.
+	if undecided > 0 {
+		fmt.Fprintf(out, "\n%d recipe(s) went UNJUDGED: the contents API declined to answer.\n", undecided)
+		fmt.Fprintln(out, "That is a rate limit, not a finding. Give the step a GITHUB_TOKEN — unauthenticated")
+		fmt.Fprintln(out, "api.github.com allows 60 requests an hour and this asks for one per project.")
 		return 2
 	}
 	// A comparison that could not be PERFORMED always fails, whichever half it
@@ -345,12 +378,12 @@ const consumerMark = "CONSUMER "
 // "Nothing reads a build section out of the overlay" was the stated reason,
 // and for build.script and build.env it is true. For build.dependencies it is
 // FALSE: the factory's closure reads both halves — the union in closureOf
-// since go-zpkg/bk#224, the merge in closureGraph since go-zpkg/bk#232 — and
+// since go-zpkg/zpkb#224, the merge in closureGraph since go-zpkg/zpkb#232 — and
 // the closure decides the build ORDER, which decides which artifacts exist when.
 // The overlay's own llvm.org entry says so in a comment.
 //
 // So this is reported by its own name rather than hidden in the build count.
-// Measured 2026-09-28, all six of them: `bk closure --build` with and without
+// Measured 2026-09-28, all six of them: `zpkb closure --build` with and without
 // --overlay gives the same set for every one, the only difference anywhere
 // being github.com/besser82/libxcrypt, which comes from perl.org's deliberate
 // entry and not from these. The exclusion is therefore right TODAY, and it

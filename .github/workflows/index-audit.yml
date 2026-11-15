@@ -7,7 +7,7 @@ name: index-audit
 #
 # Publishing an index is a read-modify-write on one mutable tag, and four
 # publishers race on it (two arches x build.yml + darwin.yml). artifact confirms
-# each write twice and bk re-checks the whole batch at the end, which narrows the
+# each write twice and zpkb re-checks the whole batch at the end, which narrows the
 # window — it does not close it. Something has to watch.
 #
 # 137 such entries accumulated unnoticed, found by tripping over one of them in

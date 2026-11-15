@@ -21,7 +21,7 @@ edits = [
       "patch -p1 < patch/debian/patches/10-remove-build-date.patch",
       # ${CC:-…} rather than the artifact's gcc outright.
       #
-      # bk exports CC with the SOVEREIGN SYSROOT in pkgx-libc mode —
+      # zpkb exports CC with the SOVEREIGN SYSROOT in pkgx-libc mode —
       #
       #   export CC="${CC:-clang --sysroot=… -isystem …}"
       #
@@ -30,8 +30,8 @@ edits = [
       #
       #   unix/osdep.h:30:10: fatal error: sys/types.h: No such file or directory
       #
-      # the same shape as go-zpkg/bk#296, where a test sandbox lost the
-      # sysroot by naming a compiler instead of using the one bk had set.
+      # the same shape as go-zpkg/zpkb#296, where a test sandbox lost the
+      # sysroot by naming a compiler instead of using the one zpkb had set.
       #
       # The fallback keeps the DISTRIBUTION path byte-for-byte what it was:
       # off the sovereign lane nothing exports CC and the artifact's gcc is
@@ -68,10 +68,10 @@ edits = [
     # 19 http, 1 ftp. Of the 23 projects fetched in the clear, exactly ONE is
     # in seed/order.txt, and this is it.
     #
-    # It matters more than the count suggests. bk DOES verify a source
+    # It matters more than the count suggests. zpkb DOES verify a source
     # checksum when the recipe gives one, but 1 recipe of 904 gives one --
     # openssl.org, whose `sha` is a sibling `.sha256` on the SAME host, so it
-    # catches corruption and not substitution (go-zpkg/bk#282). For everything
+    # catches corruption and not substitution (go-zpkg/zpkb#282). For everything
     # else TLS is the only control there is, and here there was none at all.
     # The tarball is then extracted as root inside the chroot, and
     # go-zpkg/artifact#107 is a traversal in that extractor.

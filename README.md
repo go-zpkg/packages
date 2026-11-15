@@ -40,8 +40,8 @@ refuses when the rebuild produced different bytes. Setting
 independently reproduce*.
 
 That covers what leaves. What went *in* was recorded by nothing until
-[`bk`#112](https://github.com/go-zpkg/zpkb/issues/112): of 1858 recipes with a
-distributable URL, exactly one declared a checksum and `bk` verified none, so a
+[`zpkb`#112](https://github.com/go-zpkg/zpkb/issues/112): of 1858 recipes with a
+distributable URL, exactly one declared a checksum and `zpkb` verified none, so a
 source tarball that changed upstream produced a different artifact, correctly
 signed, attesting a URL rather than the bytes that came back from it. The
 provenance now carries the source's SHA-256 (or a git checkout's commit) as a
@@ -69,7 +69,7 @@ artifact built on any platform carries the same answer:
 
 The sovereign lane needs a **mount**, not a path: a workspace path means
 nothing inside the rootfs, and `--advisories advisories` without the bind would
-make `bk` refuse with "no advisories.yaml under advisories" — which reads as
+make `zpkb` refuse with "no advisories.yaml under advisories" — which reads as
 "the tree is empty" and means "the tree is on the other side of a namespace".
 
 `zpkb factory` validates the whole tree **once, before the first build**, because
@@ -191,7 +191,7 @@ support ticket becomes unanswerable. See
 ### Both halves, or neither
 
 A project upstream does not carry lives in two places that must agree:
-`overrides/<name>-new.patch`, applied to a fresh pantry clone, is what **`bk`
+`overrides/<name>-new.patch`, applied to a fresh pantry clone, is what **`zpkb`
 builds** from; [`pantry-overlay`](https://github.com/go-zpkg/pantry-overlay) is
 what a consumer **resolves** over HTTP — `artifact`'s `fetchRecipe` tries the
 overlay, then upstream, and nothing else.
@@ -217,7 +217,7 @@ commented out since 2026-08-12 to leave the runners free for targeted jobs, and 
 identical, platform-agnostic `zpkb factory` (which also writes a pkgx dist tree, uploaded
 as a `dist-*` artifact for the Pages mirror). Auth to ghcr uses the workflow's **native
 `GITHUB_TOKEN`** (`permissions.packages: write`) — no long-lived PAT to rotate. Each
-run installs pkgx (bk sources its own toolchain via `zpkx +deps`) and bk, clones the
+run installs pkgx (zpkb sources its own toolchain via `zpkx +deps`) and zpkb, clones the
 pantry, then runs `zpkb factory` — one pure-Go command (no bash, no curl/jq, no `git apply`), which:
 
 - expands the requested projects to their **topologically-ordered runtime-dependency
@@ -264,7 +264,7 @@ rest were generation 0 showing what the Ubuntu builder had lent it —
 built. **Once the lane runs, every failure is a report about generation 0.
 That is the point of the lane, not a defect in it.**
 
-Two tools came out of it and both are in `bk`: `builder --dry-run`, which says
+Two tools came out of it and both are in `zpkb`: `builder --dry-run`, which says
 whether an architecture has the artifacts without taking a runner, and the
 staged-tree soname census, which names every library the tree lacks **and who
 asks for it** — five at once, where before each cost a failed build.
@@ -354,17 +354,17 @@ of the registry. The ratio was not measurable; only these absolutes are.
   linker — so the output owes nothing to the debian container. `zpkb builder` stages the
   sovereign rootfs itself (static Go binaries plus toolchain artifacts from this signed
   registry, nothing else), and `builder/` here is what builds that image. Design note:
-  [`bk/docs/from-scratch-toolchain.md`](https://github.com/go-zpkg/zpkb/blob/main/docs/from-scratch-toolchain.md).
+  [`zpkb/docs/from-scratch-toolchain.md`](https://github.com/go-zpkg/zpkb/blob/main/docs/from-scratch-toolchain.md).
 
 `.github/workflows/sovereign.yml` is that claim as a job: stage the rootfs from
-`builder/toolchain.txt`, enter it with `chroot`, and run `bk` through pkgx exactly
+`builder/toolchain.txt`, enter it with `chroot`, and run `zpkb` through pkgx exactly
 as `builder/Containerfile`'s `ENTRYPOINT` does — no distribution involved.
 
 It exists because on the ordinary path what can be built is decided by the
 runner's distribution, which was measured twice on our own pool:
 
 - on **debian 12** every compile died at `env: … version GLIBC_2.38 not found`,
-  because bk installs a *mirrored* coreutils linked against a newer glibc than
+  because zpkb installs a *mirrored* coreutils linked against a newer glibc than
   the host's;
 - on **debian 13** the first recipe through, `jonas.github.io/tig`, failed on a
   C23 diagnostic from the runner's GCC — not from the `llvm.org` artifact we ship
@@ -585,7 +585,7 @@ $ go run ./prefixsweep -platform darwin/aarch64 fftw.org zlib.net
 ```
 
 13 of 13 artifacts swept on darwin/aarch64 bake their own prefix, every one
-through an `@rpath` load command. That is what settled go-zpkg/bk#386: the
+through an `@rpath` load command. That is what settled go-zpkg/zpkb#386: the
 version directory sits in the literal remainder after `@rpath`, so renaming
 it makes `dyld` look for a path that no longer exists, and a rebuild
 published as `_N` has to be **built** under that name rather than repackaged
@@ -593,8 +593,8 @@ into it.
 
 `-needle <literal>` sweeps for a caller-supplied string instead, and **any
 hit fails the run** — that form is an assertion, not a census. It is how
-go-zpkg/bk#387 is checked: `-needle /Users/runner/Library/Caches/brewkit`
-must find nothing in an artifact built by a lane carrying bk's prefix-map shims.
+go-zpkg/zpkb#387 is checked: `-needle /Users/runner/Library/Caches/brewkit`
+must find nothing in an artifact built by a lane carrying zpkb's prefix-map shims.
 
 ⛔ **A spelled needle certifies the lane it was written for and no other.**
 That darwin needle finds nothing on linux whatever the artifact contains,
@@ -654,9 +654,9 @@ of them is an answer.
 
 ### How the lanes bootstrap their tools, and why it is one line per workflow
 
-Every publishing lane starts by installing `bk`, `pkgx` or `pkgm` from source,
+Every publishing lane starts by installing `zpkb`, `pkgx` or `pkgm` from source,
 and all of them need the *current* `main` rather than whatever a module proxy
-has cached — a catalogue or an artifact built by an old `bk` is the one thing these
+has cached — a catalogue or an artifact built by an old `zpkb` is the one thing these
 jobs must not publish.
 
 That used to be written `GOPROXY=direct go install …@main`, at fourteen sites
@@ -809,9 +809,9 @@ spelling; the pkgx slug is `wasip1/wasm`.
   lose it). Each project has its own small recipe under
   `wasip1/recipes/<slug>/package.hcl` (static, no dlopen, no threads) — HCL2,
   which is the default recipe format, and `recipefile.Names` tries it first.
-  ⛔ **That makes bk `>= v0.50.0` a hard requirement for this lane**, not
+  ⛔ **That makes zpkb `>= v0.50.0` a hard requirement for this lane**, not
   hygiene: `zpkb build --recipe` read every path as YAML until then
-  (go-zpkg/bk#389), and an older pin does not warn — it fails with a yaml
+  (go-zpkg/zpkb#389), and an older pin does not warn — it fails with a yaml
   unmarshal error about the first attribute of a perfectly good HCL file.
   Pilots, built, run under wasmtime 50 and
   published as `wasip1/wasm`: `zlib.net` 1.3.2 (libz.a + minigzip), `sqlite.org`
@@ -821,7 +821,7 @@ spelling; the pkgx slug is `wasip1/wasm`.
   `pcall(error)` is run). wasi-libc declares but does not define
   `tmpfile`/`tmpnam`/`system`, which lua stubs.
   - **Sovereign.** The build runs INSIDE the rootfs `zpkb builder` stages from
-    `builder/toolchain.txt` (`builder/sovereign-bk.sh`: unshare + chroot + the pkgx
+    `builder/toolchain.txt` (`builder/sovereign-zpkb.sh`: unshare + chroot + the pkgx
     environment of `sovereign-build.sh`), so `sh`, `make`, coreutils, clang and
     wasm-ld are artifacts in that tree; the runner supplies three static Go binaries,
     the namespace and wasmtime (the runtime under test). A "what ran, from where"

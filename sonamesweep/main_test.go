@@ -35,7 +35,7 @@ func write(t *testing.T, body string) string {
 // suite happens to run on. The s390x lane caught a fixture that assumed its
 // host once already.
 // onLinuxX86 used to pin the HOST, back when the sweep could only audit
-// the machine it ran on and refused any other catalogue. bk v0.34.0 takes
+// the machine it ran on and refused any other catalogue. zpkb v0.34.0 takes
 // `-platform`, so the catalogue's own platform steers the run and the
 // host is no longer part of the answer — the helper stays as a no-op
 // marker on the tests that were written when it was, rather than being
@@ -127,12 +127,12 @@ func TestItNamesTheChunkItSwept(t *testing.T) {
 	// and the sweep's first live run went out carrying it: chunk 0 reported
 	// 64 unresolvable references and named not one soname.
 	// ⛔ AND IT NAMES THE PLATFORM. The catalogue's platform is an
-	// instruction to bk now, not a fact to refuse on: without it the audit
+	// instruction to zpkb now, not a fact to refuse on: without it the audit
 	// would be about whatever machine the job landed on, wearing this
 	// catalogue's name.
 	if got := *argv; len(got) != 6 || got[0] != "zpkb" || got[1] != "unresolved" ||
 		got[2] != "-platform" || got[3] != "linux/x86-64" || got[4] != "curl.se" {
-		t.Fatalf("bk was not asked about a chunk of two for this platform: %q", got)
+		t.Fatalf("zpkb was not asked about a chunk of two for this platform: %q", got)
 	}
 	for _, a := range *argv {
 		if a == "-quiet" {
@@ -176,17 +176,17 @@ func TestTheChunksCoverEverythingOnce(t *testing.T) {
 
 // ⛔ THE CATALOGUE'S PLATFORM STEERS THE RUN — and this test used to
 // assert the opposite, that any catalogue but the host's was REFUSED.
-// That refusal was right while `bk unresolved` installed for the host:
+// That refusal was right while `zpkb unresolved` installed for the host:
 // handed another platform's catalogue it would have reported this
 // machine's artifacts under that platform's name, a judge and a subject
 // counting differently. It was also what capped the audit at one platform
 // of six.
 //
-// artifact v0.55.0 made the closure platform-explicit and bk v0.34.0
+// artifact v0.55.0 made the closure platform-explicit and zpkb v0.34.0
 // exposed it, so the same fact is now an instruction. What has to be
-// pinned is that it REACHES bk: a run that quietly dropped it would be
+// pinned is that it REACHES zpkb: a run that quietly dropped it would be
 // the old wrong answer with none of the old refusal.
-func TestTheCataloguesPlatformReachesBk(t *testing.T) {
+func TestTheCataloguesPlatformReachesZpkb(t *testing.T) {
 	// A catalogue for a platform this machine is certainly not, whichever
 	// machine runs the suite — that is the point of the test.
 	const elsewhere = `{"generated":"2026-10-25T00:00:00Z","projects":[
@@ -201,7 +201,7 @@ func TestTheCataloguesPlatformReachesBk(t *testing.T) {
 	}
 	got := *argv
 	if len(got) < 4 || got[2] != "-platform" || got[3] != "linux/s390x" {
-		t.Fatalf("bk was not told which platform: %q", got)
+		t.Fatalf("zpkb was not told which platform: %q", got)
 	}
 	if !strings.Contains(out.String(), "auditing linux/s390x") {
 		t.Errorf("the run does not say what it audited:\n%s", out.String())
@@ -263,7 +263,7 @@ func TestItRefusesToSweepNothing(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			stub(t, func(string, ...string) (string, error) {
-				t.Error("bk ran although there was nothing to sweep")
+				t.Error("zpkb ran although there was nothing to sweep")
 				return "", nil
 			})
 			args := c.args
@@ -281,9 +281,9 @@ func TestItRefusesToSweepNothing(t *testing.T) {
 	}
 }
 
-// What `bk unresolved` really printed, chunk 0 of the first live sweep,
+// What `zpkb unresolved` really printed, chunk 0 of the first live sweep,
 // trimmed. The indented lines are the finding; the header's count is not.
-const bkOutput = `curl.se                            ok
+const zpkbOutput = `curl.se                            ok
 python.org                         python.org                         2 unresolvable
     libssl.so.1.1
     libcrypto.so.1.1
@@ -307,10 +307,10 @@ func TestOnlyANewReferenceIsRed(t *testing.T) {
 			"gnu.org/bash tcl-lang.org libtcl8.6.so\ngnu.org/bash tcl-lang.org libtk8.6.so\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	stub(t, func(string, ...string) (string, error) { return bkOutput, errors.New("exit status 1") })
+	stub(t, func(string, ...string) (string, error) { return zpkbOutput, errors.New("exit status 1") })
 
 	var out, errb strings.Builder
-	// bk exits 1 because there ARE references; the baseline says none is new.
+	// zpkb exits 1 because there ARE references; the baseline says none is new.
 	if code := run([]string{"-catalog", write(t, published), "-chunk", "0", "-chunks", "1", "-baseline", base}, &out, &errb); code != 0 {
 		t.Fatalf("code=%d, want 0 — every reference is in the baseline\n%s%s", code, out.String(), errb.String())
 	}
@@ -355,7 +355,7 @@ func TestFixedIsCountedOnlyInsideTheChunk(t *testing.T) {
 			"zlib.net zlib.net libz.so.0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	stub(t, func(string, ...string) (string, error) { return bkOutput, errors.New("exit status 1") })
+	stub(t, func(string, ...string) (string, error) { return zpkbOutput, errors.New("exit status 1") })
 
 	var out, errb strings.Builder
 	if code := run([]string{"-catalog", write(t, published), "-chunk", "0", "-chunks", "2", "-baseline", base}, &out, &errb); code != 0 {
@@ -386,7 +386,7 @@ func TestAnUnreadableBaselineIsAnError(t *testing.T) {
 		{"two fields, not three", malformed, "want `project owner soname`"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			stub(t, func(string, ...string) (string, error) { return bkOutput, errors.New("exit status 1") })
+			stub(t, func(string, ...string) (string, error) { return zpkbOutput, errors.New("exit status 1") })
 			var out, errb strings.Builder
 			if code := run([]string{"-catalog", write(t, published), "-chunk", "0", "-chunks", "1", "-baseline", c.path}, &out, &errb); code != 2 {
 				t.Fatalf("code=%d, want 2\n%s%s", code, out.String(), errb.String())
@@ -424,7 +424,7 @@ func TestAnUnreadableBaselineIsAnError(t *testing.T) {
 	// And it still goes red when something turns up against an empty
 	// baseline, because then the finding really is new.
 	t.Run("a finding against an empty baseline is new", func(t *testing.T) {
-		stub(t, func(string, ...string) (string, error) { return bkOutput, errors.New("exit status 1") })
+		stub(t, func(string, ...string) (string, error) { return zpkbOutput, errors.New("exit status 1") })
 		var out, errb strings.Builder
 		if code := run([]string{"-catalog", write(t, published), "-chunk", "0", "-chunks", "1", "-baseline", empty}, &out, &errb); code != 1 {
 			t.Fatalf("code=%d, want 1\n%s%s", code, out.String(), errb.String())
@@ -437,7 +437,7 @@ func TestAnUnreadableBaselineIsAnError(t *testing.T) {
 
 // ⛔ THE INDENTED LINES ARE THE FINDING, NOT THE HEADER'S COUNT. A header
 // that disagreed with the lines under it would otherwise inflate the total,
-// and the two come from different code paths in bk.
+// and the two come from different code paths in zpkb.
 func TestTheCountComesFromTheLinesNotTheHeader(t *testing.T) {
 	got := parseFindings("a.org   b.org   99 unresolvable\n    libone.so.1\n\n1 unresolvable reference(s)\n")
 	if len(got) != 1 {
@@ -460,7 +460,7 @@ func TestTheCountComesFromTheLinesNotTheHeader(t *testing.T) {
 // So this test takes the round trip, not the format.
 func TestWhatItWritesIsWhatItReads(t *testing.T) {
 	onLinuxX86(t)
-	stub(t, func(string, ...string) (string, error) { return bkOutput, errors.New("exit status 1") })
+	stub(t, func(string, ...string) (string, error) { return zpkbOutput, errors.New("exit status 1") })
 	emitted := filepath.Join(t.TempDir(), "chunk0.txt")
 
 	var out, errb strings.Builder
@@ -517,7 +517,7 @@ func TestACleanChunkStillWritesItsFile(t *testing.T) {
 // file is the deliverable of a recording run.
 func TestAnUnwritableOutIsAnError(t *testing.T) {
 	onLinuxX86(t)
-	stub(t, func(string, ...string) (string, error) { return bkOutput, errors.New("exit status 1") })
+	stub(t, func(string, ...string) (string, error) { return zpkbOutput, errors.New("exit status 1") })
 	var out, errb strings.Builder
 	code := run([]string{"-catalog", write(t, published), "-chunk", "0", "-chunks", "1",
 		"-out", filepath.Join(t.TempDir(), "no-such-dir", "chunk0.txt")}, &out, &errb)
@@ -742,7 +742,7 @@ func TestChunkListIsWhatTheMatrixNeeds(t *testing.T) {
 func TestAMissingCatalogueIsAnError(t *testing.T) {
 	onLinuxX86(t)
 	stub(t, func(string, ...string) (string, error) {
-		t.Error("bk ran without a catalogue")
+		t.Error("zpkb ran without a catalogue")
 		return "", nil
 	})
 	var out, errb strings.Builder

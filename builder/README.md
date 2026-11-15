@@ -5,7 +5,7 @@ packages** — no debian, no apt, no system libc.
 
 Two ways to get one. They stage the same thing; pick by what will consume it.
 
-| | `bk builder` | `Containerfile` |
+| | `zpkb builder` | `Containerfile` |
 |---|---|---|
 | produces | a **directory** | an OCI image |
 | runs on | any host, no docker, no root | a container builder of the **target's** arch |
@@ -24,8 +24,8 @@ image is unpacked back into one before boot. `--microvm` writes
 staged directory boots with no registry and no image involved:
 
 ```
-mv rootfs ~/.local/share/weft-microvm/images/bk-builder/rootfs
-weft microvm run bk-builder -- /bin/sh -c 'uname -rm'
+mv rootfs ~/.local/share/weft-microvm/images/zpkb-builder/rootfs
+weft microvm run zpkb-builder -- /bin/sh -c 'uname -rm'
 ```
 
 The `Containerfile` remains the way to get an *image* — its header shows how to
@@ -54,14 +54,14 @@ Each of these was found by running the thing, not by reading code:
 | `context deadline exceeded` on a 969 MiB artifact | a 5-minute *whole-request* timeout could never fetch one — bounded a stall instead (go-zpkg/artifact#12) |
 | `PROTOCOL_ERROR` mid-blob from ghcr | HTTP/2 forced by mistake; artifact pulls are one long body (artifact#13) |
 | `expected 1762228910, got 1247805440: unexpected EOF` | a cut transfer lost 1.19 GiB — resume with `Range`, verify size+digest (artifact#14) |
-| `x509: certificate signed by unknown authority` | no system trust store on scratch — bk installs artifact's embedded bundle, including on go-git's own client (artifact#15, bk#26) |
+| `x509: certificate signed by unknown authority` | no system trust store on scratch — zpkb installs artifact's embedded bundle, including on go-git's own client (artifact#15, zpkb#26) |
 | `eval "$(pkgx +deps)"` produced nothing | our pkgx had no env-printing mode; it also now exports `lib64/pkgconfig`, which upstream omits (pkgx#1) |
-| `mkdir: libc.so.6: cannot open shared object file` | the sanitised build env dropped an explicitly-set `LD_LIBRARY_PATH` (bk#27) |
+| `mkdir: libc.so.6: cannot open shared object file` | the sanitised build env dropped an explicitly-set `LD_LIBRARY_PATH` (zpkb#27) |
 | `make: /bin/sh: No such file or directory` | `pkgm install -s` now poses the loader **and** `/bin/sh` (pkgm#9) |
 | `linux/limits.h` not found | glibc's headers need the kernel headers; mirrored `kernel.org/linux-headers` into our registry |
-| `"mkdir": executable file not found in $PATH` | bk builds under a sanitised `PATH=/usr/bin:/bin:…`, so the stubs must go to `/usr`, not `/usr/local` — hence `install -s --prefix /usr` |
+| `"mkdir": executable file not found in $PATH` | zpkb builds under a sanitised `PATH=/usr/bin:/bin:…`, so the stubs must go to `/usr`, not `/usr/local` — hence `install -s --prefix /usr` |
 | `make: cmp: No such file or directory` | recipes' own test steps call `cmp`: added `gnu.org/diffutils` |
-| `ls-remote …/openssl: context deadline exceeded` | github's ref advertisement for a big repository stalls under HTTP/2, like the big ghcr blobs did — bk now uses HTTP/1.1 (bk#28) |
+| `ls-remote …/openssl: context deadline exceeded` | github's ref advertisement for a big repository stalls under HTTP/2, like the big ghcr blobs did — zpkb now uses HTTP/1.1 (zpkb#28) |
 
 Bringing up **linux/s390x** added these, 2026-10-04. The first one is the same
 SYMPTOM as `mkdir: libc.so.6` above and a different CAUSE, which is the reason
@@ -70,21 +70,21 @@ this table is a list and not a lookup:
 | symptom | fix |
 |---|---|
 | `mkdir: libc.so.6: cannot open shared object file`, again | the glibc artifact puts libc.so.6 in `lib/glibc-2.44/` and `lib/` holds nothing else, so `eval "$(pkgx +…)"` exported a directory with no shared object in it. `pkgx -- cmd` was right all along because it hands `artifact.LibPath` to OUR loader (pkgx#60). The fix is **conditional**: exporting our glibc on a distribution pairs it with the HOST's `ld.so` and breaks a private contract — `undefined symbol: __pointer_chk_guard` (pkgx#62) |
-| `artifact: … is unsigned (no signature referrer)` while staging | the loopback seed registry answers **404** on `/v2/<repo>/referrers/<digest>`: it does not serve the Referrers API, so bk signs and has nowhere to put it. `ZPKG_VERIFY=0` for that registry — and it must travel through `sudo --preserve-env` with `ZPKG_DIST`, or staging sees it and the chroot does not |
+| `artifact: … is unsigned (no signature referrer)` while staging | the loopback seed registry answers **404** on `/v2/<repo>/referrers/<digest>`: it does not serve the Referrers API, so zpkb signs and has nowhere to put it. `ZPKG_VERIFY=0` for that registry — and it must travel through `sudo --preserve-env` with `ZPKG_DIST`, or staging sees it and the chroot does not |
 | `no s390x loader (ld64.so.1) in the staged glibc` | `artifact.LoaderNameFor` had no entry. s390x's loader is **not** named after its architecture — the neighbours read `ld-linux-<arch>.so.N` and extending that pattern gives a file that does not exist (artifact#105) |
-| `builder: 42 packages` and nothing installed | a self-hosted runner reuses `$RUNNER_TEMP`, and `InstallFor` reads an existing `<project>/v<ver>` as "already present". A tree left by a run that died is inherited in silence. Remove it before staging — with `sudo`, since the chroot wrote it as root. `bk builder` now says when it is reusing (bk#277) |
-| `mkdir`, then `sed`, want `libselinux.so.1` | their configure AUTO-DETECTS the builder's SELinux (`with_selinux=maybe` in gnulib's `m4/selinux-selinux-h.m4`). `--without-selinux` in the override. Do not find these one failed build at a time: `bk builder` reports every NEEDED soname the tree lacks, with who asks (bk#276) |
-| `fork/exec …/build/configure: no such file or directory`, with the tree FULL | `bk build` removed `paths.Install` before building, and for `gnu.org/bash` that is what `/bin/sh` points at — a symlink and not a copy, because `$ORIGIN` in bash's RUNPATH must resolve from the real location. **Rebuilding bash deleted the shell**, and the next `#!/bin/sh` exec died naming the SCRIPT, which exists, not the interpreter, which did not. Measured: bash is built 74th of 78 and all five packages after it fail, the 73 before do not; `gzip` alone builds, `bash` alone fails. Rebuilding `gnu.org/glibc` is the same wound one level deeper — it removes the loader every ELF names — which is why gen1 could not rebuild its toolchain at all (bk#292) |
+| `builder: 42 packages` and nothing installed | a self-hosted runner reuses `$RUNNER_TEMP`, and `InstallFor` reads an existing `<project>/v<ver>` as "already present". A tree left by a run that died is inherited in silence. Remove it before staging — with `sudo`, since the chroot wrote it as root. `zpkb builder` now says when it is reusing (zpkb#277) |
+| `mkdir`, then `sed`, want `libselinux.so.1` | their configure AUTO-DETECTS the builder's SELinux (`with_selinux=maybe` in gnulib's `m4/selinux-selinux-h.m4`). `--without-selinux` in the override. Do not find these one failed build at a time: `zpkb builder` reports every NEEDED soname the tree lacks, with who asks (zpkb#276) |
+| `fork/exec …/build/configure: no such file or directory`, with the tree FULL | `zpkb build` removed `paths.Install` before building, and for `gnu.org/bash` that is what `/bin/sh` points at — a symlink and not a copy, because `$ORIGIN` in bash's RUNPATH must resolve from the real location. **Rebuilding bash deleted the shell**, and the next `#!/bin/sh` exec died naming the SCRIPT, which exists, not the interpreter, which did not. Measured: bash is built 74th of 78 and all five packages after it fail, the 73 before do not; `gzip` alone builds, `bash` alone fails. Rebuilding `gnu.org/glibc` is the same wound one level deeper — it removes the loader every ELF names — which is why gen1 could not rebuild its toolchain at all (zpkb#292) |
 | `no libcxx.llvm.org for linux/s390x` | zpkb appends `+libcxx.llvm.org` to the dependency eval of **every** `--libc zpkx` build, and zpkx refuses the whole eval when one spec cannot resolve — so an absent libcxx takes down C builds too. It belongs in `seed/order.txt` |
 
-Before dispatching anything on a new architecture, `bk builder --dry-run
+Before dispatching anything on a new architecture, `zpkb builder --dry-run
 --platform <target> --toolchain builder/toolchain.txt` names every root that
 cannot resolve — all of them, not the first — and tells a CONFLICT between
 roots apart from a missing artifact. It is necessary and not sufficient: an artifact
 that resolves may still fail to unpack.
 
 Several toolchain packages (gawk, m4, bison, texinfo, autoconf, libtool) had no
-**linux** artifact in our registry at all — only darwin ones. `bk factory
+**linux** artifact in our registry at all — only darwin ones. `zpkb factory
 --mirror-from https://dist.pkgx.dev` filled them.
 
 ## A local pull-through cache
@@ -110,7 +110,7 @@ build at it:
 pkgx zot serve ~/.cache/pkgx-registry/config.json &
 docker build -f builder/Containerfile \
   --build-arg DIST=oci://http://host.docker.internal:5111/go-zpkg/packages \
-  -t bk-builder builder
+  -t zpkb-builder builder
 ```
 
 Measured: the same install takes **45.7 s** the first time and **2.2 s** after,

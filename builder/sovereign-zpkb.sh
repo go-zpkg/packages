@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Run ONE program inside a staged sovereign rootfs, with the recipes, the
 # advisories and an output directory bound in. Sibling of sovereign-build.sh,
-# which can only run `bk factory` over a PANTRY: a wasip1 recipe is not in the
+# which can only run `zpkb factory` over a PANTRY: a wasip1 recipe is not in the
 # pantry (its slug is zlib.net, and the pantry's zlib.net is the host recipe), so
-# it is built with `bk build --recipe` instead — in the same namespace, the same
-# chroot, the same pkgx-provided environment.
+# it is built with `zpkb build --recipe` instead — in the same namespace, the
+# same chroot, the same zpkx-provided environment.
 #
-# Usage:  builder/sovereign-bk.sh <rootfs> <recipes-dir> <advisories-dir> <program> [args...]
+# Usage:  builder/sovereign-zpkb.sh <rootfs> <recipes-dir> <advisories-dir> <program> [args...]
+#
+# ⛔ It was `sovereign-bk.sh` until 2026-11-15. `bk` is pkgx's name for its
+# brewkit; our driver is `zpkb` and has been for many tags, and the script's own
+# body already exec'd `/usr/local/bin/zpkb`. The name was the last thing left
+# pointing at somebody else's tool.
 #
 #   <program> is an ABSOLUTE path inside the rootfs: /usr/local/bin/zpkb for the
 #   build and the publish, /bin/sh for the evidence step. It is exec'd through

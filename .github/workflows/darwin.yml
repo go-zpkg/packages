@@ -1,6 +1,6 @@
 name: darwin
 
-# macOS artifacts for ghcr.io/go-pkgx/packages. Same pure-Go bk pipeline and the
+# macOS artifacts for ghcr.io/go-pkgx/packages. Same pure-Go zpkb pipeline and the
 # same signed-OCI registry as the linux factory (build.yml) — the ONLY difference
 # is native macOS runners instead of a debian container (GitHub's macOS runners
 # are already clean, ephemeral VMs, so they are the isolation). `zpkb factory` is
@@ -99,7 +99,7 @@ jobs:
       # so the gap had gone from delaying a publish to FREEZING a defect.
       #
       # Safe for consumers because the deployment target is set by the builder,
-      # not inherited from it: bk's wrapper exports MACOSX_DEPLOYMENT_TARGET=11.0
+      # not inherited from it: zpkb's wrapper exports MACOSX_DEPLOYMENT_TARGET=11.0
       # on every darwin build, so a newer host still produces macOS 11 artifacts.
       - id: gen
         run: |
@@ -135,7 +135,7 @@ jobs:
       - name: base tools
         # macOS runners ship git, curl, xz, jq and the Xcode command-line tools
         # already. gettext is NOT taken from Homebrew: the base toolchain
-        # carries gnu.org/gettext and bk puts it on the build PATH, measured on
+        # carries gnu.org/gettext and zpkb puts it on the build PATH, measured on
         # a real build log —
         #
         #   PATH  20 entries under ~/.pkgx, 0 under /opt/homebrew or /usr/local
@@ -166,7 +166,7 @@ jobs:
       # PROVENANCE: two builds against different SDKs produce different code,
       # and normalising the string would make them byte-identical in the one
       # place that recorded the difference — improving the reproducibility
-      # metric by deleting its evidence. go-zpkg/bk#400.
+      # metric by deleting its evidence. go-zpkg/zpkb#400.
       - name: the toolchain this run built with
         run: |
           set -eu
@@ -183,7 +183,7 @@ jobs:
 
       # OUR pkgx, not upstream's — the same choice build.yml makes, and for the
       # same reason. Upstream resolves from its own bundled pantry and its own
-      # dist, so neither overrides/ nor ZPKG_PANTRY_OVERLAY reaches it: bk asks
+      # dist, so neither overrides/ nor ZPKG_PANTRY_OVERLAY reaches it: zpkb asks
       # for `+perl.org~5.42` (the pin texinfo's XS modules need), upstream
       # intersects it with ITS idea of openssl's `perl.org: 5`, and answers
       #   Error: "no intersection possible for perl.org"
@@ -191,12 +191,12 @@ jobs:
       # recipe: the toolchain is common to all of them, so on 2026-09-01 it
       # failed EVERY project in the batch, on both arches, in a run GitHub
       # reported as successful.
-      - name: install pkgx (bk sources its toolchain via `pkgx +deps`)
+      - name: install pkgx (zpkb sources its toolchain via `pkgx +deps`)
         run: |
           go install github.com/go-zpkg/zpkx@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: install bk
+      - name: install zpkb
         run: |
           go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -214,7 +214,7 @@ jobs:
           echo "overlay $(git -C overlay rev-parse HEAD)"
 
       - name: hide the host's libraries from the build
-        # bk already strips Homebrew from PATH, CPATH, LIBRARY_PATH,
+        # zpkb already strips Homebrew from PATH, CPATH, LIBRARY_PATH,
         # PKG_CONFIG_PATH, CMAKE_PREFIX_PATH and LD_LIBRARY_PATH — measured, 0
         # entries in all six. It is not enough, and twice in one afternoon a
         # artifact was refused because of it:
@@ -254,7 +254,7 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # bk resolves a project's versions from api.github.com, and sends
+          # zpkb resolves a project's versions from api.github.com, and sends
           # `Authorization: Bearer $GITHUB_TOKEN` when it has one. Without it
           # the calls are ANONYMOUS — 60 requests an hour against a workflow
           # that resolves one project after another — and the run fails partway

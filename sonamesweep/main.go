@@ -2,7 +2,7 @@
 //
 // # THE TOOL EXISTED AND NOTHING RAN IT
 //
-// ⛔ `bk unresolved` reads every ELF and Mach-O in an installed closure and
+// ⛔ `zpkb unresolved` reads every ELF and Mach-O in an installed closure and
 // reports each reference the store cannot answer. It is written, tested, and
 // as of 2026-10-23 **no workflow in this repository had ever called it** —
 // `git grep unresolved .github/workflows` returned nothing.
@@ -28,7 +28,7 @@
 // # IT SAYS WHAT IT COVERED
 //
 // ⛔ A SWEEP OVER EVERYTHING IS NOT AFFORDABLE, SO IT DOES NOT CLAIM ONE.
-// `bk unresolved` installs each project's whole closure into its own store —
+// `zpkb unresolved` installs each project's whole closure into its own store —
 // deliberately, because a shared one rescues a missing reference by accident
 // — and there are ~1400 packaged projects per platform. So this takes a
 // CHUNK, names it, and prints the bounds with the verdict. "clean" here
@@ -37,7 +37,7 @@
 //
 // # IT REFUSES TO AUDIT A PLATFORM IT IS NOT ON
 //
-// ⛔ `bk unresolved` resolves and installs for the HOST. Handed another
+// ⛔ `zpkb unresolved` resolves and installs for the HOST. Handed another
 // platform's catalogue it would install the host's artifacts and report on
 // those, under the other platform's name — a judge and a subject counting
 // differently, which is how a measurement comes back confident and wrong.
@@ -75,7 +75,7 @@ func main() { osExit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 // output. Missing tool → no output → no findings → nothing outside the
 // baseline → exit 0.
 //
-// It was not hypothetical: this program execed `bk` after the binary was
+// It was not hypothetical: this program execed `zpkb` after the binary was
 // renamed to `zpkb`, and `sonames.yml` — "can what we publish load" — passed on
 // 2026-11-01 and 2026-11-08 having run no checker at all. Worse than a red
 // lane, because a red lane is read: this one also writes an EMPTY findings file
@@ -191,17 +191,17 @@ func run(argv []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	// ⛔ THE CATALOGUE'S PLATFORM IS NOW AN INSTRUCTION, NOT A REFUSAL.
-	// Until bk v0.34.0 this had to check that the catalogue matched the
-	// host and exit 2 otherwise, because `bk unresolved` installed for the
+	// Until zpkb v0.34.0 this had to check that the catalogue matched the
+	// host and exit 2 otherwise, because `zpkb unresolved` installed for the
 	// host: handed another platform's catalogue it would have reported
 	// THIS machine's artifacts under that platform's name. The refusal was
 	// right, and it capped the audit at one platform of six — where it
 	// found 967 unresolvable references while the other five went unasked.
 	//
-	// artifact v0.55.0 made the closure platform-explicit and bk v0.34.0
+	// artifact v0.55.0 made the closure platform-explicit and zpkb v0.34.0
 	// exposed it, so the same fact now steers the run instead of stopping
 	// it. One machine, every platform.
-	fmt.Fprintf(stdout, "auditing %s (bk unresolved -platform)\n", platform)
+	fmt.Fprintf(stdout, "auditing %s (zpkb unresolved -platform)\n", platform)
 
 	projects := packaged(c)
 	if len(projects) == 0 {
@@ -224,8 +224,8 @@ func run(argv []string, stdout, stderr io.Writer) int {
 	// reference(s)" over 35 projects and named not one soname. A verdict
 	// with its evidence stripped is a line nobody can act on, and the extra
 	// cost here is ~100 "ok" lines a chunk.
-	bkOut, err := runCmd("zpkb", append([]string{"unresolved", "-platform", platform}, mine...)...)
-	fmt.Fprint(stdout, bkOut)
+	zpkbOut, err := runCmd("zpkb", append([]string{"unresolved", "-platform", platform}, mine...)...)
+	fmt.Fprint(stdout, zpkbOut)
 	// ⛔⛔ BEFORE ANYTHING READS `found`. A checker that never started produces
 	// no output and therefore no findings, which every path below reads as
 	// "clean". This is the one error that must not reach them.
@@ -234,7 +234,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 			platform, *chunk, *chunks, err)
 		return 2
 	}
-	found := parseFindings(bkOut)
+	found := parseFindings(zpkbOut)
 
 	if *out != "" {
 		if werr := writeFindings(*out, found); werr != nil {
@@ -308,7 +308,7 @@ func run(argv []string, stdout, stderr io.Writer) int {
 // libtcl8.6.so` are two artifacts to rebuild, not one project to look at.
 type finding struct{ project, owner, ref string }
 
-// parseFindings reads `bk unresolved`'s output: a header line per owner with
+// parseFindings reads `zpkb unresolved`'s output: a header line per owner with
 // a count, then one indented line per reference.
 //
 //	apache.org/jmeter   kerberos.org   2 unresolvable

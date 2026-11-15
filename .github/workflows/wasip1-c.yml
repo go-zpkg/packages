@@ -14,7 +14,7 @@
 # lose it by setting CFLAGS or CC.
 #
 # SOVEREIGN: the build runs in the rootfs `zpkb builder` stages from
-# builder/toolchain.txt, entered with unshare+chroot (builder/sovereign-bk.sh),
+# builder/toolchain.txt, entered with unshare+chroot (builder/sovereign-zpkb.sh),
 # so make, sh, coreutils, clang and wasm-ld all come from artifacts in that tree and
 # nothing from the runner's distribution takes part. The runner contributes three
 # static Go binaries, a mount namespace and — to RUN the result — wasmtime, which
@@ -100,16 +100,16 @@ jobs:
         with: { go-version: '1.27.4' }
       - uses: bytecodealliance/actions/wasmtime/setup@v1
       # The host's only jobs: run three static Go binaries and hold a namespace.
-      - name: build bk, pkgx and pkgm (static)
-        # ⛔ bk MUST BE >= v0.50.0 HERE, and that is a hard requirement rather
+      - name: build zpkb, pkgx and pkgm (static)
+        # ⛔ zpkb MUST BE >= v0.50.0 HERE, and that is a hard requirement rather
         # than hygiene: this lane's recipes are `package.hcl`, and `zpkb build
-        # --recipe` read every path as YAML until v0.50.0 (go-zpkg/bk#389).
+        # --recipe` read every path as YAML until v0.50.0 (go-zpkg/zpkb#389).
         # An older pin does not warn — it fails with a yaml unmarshal error
         # about the first attribute of a perfectly good HCL file.
         #
         # Pinned rather than @main because this lane publishes: the other
         # factories install from source at `main` on purpose, but a wasm
-        # module built by an unreviewed bk is not something to discover after
+        # module built by an unreviewed zpkb is not something to discover after
         # the fact.
         #
         # ⛔ THE PIN MOVED TO v0.59.0 BECAUSE THE OLD ONE IS UNFETCHABLE, NOT
@@ -139,12 +139,16 @@ jobs:
       - name: stage the sovereign rootfs
         run: |
           sudo rm -rf "$RUNNER_TEMP/rootfs"
+          # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
+          # can be on the same PATH. See sovereign.yml.
+          #
+          # ⛔ ABOVE the command, never between its continued lines: a `#` line
+          # there ends the continuation (actionlint SC2215, measured — see
+          # sovereign.yml for the control).
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
-            # can be on the same PATH. See sovereign.yml.
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
             --container
@@ -156,8 +160,8 @@ jobs:
           ls "$RUNNER_TEMP/rootfs/etc"
       - name: build ${{ matrix.slug }} ${{ matrix.version }} for wasip1/wasm, in the rootfs
         run: |
-          chmod +x builder/sovereign-bk.sh
-          builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
+          chmod +x builder/sovereign-zpkb.sh
+          builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
             /usr/local/bin/zpkb --platform wasip1/wasm build --libc=zpkx \
             --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
             --dist /dist "${{ matrix.slug }}"
@@ -168,7 +172,7 @@ jobs:
       # A name that prints nothing is a tool that is NOT there.
       - name: what ran, from where
         run: |
-          builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
+          builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
             /bin/sh -c 'command -v sh make install cp clang clang++ wasm-ld llvm-ar llvm-ranlib cc gcc; echo "PATH=$PATH"'
       - name: smoke under wasmtime
         run: |
@@ -226,9 +230,20 @@ jobs:
             umask 077; printf '%s' "$SIGNING_KEY" | sudo tee "$RUNNER_TEMP/rootfs/sign.key" > /dev/null
             SIGN_ARGS=(--sign /sign.key); echo "signing: enabled"
           fi
+          # ⛔ `/usr/local/bin/zpkb`, not `zpkb`: builder/Containerfile stages the
+          # binary under its own name and there has never been a `zpkb` in the
+          # rootfs since the rename. Left stale, this step died with "no such
+          # file or directory" — and nobody saw it, because this lane is
+          # workflow_dispatch and last ran 2026-11-03.
+          #
+          # ⛔⛔ AND THE NOTE GOES HERE, above the command. Written between the
+          # continued lines it ends the continuation and the step dies at 127
+          # instead — which is the defect four other steps in this repository
+          # were carrying, and which I reintroduced here one minute after
+          # fixing them. actionlint SC2215 is the gate; it caught this one too.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
-            builder/sovereign-bk.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-              /usr/local/bin/bk publish --to oci://ghcr.io/go-pkgx/packages --project "${{ matrix.slug }}" \
+            builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
+              /usr/local/bin/zpkb publish --to oci://ghcr.io/go-pkgx/packages --project "${{ matrix.slug }}" \
               --version "${{ matrix.version }}" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
               --advisories /advisories \
               "/dist/${{ matrix.slug }}/wasip1/wasm/v${{ matrix.version }}.tar.zst"

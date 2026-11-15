@@ -1,0 +1,13 @@
+# The labels of the self-hosted pool build.yml, pages.yml, index-audit.yml and
+# the windows/wasip1 lanes run on. Without this file actionlint reports every
+# one of them as an unknown runner label, which is a finding nobody can act on
+# and the kind of noise that gets a gate switched off.
+#
+# ⛔ It does NOT widen anything: `runs-on` already names these, and ci.yml's own
+# comment says why a `pull_request` lane must never name them — for that event
+# GitHub runs the workflow file from the PR's head, so a fork could point a job
+# at our machines. This file only stops the linter guessing.
+self-hosted-runner:
+  labels:
+    - incus
+    - amd64

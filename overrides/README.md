@@ -1,6 +1,6 @@
 # Recipe overrides
 
-Candidate fixes for genuine **upstream-recipe** bugs — not `bk` gaps — applied
+Candidate fixes for genuine **upstream-recipe** bugs — not `zpkb` gaps — applied
 to `pkgxdev/pantry` so the factory can validate them before they are proposed
 upstream.
 
@@ -33,14 +33,14 @@ is one nobody can ever decide to delete.
 
 ## Nothing is written to disk
 
-`bk factory` applies an override to the recipe's *document* as the recipe is
+`zpkb factory` applies an override to the recipe's *document* as the recipe is
 read. `package.yml` is never modified, so its comments survive —
 `gnu.org/grep` spends thirteen lines explaining why it names itself as a build
 dependency — and a re-run needs no fresh clone, because nothing was changed.
 
 That has one consequence worth knowing: **the pantry on disk is no longer the
 recipe the factory builds.** Anything that wants the built recipe must go
-through `recipefile.LoadOverridden`, as `bk factory`, `bk closure` and
+through `recipefile.LoadOverridden`, as `zpkb factory`, `zpkb closure` and
 `overlaycheck` do.
 
 ## The verbs
@@ -79,7 +79,7 @@ merge {
 
 ## Three answers, where a diff had two
 
-`bk overrides` applies every override and says what each one did. "It did not
+`zpkb overrides` applies every override and says what each one did. "It did not
 apply" used to cover two opposite situations; now they are separate:
 
 | | |
@@ -105,13 +105,13 @@ and argued about together.
 
 It is a recipe of ours, and it lives in
 [`pantry-overlay`](https://github.com/go-zpkg/pantry-overlay) — which is also
-what a consumer resolves over HTTP. `bk factory` reads it from there when the
+what a consumer resolves over HTTP. `zpkb factory` reads it from there when the
 pantry has no such project, so nothing about it belongs in this directory.
 
 This used to be eight `*-new.patch` files, each duplicating a recipe the
 overlay already held: the same thing written twice, once as a diff for the
 builder and once as HCL for the consumer. Exactly 8 of the overlay's 183
-projects are absent upstream, and they were the same eight (go-zpkg/bk#231).
+projects are absent upstream, and they were the same eight (go-zpkg/zpkb#231).
 
 The two halves still have to agree for everything else, and four projects were
 once published, signed and unreachable to every consumer because only the build
@@ -122,13 +122,13 @@ and gates the half a consumer reads.
 
 1. Reproduce the failure locally and read the real error.
 2. Confirm it is a recipe bug — it builds in real pkgx and differs only in the
-   recipe — and not a `bk` behaviour gap. Fix `bk` instead if it is.
+   recipe — and not a `zpkb` behaviour gap. Fix `zpkb` instead if it is.
 3. Write `overrides/<slug>.hcl`. Say **why**, and say what would make it
    unnecessary.
 4. `go run github.com/go-zpkg/zpkb/cmd/zpkb@main overrides --pantry <fresh clone>`
    to see it apply.
 5. Validate it builds.
-6. Propose the equivalent change upstream; when it lands, `bk overrides` will
+6. Propose the equivalent change upstream; when it lands, `zpkb overrides` will
    report the override as redundant and it can be deleted.
 
 ## Generated: the openssl 1.x pins
@@ -180,5 +180,5 @@ overrides address different KEYS and cannot interact that way.
 recipe, writes them out, reads them back, applies them to a pristine recipe and
 demands the same document the patch produced — and demands that applying them
 twice changes nothing, which is the property 24 operations across 22 projects
-failed before go-zpkg/bk#229. It runs in CI, and with nothing to convert it
+failed before go-zpkg/zpkb#229. It runs in CI, and with nothing to convert it
 says so and passes.

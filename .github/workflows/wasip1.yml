@@ -102,7 +102,7 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
       - uses: bytecodealliance/actions/wasmtime/setup@v1
-      - name: install bk
+      - name: install zpkb
         run: |
           go install "$BK"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -158,13 +158,13 @@ jobs:
           fi
           # ⛔⛔ THE IDENTITY IS STATED, BECAUSE THIS LANE HAS NO PLAN TO
           # DERIVE ONE FROM. `go build` is not a pantry recipe: there is no
-          # resolved closure and no script, so bk cannot compute a Concrete
+          # resolved closure and no script, so zpkb cannot compute a Concrete
           # and the tag would be the bare version — which two different
           # builds can both claim. Every artifact this lane published before
           # 2026-11-06 reads `nothing recorded` for exactly that reason.
           #
           # What actually decides these bytes is written down and digested by
-          # bk, rather than hashed in the shell:
+          # zpkb, rather than hashed in the shell:
           #   - the Go toolchain, as a dependency. It is THE input a CVE
           #     rebuild changes, and the case the whole identity model exists
           #     for: a rebuild against a patched Go must not land on the

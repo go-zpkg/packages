@@ -81,7 +81,7 @@ gnu.org/gzip
 gnu.org/tar
 kernel.org/linux-headers@~7.2
 # gnu.org/libidn2 exists in the closure only through OUR override of
-# rsync.samba.org. `zpkb closure --build` could not see it until go-zpkg/bk#232:
+# rsync.samba.org. `zpkb closure --build` could not see it until go-zpkg/zpkb#232:
 # with --overlay it read the pantry half UNOVERRIDDEN, and rsync is one of the
 # six projects the overlay does not carry. Measured 2026-09-28 on a fresh
 # pantry: 77 projects with the fix, 76 without, and this is the one.
@@ -95,7 +95,7 @@ rsync.samba.org
 llvm.org
 # libcxx.llvm.org is NOT optional on the sovereign path, and it is not a
 # member of the toolchain either — it is what every `--libc zpkx` build is
-# handed. bk's Wrap appends `+libcxx.llvm.org` to the dependency eval of
+# handed. zpkb's Wrap appends `+libcxx.llvm.org` to the dependency eval of
 # EVERY recipe in that mode, because the bare llvm.org artifact omits the C++
 # runtime and a C++ recipe must link libc++ rather than the container's
 # libstdc++.
@@ -104,6 +104,8 @@ llvm.org
 # first recipe it tried:
 #   no libcxx.llvm.org for linux/s390x: neither oci://127.0.0.1:5000/seed nor
 #   https://dist.pkgx.dev publishes it
+# — the next line is quoted VERBATIM from that run's log, and the binary was
+#   named `bk` that day, so it stays spelled that way:
 #   bk: the dependency environment failed
 # — pkgx refuses the WHOLE eval when one spec cannot resolve, so it takes
 # every build down, not only the C++ ones. lz4.org is C.

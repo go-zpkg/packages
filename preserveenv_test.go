@@ -61,11 +61,11 @@ func TestEveryVariableTheInnerScriptReadsIsPreserved(t *testing.T) {
 
 // ⛔⛔ THE TEST ABOVE IS NARROWER THAN IT LOOKS, AND SAYING SO IS THE POINT.
 // It finds what the SHELL expands inside the namespace. It does NOT find what
-// the Go program reads from its own environment — `bk factory` takes most of
+// the Go program reads from its own environment — `zpkb factory` takes most of
 // its settings through `envOr`/`envBool`, and those names never appear in the
 // script at all.
 //
-// `NO_PUBLISH` is exactly that: read by `bk factory`, invisible to a shell
+// `NO_PUBLISH` is exactly that: read by `zpkb factory`, invisible to a shell
 // parse, and the variable whose loss is irreversible. The test above would
 // not have caught it. This one is the other half.
 //
@@ -91,7 +91,7 @@ func TestTheFactorysEnvironmentKnobsSurviveSudo(t *testing.T) {
 		"SOURCE_MIRROR", "ADVISORIES_DIR", "PLATFORM",
 	} {
 		if !preserved[v] {
-			t.Errorf("`bk factory` reads %s from the environment and sudo does not preserve it — "+
+			t.Errorf("`zpkb factory` reads %s from the environment and sudo does not preserve it — "+
 				"setting it in a workflow would be silently ignored", v)
 		}
 	}
