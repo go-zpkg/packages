@@ -149,7 +149,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/pantry"
           git clone --depth 1 https://github.com/pkgxdev/pantry "$RUNNER_TEMP/pantry"
           # GONOPROXY (workflow env:): a proxy-cached `@main` can be an older
-          # bk, and "unknown subcommand" is a confusing way to learn that.
+          # zpkb, and "unknown subcommand" is a confusing way to learn that.
           go run github.com/go-zpkg/zpkb/cmd/zpkb@main overrides \
             --dir overrides --pantry "$RUNNER_TEMP/pantry"
 
@@ -172,7 +172,7 @@ jobs:
       # `..build.script: 15 items became 14`, because the comparison returned
       # the first difference in sorted key order and `build` sorts first.
       # The overrides are being moved from unified diffs to the logical HCL
-      # form (go-zpkg/bk#226): a diff says WHERE lines are and stops applying
+      # form (go-zpkg/zpkb#226): a diff says WHERE lines are and stops applying
       # when upstream edits a neighbour, while an override that says WHAT it
       # changes is addressed by key. 3 of 231 diffs had silently stopped
       # applying on 2026-09-24, and one that `git apply --check` accepted was
@@ -184,7 +184,7 @@ jobs:
       # out, READS THEM BACK, applies them to a pristine recipe, and demands
       # the same document the patch produced — and demands that applying them
       # TWICE changes nothing, which is the property 24 operations across 22
-      # projects failed before go-zpkg/bk#229.
+      # projects failed before go-zpkg/zpkb#229.
       #
       # It clones its own pantry rather than reusing the one above, which by
       # this point has been patched.
@@ -192,7 +192,7 @@ jobs:
         run: go run ./logicalise
 
       # A project upstream does not carry lives in ONE place now: the overlay,
-      # which bk builds from and a consumer resolves from (go-zpkg/bk#231). It
+      # which zpkb builds from and a consumer resolves from (go-zpkg/zpkb#231). It
       # used to live in two — a patch that created the recipe, and the overlay
       # — and four such projects were published, signed and unreachable to any
       # consumer because only the build half existed. Nothing said so: the
@@ -223,6 +223,18 @@ jobs:
           echo "$(ls overrides/*.hcl | wc -l) override(s), none deferring its reason"
 
       - name: the half a consumer resolves from agrees
+        # ⛔⛔ THE TOKEN IS NOT A CONVENIENCE HERE. This step asks the contents
+        # API once per project that upstream does not carry, and it passed no
+        # token at all, so it spent the UNAUTHENTICATED budget: 60 requests an
+        # hour per source address. On 2026-11-15, with 37 such projects, every
+        # one came back 403 and overlaycheck printed "the overlay does not
+        # SERVE it" about 37 recipes that were all served — the same command
+        # run locally, tokenless, got 200 for all 37. The checker now refuses
+        # to call a 403 a verdict; this makes the 403 stop happening.
+        # Read-only `contents: read` is all it needs, which the workflow
+        # already grants.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           rm -rf "$RUNNER_TEMP/overlay"
           git clone --depth 1 https://github.com/go-zpkg/pantry-overlay "$RUNNER_TEMP/overlay"
@@ -248,14 +260,14 @@ jobs:
       # The seed reached 77 of 77 on 2026-09-29 and was not a usable
       # toolchain: the first build on top of it without --bootstrap died on
       # `no version of gnu.org/gawk satisfies "~5.3"`. The seed had built
-      # 5.4.1 — the newest — and bk pins ~5.3 on purpose, because 5.4.1
+      # 5.4.1 — the newest — and zpkb pins ~5.3 on purpose, because 5.4.1
       # mishandles autoconf's option-resolution scripts. The order named
       # projects and not versions, so it took the latest and nothing said
       # otherwise. "Every project published" was true and answered the wrong
       # question.
       #
-      # The constraint is READ FROM bk (build.BaseToolchain), never copied:
-      # a second "~5.3" in this repository would be right until bk moved and
+      # The constraint is READ FROM zpkb (build.BaseToolchain), never copied:
+      # a second "~5.3" in this repository would be right until zpkb moved and
       # then wrong silently, which is the same defect one layer up.
       #
       # TWO lists, because the same defect happened again on 2026-10-04 in the
@@ -264,7 +276,7 @@ jobs:
       # and the first sovereign s390x build died in 22 seconds on
       #   no version of kernel.org/linux-headers satisfies "~7.1"
       # — exactly the shape this step refuses, which passed because it was
-      # reading bk's list alone. A check aimed at one of two sources is worse
+      # reading zpkb's list alone. A check aimed at one of two sources is worse
       # than none: it reports agreement.
       - name: the seed order builds the toolchain the toolchain wants
         run: go run ./seedpins --order seed/order.txt --builder-toolchain builder/toolchain.txt
@@ -318,6 +330,45 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: go build ./...
+
+  # ⛔⛔ THE WORKFLOWS THEMSELVES HAD NO GATE AT ALL, and four steps were dead
+  # because of it. A `#` note written BETWEEN the continued lines of a shell
+  # command does not comment out one line: the backslash that would continue
+  # the command is swallowed by the comment, the continuation ends, and the
+  # rest runs as its own command. `build.yml`, `sovereign.yml`, `wasip1-c.yml`
+  # and `windows-c.yml` all carried that in their "stage the sovereign rootfs"
+  # step — `--zpkb "$(command -v zpkb)"` executing as a COMMAND, 127 — put
+  # there between 2026-11-04 and 2026-11-13 by rename passes adding a note.
+  # Nothing went red: those are dispatch-and-schedule lanes whose last run
+  # predated the edits. A defect in a lane nobody triggers is invisible until
+  # the day it is needed, which for a factory is the day a build is wanted.
+  #
+  # shellcheck calls the class SC2215 and actionlint surfaces it. ./wflintgate
+  # is the gate rather than a bare `actionlint` step for two measured reasons:
+  # actionlint skips every shellcheck rule IN SILENCE when shellcheck is not on
+  # PATH, and it takes FILES rather than a directory — handed one it answers
+  # "is a directory", exits 3, and a step reading only "no output" calls that a
+  # pass. The gate asserts shellcheck is present, proves itself against a
+  # control carrying the defect AND one without it, prints how many files it
+  # read, and treats any exit but 0 or 1 as "did not judge".
+  #
+  # A/B on 2026-11-15: 4 × SC2215 over the four workflows as they were, 0 over
+  # the 17 as they are.
+  workflows:
+    name: actionlint, proved against a control
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: '1.27.4' }
+      # Pinned: the judge's verdict should not change under this repository
+      # without a commit. shellcheck comes with the runner image, and the gate
+      # refuses rather than skipping if it ever stops doing so.
+      - name: actionlint, judged by ./wflintgate
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: go run ./wflintgate
 
   # The rule above, enforced. A guard that lives only in a comment is a guard
   # that is gone the next time somebody wants the 32 cores back.

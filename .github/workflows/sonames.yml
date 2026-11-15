@@ -84,14 +84,14 @@ jobs:
   sweep:
     needs: plan
     # ⛔ ONE PLATFORM PER RUN, SAID OUT LOUD — but no longer only ONE
-    # platform. Until bk v0.34.0 `zpkb unresolved` installed for the host, so
+    # platform. Until zpkb v0.34.0 `zpkb unresolved` installed for the host, so
     # an ubuntu runner could answer for linux/x86-64 and nothing else, and
     # sonamesweep refused any other catalogue rather than report this
     # machine's artifacts under its name. The weekly run found 967
     # unresolvable references there while the other five platforms went
     # unasked — the shape vulnscan.yml spent two months in.
     #
-    # artifact v0.55.0 made the closure platform-explicit and bk v0.34.0
+    # artifact v0.55.0 made the closure platform-explicit and zpkb v0.34.0
     # exposed it, so this one ubuntu runner can audit any of the six. The
     # SCHEDULE still covers one, because ~1400 closure installs is about
     # ten hours of wall clock and six of those weekly is not a thing to

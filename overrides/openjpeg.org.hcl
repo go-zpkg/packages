@@ -1,5 +1,5 @@
 project = "openjpeg.org"
-why     = "opj_compress links little-cms and nothing declared it. CMake found one on the RUNNER, and bk refused to publish a result that names a library no consumer has."
+why     = "opj_compress links little-cms and nothing declared it. CMake found one on the RUNNER, and zpkb refused to publish a result that names a library no consumer has."
 
 edits = [
   {

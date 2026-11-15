@@ -1,5 +1,5 @@
 project = "gnu.org/coreutils"
-why     = "coreutils links libintl on darwin and never said so (gettext is in bk's base toolchain, so it is always present while this is BUILT and the closure a consumer installs has a hole in it), and on linux its configure AUTO-DETECTS the host's SELinux and links a library no artifact provides."
+why     = "coreutils links libintl on darwin and never said so (gettext is in zpkb's base toolchain, so it is always present while this is BUILT and the closure a consumer installs has a hole in it), and on linux its configure AUTO-DETECTS the host's SELinux and links a library no artifact provides."
 
 edits = [
   {

@@ -286,6 +286,55 @@ func TestAProjectOnlyTheOverlayCarriesMustBeServed(t *testing.T) {
 	}
 }
 
+// ⛔⛔ AN ANSWER NOT OBTAINED IS NOT A NEGATIVE ANSWER. A 403 from
+// api.github.com is the rate limit; it says nothing about the file. Read as
+// "not served" it printed that sentence about 37 recipes that were all served
+// — the same command run locally, tokenless, got 200 for every one of them —
+// and failed the lane on 2026-11-15.
+//
+// 404 keeps meaning "not served" and still fails: the test above holds that
+// half, and this one would pass if the tool simply stopped failing.
+func TestAnApiThatDeclinesToAnswerIsNotAVerdict(t *testing.T) {
+	pantry, overlay := twoHalves(t)
+	writeFile(t, filepath.Join(overlay, "projects", "only.example", "package.hcl"),
+		"distributable {\n  url = \"https://only.example/x.tar.gz\"\n}\n")
+
+	old := httpGet
+	t.Cleanup(func() { httpGet = old })
+
+	for _, tc := range []struct {
+		name   string
+		status int
+		err    error
+	}{
+		{"rate limited", 403, nil},
+		{"too many requests", 429, nil},
+		{"server error", 500, nil},
+		{"never reached the network", 0, errors.New("dial tcp: no route to host")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			httpGet = func(string) (int, []byte, error) { return tc.status, nil, tc.err }
+			var buf bytes.Buffer
+			// 2, this tool's "refused to decide" — never 1, which a reader takes
+			// to mean a recipe is unserved, and never 0.
+			if code := runAgainstPantry(pantry, overlay, "", &buf); code != 2 {
+				t.Fatalf("code = %d, want 2\n%s", code, buf.String())
+			}
+			if !strings.Contains(buf.String(), "NOT a verdict about the recipe") {
+				t.Errorf("the report does not say the answer was not obtained:\n%s", buf.String())
+			}
+			if !strings.Contains(buf.String(), "went UNJUDGED") {
+				t.Errorf("the verdict does not say how many went unjudged:\n%s", buf.String())
+			}
+			// And it must not ALSO claim the trees do not line up: that message
+			// sends the reader to check their paths.
+			if strings.Contains(buf.String(), "are these the right trees") {
+				t.Errorf("an unanswered API was reported as a wrong --pantry:\n%s", buf.String())
+			}
+		})
+	}
+}
+
 // An unreadable overlay recipe is reported, not skipped. A directory named
 // package.hcl is the cheap way to make ReadFile fail on every platform.
 func TestRunAgainstPantryUnreadableOverlayRecipe(t *testing.T) {
@@ -743,7 +792,7 @@ func TestBuildDependenciesAreNotInert(t *testing.T) {
 }
 
 // A recipe whose `build` is a bare script string has no build.dependencies.
-// That is a fact about the recipe, not a fault, and `bk`'s own pantry is full
+// That is a fact about the recipe, not a fault, and `zpkb`'s own pantry is full
 // of them — `build: make`.
 func TestAtOnAPathWhoseParentIsNotAMapping(t *testing.T) {
 	doc := map[string]any{"build": "make", "deps": map[string]any{"x": 1}}

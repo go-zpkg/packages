@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# Run `bk factory` inside a staged sovereign rootfs, so neither the host's libc
+# Run `zpkb factory` inside a staged sovereign rootfs, so neither the host's libc
 # nor its compiler takes part in the build.
 #
-# Usage:  builder/sovereign-build.sh <rootfs> <pantry> <overrides> [bk args...]
+# Usage:  builder/sovereign-build.sh <rootfs> <pantry> <overrides> [zpkb args...]
 #
 # $SOVEREIGN_ADVISORIES, when set, is the advisory tree bound in at /advisories
 # and passed as --advisories, so each published artifact carries the OpenVEX
 # document that says what is known about it.
 #
 # $SOVEREIGN_OVERLAY, when set, is a pantry-overlay checkout bound in as
-# /overlay and passed to `bk factory --overlay`. It does not change what is
+# /overlay and passed to `zpkb factory --overlay`. It does not change what is
 # BUILT — the factory still compiles the pantry's recipe — it widens the
 # CLOSURE, so a dependency only our overlay declares is built rather than left
-# for consumers to resolve and not find (go-zpkg/bk#224).
+# for consumers to resolve and not find (go-zpkg/zpkb#224).
 #
-# The rootfs is what `bk builder --container` staged. Everything the build needs
+# The rootfs is what `zpkb builder --container` staged. Everything the build needs
 # beyond it is arranged here, and each piece is here because its absence was
 # measured:
 #
-#   /proc      bk dies at `readlink /proc/self/exe: no such file or directory`.
+#   /proc      zpkb dies at `readlink /proc/self/exe: no such file or directory`.
 #              A container runtime always mounts one.
 #   /dev/*     bound, not mknod'd: an unprivileged Incus container has no
 #              CAP_MKNOD and mknod answers "Operation not permitted".
@@ -26,7 +26,7 @@
 #              directory" AFTER the registry has already answered.
 #   resolv.conf  the resolver a runtime injects too.
 #
-# The environment is builder/Containerfile's ENV, and bk is invoked through
+# The environment is builder/Containerfile's ENV, and zpkb is invoked through
 # zpkx with its ENTRYPOINT's argv, so a caller cannot drift from what the
 # image promises. ZPKG_DIR matters more than it looks, and its VALUE matters as
 # much as setting it at all: zpkx reads the store from it and falls back to
@@ -43,7 +43,7 @@ overlay="${SOVEREIGN_OVERLAY:-}"
 # $SOVEREIGN_ADVISORIES is the advisory tree whose records become each artifact's
 # OpenVEX referrer. Bound in like the overlay, and for the reason the LOCK
 # paragraph below gives in full: a path from the workspace means nothing inside
-# the rootfs. Passing `--advisories advisories` without the mount would make bk
+# the rootfs. Passing `--advisories advisories` without the mount would make zpkb
 # refuse with "no advisories.yaml under advisories" — which reads as "the tree
 # is empty" and means "the tree is on the other side of a namespace".
 advisories="${SOVEREIGN_ADVISORIES:-}"
@@ -52,7 +52,7 @@ mkdir -p "$root/pantry" "$root/overrides" "$root/overlay" "$root/advisories" "$r
 chmod 1777 "$root/tmp"
 cp /etc/resolv.conf "$root/etc/resolv.conf"
 
-log="${SOVEREIGN_LOG:-${RUNNER_TEMP:-/tmp}/bk.log}"
+log="${SOVEREIGN_LOG:-${RUNNER_TEMP:-/tmp}/zpkb.log}"
 
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
@@ -146,7 +146,7 @@ $SUDO $PRESERVE \
            --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --artifacts /dist "$@"
   ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
 
-# `bk factory` is best-effort: it exits 0 with a per-recipe tally. That is right
+# `zpkb factory` is best-effort: it exits 0 with a per-recipe tally. That is right
 # for a 50-project chunk and useless as a signal on its own, so read the tally.
 # Both directions matter — the first green run of this path reported
 # "0 built, 15 skipped, 0 failed": every step passed and nothing was compiled.

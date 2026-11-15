@@ -9,7 +9,7 @@ edits = [
     to   = "true  # openssl 3 is a declared build dependency; see overrides/"
   },
   {
-    why  = "What the line above was for. `build.env.OPENSSL_DIR` is `{{pkgx.prefix}}/openssl.org/v3`, so the prefix has to exist: declaring it as a build dependency is how bk stages it, and it comes from the registry this factory publishes to rather than from upstream's."
+    why  = "What the line above was for. `build.env.OPENSSL_DIR` is `{{pkgx.prefix}}/openssl.org/v3`, so the prefix has to exist: declaring it as a build dependency is how zpkb stages it, and it comes from the registry this factory publishes to rather than from upstream's."
     path = "build.dependencies[\"openssl.org\"]"
     set  = "^3"
   },

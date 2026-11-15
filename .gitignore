@@ -9,7 +9,7 @@ tests.txt
 # builder/Containerfile is built with the three binaries in its context, which
 # its own header tells you to compile there:
 #
-#   for r in zpkb zpkgm zpkgx; do go build -o builder/$r github.com/go-zpkg/$r/...
+#   for r in zpkb zpkm zpkx; do go build -o builder/$r github.com/go-zpkg/$r/...
 #
 # They were COMMITTED instead — 29 MB of stripped, aarch64-only executables in
 # a repository whose own pre-push gate now refuses that class (#442). Named one
@@ -23,10 +23,21 @@ tests.txt
 # the three that did, untracked by nobody and committed by everybody; #449's
 # own body said they were "gone from HEAD" and they were not. An ignore rule
 # written from the name a thing SHOULD have cannot see the name it HAS.
+#
+# ⛔⛔ AND IT HAPPENED AGAIN, ONE GENERATION LATER — found 2026-11-15 while
+# sweeping `bk` out of this repository. The list held `zpkgm` and `zpkgx`,
+# which are a spelling nothing has used since the modules became
+# `github.com/go-zpkg/zpkm` and `.../zpkx`; the loop above said `zpkgm zpkgx`
+# too, while builder/Containerfile's own loop says `zpkb zpkm zpkx`. So the two
+# binaries a reader following the header would actually produce, `zpkm` and
+# `zpkx`, were ignored by NOTHING. The CURRENT names are checked against the
+# module paths the workflows install, not against memory.
 /builder/bk
 /builder/pkgm
 /builder/pkgx
 /builder/zbk
 /builder/zpkb
+/builder/zpkm
+/builder/zpkx
 /builder/zpkgm
 /builder/zpkgx

@@ -1,5 +1,5 @@
 project = "gnu.org/glibc"
-why     = "two faults that only show once the artifact MOVES. (1) build.env names a dynamic loader for x86-64 and aarch64 and for no other architecture, so on s390x $LDSO is empty and the `ld.so` symlink points at a DIRECTORY. (2) glibc compiles its gconv directory in at $libdir/gconv, which here is inside the `+brewing` prefix, so after the rename iconv can convert nothing and the recipe declares no runtime env to say otherwise."
+why     = "two faults that only show once the artifact MOVES. (1) build.env names a dynamic loader for x86-64 and aarch64 and for no other architecture, so on s390x $LDSO is empty and the `ld.so` symlink points at a DIRECTORY. (2) glibc compiles its gconv directory in at $libdir/gconv, which here is inside the staging prefix (`+builddir`, spelled `+brewing` in anything built before zpkb v0.80.0), so after the rename iconv can convert nothing and the recipe declares no runtime env to say otherwise."
 
 merge {
   # GCONV_PATH, because glibc's charset modules are found by a path baked
@@ -11,7 +11,8 @@ merge {
   #
   #   <prefix>/lib/glibc-2.44/gconv
   #
-  # with <prefix> the `+brewing` staging path. That directory is gone by
+  # with <prefix> the `+builddir` staging path (`+brewing` before zpkb
+  # v0.80.0 — the measurements below were taken then). That directory is gone by
   # the time anyone installs the artifact, and iconv silently falls back to
   # the charsets built into libc. The second sovereign generation shows
   # what that costs a consumer:
@@ -45,7 +46,7 @@ merge {
         # s390x's loader is NOT ld-linux-s390x.so.1 -- the name cannot be
         # derived from the other two, which is half of why it was missed.
         # The s390x ABI calls it ld64.so.1, glibc installs it as that, and
-        # bk's own artifact.LoaderNameFor already carries the same value for
+        # zpkb's own artifact.LoaderNameFor already carries the same value for
         # the builder's sake.
         LDSO = "ld64.so.1"
       }
@@ -80,7 +81,7 @@ edits = [
   {
     # AND A GUARD, because the list above is the kind that is wrong again at
     # the next architecture. Today riscv64, ppc64le and loong64 all have a
-    # published bk and no entry here, so the fourth one to be built would
+    # published zpkb and no entry here, so the fourth one to be built would
     # repeat this silently:
     #
     #   ln -sf ../lib/glibc-2.44/ ld.so      <- a symlink to a directory

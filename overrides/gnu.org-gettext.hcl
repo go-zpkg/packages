@@ -9,8 +9,8 @@ edits = [
     #   libgomp.so.1    <- gnu.org/gettext/v1.0/bin/msginit
     #                      gnu.org/gettext/v1.0/bin/msgmerge
     #
-    # named by `bk builder`'s soname census over the staged s390x rootfs
-    # (go-zpkg/bk#276). libgettextlib is the one that matters: msgfmt and its
+    # named by `zpkb builder`'s soname census over the staged s390x rootfs
+    # (go-zpkg/zpkb#276). libgettextlib is the one that matters: msgfmt and its
     # siblings are on the build path of every recipe with a po/ directory.
     #
     # --without-selinux is gnulib's (m4/selinux-selinux-h.m4, default

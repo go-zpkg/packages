@@ -45,7 +45,7 @@ var osExit = os.Exit
 
 func main() { osExit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
-// runCmd is the seam: a test drives this without pkgs, bk or a registry.
+// runCmd is the seam: a test drives this without pkgs, zpkb or a registry.
 var runCmd = func(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	var buf bytes.Buffer
@@ -62,7 +62,7 @@ var runCmd = func(name string, args ...string) (string, error) {
 func run(argv []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("vulnsweep", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	pantry := fs.String("pantry", "", "the pantry checkout bk reads recipes from (required)")
+	pantry := fs.String("pantry", "", "the pantry checkout zpkb reads recipes from (required)")
 	advisories := fs.String("advisories", "advisories", "the advisory tree decisions are recorded in")
 	store := fs.String("store", "", "ZPKG_DIR the catalogues are fetched into (required)")
 	if err := fs.Parse(argv); err != nil {
@@ -129,7 +129,7 @@ func platforms() ([]string, error) {
 	return plats, nil
 }
 
-// scan fetches one platform's catalogue and runs bk against it.
+// scan fetches one platform's catalogue and runs zpkb against it.
 func scan(platform, pantry, advisories, store string) (string, error) {
 	if out, err := runCmd("zpks", "catalog", "update", "--platform", platform); err != nil {
 		return out, fmt.Errorf("fetching the catalogue: %w", err)

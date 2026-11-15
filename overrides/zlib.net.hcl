@@ -41,7 +41,7 @@ edits = [
     # z13 IS NOT A NEW FLOOR HERE, which is the only thing that made this a
     # decision rather than a typo. Go has required z13 as the minimum machine
     # level for s390x since Go 1.19, and every binary this project ships for
-    # the architecture -- bk, pkgx, pkgm, all CGO=0 Go -- therefore already
+    # the architecture -- zpkb, pkgx, pkgm, all CGO=0 Go -- therefore already
     # refuses to run below it. The runner agrees: `go env` on the LinuxONE
     # machine reports
     #

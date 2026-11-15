@@ -21,11 +21,11 @@ func writeOrder(t *testing.T, body string) string {
 }
 
 // The order the seed actually shipped: gawk unpinned, so it built 5.4.1 and
-// bk's base toolchain refused it.
+// zpkb's base toolchain refused it.
 func TestAnUnpinnedToolchainMemberIsRefused(t *testing.T) {
 	p := writeOrder(t, "zlib.net\ngnu.org/gawk\nperl.org\n")
 	var out, errb bytes.Buffer
-	if code := run(p, bkOnly(), &out, &errb); code != 1 {
+	if code := run(p, zpkbOnly(), &out, &errb); code != 1 {
 		t.Fatalf("code = %d, want 1 (%s)", code, errb.String())
 	}
 	for _, want := range []string{"gnu.org/gawk", "perl.org", "write: gnu.org/gawk@~5.3"} {
@@ -35,11 +35,11 @@ func TestAnUnpinnedToolchainMemberIsRefused(t *testing.T) {
 	}
 }
 
-// Pinned as bk asks: nothing to say.
+// Pinned as zpkb asks: nothing to say.
 func TestAPinnedOrderPasses(t *testing.T) {
 	p := writeOrder(t, "# a comment\n\nzlib.net\ngnu.org/gawk@~5.3\nperl.org@~5.44\n")
 	var out, errb bytes.Buffer
-	if code := run(p, bkOnly(), &out, &errb); code != 0 {
+	if code := run(p, zpkbOnly(), &out, &errb); code != 0 {
 		t.Fatalf("code = %d: %s", code, errb.String())
 	}
 	if !strings.Contains(out.String(), "every one the order builds is pinned as asked") {
@@ -47,11 +47,11 @@ func TestAPinnedOrderPasses(t *testing.T) {
 	}
 }
 
-// A pin that is not bk's is worse than none: it reads as deliberate.
+// A pin that is not zpkb's is worse than none: it reads as deliberate.
 func TestTheWrongPinIsRefused(t *testing.T) {
 	p := writeOrder(t, "gnu.org/gawk@~5.4\n")
 	var out, errb bytes.Buffer
-	if code := run(p, bkOnly(), &out, &errb); code != 1 {
+	if code := run(p, zpkbOnly(), &out, &errb); code != 1 {
 		t.Fatalf("code = %d, want 1", code)
 	}
 	if !strings.Contains(errb.String(), `"gnu.org/gawk@~5.4"`) || !strings.Contains(errb.String(), `"gnu.org/gawk~5.3"`) {
@@ -65,14 +65,14 @@ func TestTheWrongPinIsRefused(t *testing.T) {
 func TestAMemberTheOrderDoesNotBuildIsNotDemanded(t *testing.T) {
 	p := writeOrder(t, "zlib.net\n")
 	var out, errb bytes.Buffer
-	if code := run(p, bkOnly(), &out, &errb); code != 0 {
+	if code := run(p, zpkbOnly(), &out, &errb); code != 0 {
 		t.Fatalf("code = %d: %s", code, errb.String())
 	}
 }
 
 func TestAnUnreadableOrderIsAnError(t *testing.T) {
 	var out, errb bytes.Buffer
-	if code := run(filepath.Join(t.TempDir(), "absent"), bkOnly(), &out, &errb); code != 2 {
+	if code := run(filepath.Join(t.TempDir(), "absent"), zpkbOnly(), &out, &errb); code != 2 {
 		t.Errorf("code = %d, want 2", code)
 	}
 }
@@ -81,7 +81,7 @@ func TestAnUnreadableOrderIsAnError(t *testing.T) {
 func TestAnEmptyOrderIsAnError(t *testing.T) {
 	p := writeOrder(t, "# nothing but a comment\n")
 	var out, errb bytes.Buffer
-	if code := run(p, bkOnly(), &out, &errb); code != 2 {
+	if code := run(p, zpkbOnly(), &out, &errb); code != 2 {
 		t.Errorf("code = %d, want 2", code)
 	}
 	if !strings.Contains(errb.String(), "agrees with everything") {
@@ -89,15 +89,15 @@ func TestAnEmptyOrderIsAnError(t *testing.T) {
 	}
 }
 
-// The constraints come from bk, never from a copy here — a second "~5.3" in
-// this repository would be right until bk moved and then wrong silently.
-func TestTheConstraintsComeFromBk(t *testing.T) {
+// The constraints come from zpkb, never from a copy here — a second "~5.3" in
+// this repository would be right until zpkb moved and then wrong silently.
+func TestTheConstraintsComeFromZpkb(t *testing.T) {
 	got, err := constrainedToolchain(build.BaseToolchain())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) == 0 {
-		t.Fatal("bk's base toolchain declares no constraint at all — either it changed or this is reading the wrong thing")
+		t.Fatal("zpkb's base toolchain declares no constraint at all — either it changed or this is reading the wrong thing")
 	}
 	for proj, c := range got {
 		if c == "" || !strings.ContainsAny(c, "@^~<>=") {
@@ -123,7 +123,7 @@ func TestMainReportsThroughOsExit(t *testing.T) {
 	osExit = func(c int) { got = c }
 
 	p := writeOrder(t, "gnu.org/gawk@~5.3\nperl.org@~5.44\n")
-	// "" is bk's list alone — what this command read before the sovereign
+	// "" is zpkb's list alone — what this command read before the sovereign
 	// toolchain was a second source.
 	os.Args = []string{"seedpins", "--order", p, "--builder-toolchain", ""}
 	main()
@@ -159,7 +159,7 @@ func TestMainReportsThroughOsExit(t *testing.T) {
 	}
 }
 
-// A bk entry that is a bare constraint names no project. It cannot happen
+// A zpkb entry that is a bare constraint names no project. It cannot happen
 // today; a refusal nobody can exercise is a refusal nobody has read.
 func TestABaseToolchainEntryWithNoProjectIsRefused(t *testing.T) {
 	if _, err := constrainedToolchain([]string{"~1.2"}); err == nil {
@@ -193,11 +193,11 @@ func TestRunRefusesAMalformedToolchain(t *testing.T) {
 	}
 }
 
-// bkOnly is what this command checked before builder/toolchain.txt was read
-// too: bk's base toolchain alone. The tests that predate the second source
+// zpkbOnly is what this command checked before builder/toolchain.txt was read
+// too: zpkb's base toolchain alone. The tests that predate the second source
 // use it, so they go on asking exactly the question they were written for.
-func bkOnly() []toolchainSource {
-	return []toolchainSource{{name: "bk's base toolchain", specs: build.BaseToolchain()}}
+func zpkbOnly() []toolchainSource {
+	return []toolchainSource{{name: "zpkb's base toolchain", specs: build.BaseToolchain()}}
 }
 
 // builder/toolchain.txt is mostly comment: entries carry a trailing `# why`,
@@ -216,7 +216,7 @@ gnu.org/tar
 	if err != nil {
 		t.Fatal(err)
 	}
-	// pkgspec form: the `@` comes off, because bk's list writes it that way
+	// pkgspec form: the `@` comes off, because zpkb's list writes it that way
 	// and the comparison has to see one shape.
 	want := []string{"llvm.org", "kernel.org/linux-headers~7.2", "gnu.org/tar"}
 	if len(got) != len(want) {
@@ -246,7 +246,7 @@ func TestParseBuilderToolchainSurfacesAReadFailure(t *testing.T) {
 	}
 }
 
-// Two lists pinning one package to two versions. It cannot happen today — bk
+// Two lists pinning one package to two versions. It cannot happen today — zpkb
 // constrains gawk and perl, builder/toolchain.txt constrains linux-headers —
 // and it is the next thing to go wrong when somebody pins the same package
 // twice, in two files, for two reasons. Reported against the LISTS, not the
@@ -289,7 +289,7 @@ func TestAMalformedEntryNamesItsList(t *testing.T) {
 	p := writeOrder(t, "gnu.org/gawk@~5.3\n")
 	var out, errb bytes.Buffer
 	if code := run(p, []toolchainSource{
-		{name: "bk's base toolchain", specs: []string{"gnu.org/gawk~5.3"}},
+		{name: "zpkb's base toolchain", specs: []string{"gnu.org/gawk~5.3"}},
 		{name: "builder/toolchain.txt", specs: []string{"~1.2"}},
 	}, &out, &errb); code != 2 {
 		t.Fatalf("code = %d, want 2", code)

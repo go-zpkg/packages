@@ -1,5 +1,5 @@
 project = "gnu.org/sed"
-why     = "sed links libintl on darwin and never said so, and on linux its configure auto-detects the builder's SELinux. gettext is in bk's base toolchain, so it is always present while this is BUILT and the closure a consumer installs has a hole in it."
+why     = "sed links libintl on darwin and never said so, and on linux its configure auto-detects the builder's SELinux. gettext is in zpkb's base toolchain, so it is always present while this is BUILT and the closure a consumer installs has a hole in it."
 
 edits = [
   {
@@ -19,8 +19,8 @@ edits = [
     # which every Ubuntu one does, the artifact comes out linked against a
     # library nothing in this factory provides.
     #
-    # Found by `bk builder`'s soname census over the staged s390x rootfs
-    # (go-zpkg/bk#276), which named every offender at once instead of one per
+    # Found by `zpkb builder`'s soname census over the staged s390x rootfs
+    # (go-zpkg/zpkb#276), which named every offender at once instead of one per
     # failed build:
     #   libselinux.so.1 <- gnu.org/findutils/v4.11.0/bin/find
     #                      gnu.org/gettext/v1.0/lib/libgettextlib-1.0.so

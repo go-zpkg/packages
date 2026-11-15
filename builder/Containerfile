@@ -2,13 +2,13 @@
 # CGO_ENABLED=0 Go binaries, and every build tool coming from a pkgx bottle.
 #
 # This file produces an IMAGE. For a DIRECTORY — what a micro-VM actually boots,
-# and what stages on any host with no docker and no root — use `bk builder`
+# and what stages on any host with no docker and no root — use `zpkb builder`
 # instead; see README.md. Both stage the same rootfs from the same toolchain.txt.
 #
-#   bk    the build driver — fetch, patch, script, fix-up and bottle, all in Go
-#   pkgx  materialises a recipe's build deps and prints the environment bk's
+#   zpkb  the build driver — fetch, patch, script, fix-up and bottle, all in Go
+#   zpkx  materialises a recipe's build deps and prints the environment zpkb's
 #         generated script evals
-#   pkgm  bootstraps the toolchain closure into the image, and poses the loader
+#   zpkm  bootstraps the toolchain closure into the image, and poses the loader
 #         and /bin/sh so the rootfs can actually run something
 #
 # Build it with the three binaries in the context:
@@ -21,7 +21,10 @@
 # ⛔ THE NAMES ARE ASSEMBLED FROM A VARIABLE, so no sweep that matches
 # spellings can see them — this loop said `bk pkgm pkgx` for as long as the
 # binaries had been renamed, and had to be corrected by hand. The same blind
-# spot is why `builder/{bk,pkgm,pkgx}` are still committed here (#442).
+# spot put `builder/{bk,pkgm,pkgx}` in this repository as 29 MB of committed
+# aarch64 executables (#442); they were removed in #454, and .gitignore lists
+# the RETIRED names as well as the current ones for exactly this reason —
+# including `zpkm`/`zpkx`, which it was still missing on 2026-11-15.
 #
 # and compile with it (the pantry mounted, the output bind-mounted out):
 #

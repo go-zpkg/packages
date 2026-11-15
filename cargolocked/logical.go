@@ -34,7 +34,7 @@ import (
 // The operations are DERIVED rather than written by hand. The obvious hand
 // version — substitute "cargo install " for "cargo install --locked " — is not
 // idempotent: the replacement contains the run, so a second pass yields
-// `--locked --locked`. That is the defect go-zpkg/bk#229 was written about, and
+// `--locked --locked`. That is the defect go-zpkg/zpkb#229 was written about, and
 // building the document we want and asking logical.Derive for the difference
 // inherits the rule instead of re-deriving it badly.
 func overrideFor(pantryDir, proj string) ([]byte, error) {

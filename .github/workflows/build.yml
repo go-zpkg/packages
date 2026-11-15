@@ -23,7 +23,7 @@ on:
         required: false
         default: ""
       clean_build_root:
-        description: "`1` removes the whole brewkit build root before starting. bk drops a tree once its artifact is published (go-zpkg/bk#217), but what a run INHERITS from earlier ones it cannot drop — and a seed on a small machine dies on that litter, reporting `no space left on device` against whichever project asked next. Destructive: a FAILED build's tree is kept on purpose, and this discards those too, so use it when the disk matters more than the last failure's evidence."
+        description: "`1` removes the whole zpkb build root before starting. zpkb drops a tree once its artifact is published (go-zpkg/zpkb#217), but what a run INHERITS from earlier ones it cannot drop — and a seed on a small machine dies on that litter, reporting `no space left on device` against whichever project asked next. Destructive: a FAILED build's tree is kept on purpose, and this discards those too, so use it when the disk matters more than the last failure's evidence. It removes the OLD root too (`~/.local/share/brewkit`, zpkb's spelling before v0.80.0): our runners are long-lived, so that litter is still on their disks and nothing else will ever reclaim it."
         required: false
         default: ""
       pin_to_dependents:
@@ -63,11 +63,11 @@ on:
         required: false
         default: ""
       bootstrap:
-        description: "`1` builds WITHOUT bk's base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point — every build is handed all fifteen of its members as artifacts — so on an architecture with no artifacts at all, nothing can be built first. Use it ONLY with seed_dist, and only for the first generation: rebuild everything inside the sovereign rootfs afterwards."
+        description: "`1` builds WITHOUT zpkb's base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point — every build is handed all fifteen of its members as artifacts — so on an architecture with no artifacts at all, nothing can be built first. Use it ONLY with seed_dist, and only for the first generation: rebuild everything inside the sovereign rootfs afterwards."
         required: false
         default: ""
       test_only:
-        description: "`1` builds NOTHING: run each named project's own `test:` block against the version already in the registry, and record the outcome in tests.txt. The factory tests an artifact when it publishes it and never again, so this is the only way to notice one that STOPPED working — a dependency whose signature went bad takes every consumer down silently (go-zpkg/bk#250)."
+        description: "`1` builds NOTHING: run each named project's own `test:` block against the version already in the registry, and record the outcome in tests.txt. The factory tests an artifact when it publishes it and never again, so this is the only way to notice one that STOPPED working — a dependency whose signature went bad takes every consumer down silently (go-zpkg/zpkb#250)."
         required: false
         default: ""
       mirror_from:
@@ -129,7 +129,7 @@ jobs:
       # operator asked only to test.
       #
       # Deciding the lane from this input instead would have meant testing it
-      # here as `= 1` while bk reads it through envBool, which also accepts
+      # here as `= 1` while zpkb reads it through envBool, which also accepts
       # `true`. Two readings of one value, disagreeing on exotic input, is
       # the silent divergence this repository keeps finding.
       - name: a test-only dispatch stages no toolchain
@@ -169,7 +169,7 @@ jobs:
         run: |
           # Our own pool needs no `container:` — the Incus container IS the
           # controlled environment. It is debian TRIXIE (glibc 2.41), not
-          # bookworm: the artifacts bk installs to build with are MIRRORED from
+          # bookworm: the artifacts zpkb installs to build with are MIRRORED from
           # upstream and linked against whatever distro built them, and our own
           # gnu.org/coreutils 9.11 needs GLIBC_2.38. On bookworm (2.36) every
           # build died at
@@ -304,12 +304,12 @@ jobs:
 
       # OUR pkgx, not upstream's. Upstream resolves dependencies from its own
       # bundled pantry, so neither overrides/ nor ZPKG_PANTRY_OVERLAY reaches it:
-      # bk passes `+perl.org~5.42` (the pin texinfo's XS modules need) and
+      # zpkb passes `+perl.org~5.42` (the pin texinfo's XS modules need) and
       # upstream intersects it with ITS idea of openssl's `perl.org: 5`, answering
       # "no intersection possible for perl.org" — with no way to correct the
       # recipe it was reading. Ours honours the overlay, resolves from our signed
       # registry, and is the runtime we actually ship.
-      - name: install pkgx (bk sources its toolchain via `pkgx +deps`)
+      - name: install pkgx (zpkb sources its toolchain via `pkgx +deps`)
         run: |
           # CGO_ENABLED=0: this same binary is copied INTO the sovereign rootfs,
           # which has no system libc. Built against the runner's glibc it cannot
@@ -319,11 +319,11 @@ jobs:
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: install bk
+      - name: install zpkb
         # GONOPROXY (workflow env:): pull the current main straight from GitHub,
-        # else the module proxy serves a stale cached @main and CI runs an old bk.
+        # else the module proxy serves a stale cached @main and CI runs an old zpkb.
         run: |
-          # Static for the same reason as pkgx: bk is installed into the rootfs.
+          # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
@@ -336,7 +336,7 @@ jobs:
 
       # The overlay is the half a CONSUMER resolves from, and it declares edges
       # upstream does not: perl.org NEEDs libcrypt.so.1, our overlay names the
-      # provider, upstream's recipe says nothing. Until go-zpkg/bk#224 the
+      # provider, upstream's recipe says nothing. Until go-zpkg/zpkb#224 the
       # factory's closure walk read the pantry alone, so such a provider was
       # never built while every consumer asked the registry for it — and the
       # s390x seed only worked because its order had been computed by hand with
@@ -418,8 +418,8 @@ jobs:
             # ANSWERED, 2026-10-04, by the probe in `record what this run
             # read`: the registry returns HTTP 404 on
             # /v2/<repo>/referrers/<digest>. It does not serve the Referrers
-            # API at all, so bk signs and has nowhere to put the signature.
-            # Not a push that fails quietly, and not a bk defect.
+            # API at all, so zpkb signs and has nowhere to put the signature.
+            # Not a push that fails quietly, and not a zpkb defect.
             #
             # Which makes this setting the right one for a second reason, not
             # only the loopback argument: a registry that cannot HOLD a
@@ -520,12 +520,16 @@ jobs:
           zpkb builder --dry-run \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt || true
+          # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
+          # can be on the same PATH. See sovereign.yml.
+          #
+          # ⛔ ABOVE the command, never between its continued lines: a `#` line
+          # there ends the continuation (actionlint SC2215, measured — see
+          # sovereign.yml for the control).
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
             --platform "${{ matrix.platform }}" \
             --toolchain builder/toolchain.txt \
-            # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
-            # can be on the same PATH. See sovereign.yml.
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
             --container
@@ -614,13 +618,24 @@ jobs:
           # what fills the disk was therefore printed only on the runs where
           # the disk did not fill.
           #
-          # bk removes a build tree once its artifact is PUBLISHED, so what is
-          # here is what FAILED, kept on purpose. That day it was 4.2 GiB of
+          # zpkb removes a build tree once its artifact is PUBLISHED, so what
+          # is here is what FAILED, kept on purpose. That day it was 4.2 GiB of
           # rust-lang.org from two earlier runs, against 13 GiB for the llvm
           # tree being built and 19 GiB free when the run started.
-          root="$HOME/.local/share/brewkit"
+          #
+          # ⛔ The root was `~/.local/share/brewkit` until zpkb v0.80.0 renamed
+          # it. Both are reported, and that is not pkgx compatibility: these
+          # runners are long-lived and OURS, so a tree a pre-v0.80.0 run left
+          # behind still occupies the disk this step exists to measure. Drop
+          # the second line once every runner has been cleaned once.
+          root="$HOME/.local/share/zpkb"
+          oldroot="$HOME/.local/share/brewkit"
+          if [ -d "$oldroot" ]; then
+            echo "build trees retained under the PRE-v0.80.0 root ($oldroot):"
+            du -sh "$oldroot" 2>/dev/null || true
+          fi
           if [ -d "$root" ]; then
-            echo "build trees retained (bk keeps only what FAILED):"
+            echo "build trees retained (zpkb keeps only what FAILED):"
             du -sm "$root"/*/*/ 2>/dev/null | sort -rn | head -10 |
               while read -r mb path; do printf '  %6s MiB  %s\n' "$mb" "${path#$root/}"; done
             biggest=$(du -sm "$root"/*/*/ 2>/dev/null | sort -rn | head -1 | cut -f1)
@@ -640,7 +655,7 @@ jobs:
           # The workflow's native token — no long-lived PAT; the go-zpkg/packages
           # packages are owned by this repo, so GITHUB_TOKEN writes natively.
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # bk resolves a project's versions from api.github.com, and sends
+          # zpkb resolves a project's versions from api.github.com, and sends
           # `Authorization: Bearer $GITHUB_TOKEN` when it has one. Without it
           # the calls are ANONYMOUS — 60 requests an hour against a workflow
           # that resolves one project after another — and the run fails partway
@@ -658,7 +673,7 @@ jobs:
           GLIBC: ${{ github.event.inputs.glibc }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
-          # The overlay is what bk's `--overrides` does for the recipes bk READS,
+          # The overlay is what zpkb's `--overrides` does for the recipes zpkb READS,
           # but for the recipes PKGX reads while materialising a build's
           # dependency environment. Without it, a dependency whose upstream recipe
           # still pins `openssl.org: ^1.1` stops the build with "no version of
@@ -668,11 +683,11 @@ jobs:
           ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
           VERSIONS: ${{ github.event.inputs.versions }}
           BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
-          # A VARIABLE bk reads through envBool, never
+          # A VARIABLE zpkb reads through envBool, never
           # ${TEST_ONLY:+--test-only} on the command line below: `:+` tests
           # for non-empty and "0" is not empty, so that form turns the flag
           # ON when a dispatch said off. envBool exists because FORCE=0 had
-          # to mean off (go-zpkg/bk#251), and this joins FORCE, NO_CLOSURE
+          # to mean off (go-zpkg/zpkb#251), and this joins FORCE, NO_CLOSURE
           # and PIN_TO_DEPENDENTS in reading it that way.
           TEST_ONLY: ${{ github.event.inputs.test_only }}
           JOBS: ${{ matrix.jobs }}
@@ -680,7 +695,7 @@ jobs:
         run: |
           FORCE=""
           # A LOCK wins over every other way of naming the set, and is passed
-          # to bk as a FILE rather than expanded here: bk reads it, and a
+          # to zpkb as a FILE rather than expanded here: zpkb reads it, and a
           # second expansion in shell would be a second answer to the same
           # question. See `zpkb factory --lock`.
           if [ -n "${{ github.event.inputs.lock }}" ]; then
@@ -710,13 +725,16 @@ jobs:
           # itself — it arrives as somebody else's error. The s390x seed hit
           # it on the fifty-seventh project and reported
           #   kernel.org/linux-headers: fetch: write …: no space left on device
-          # naming a project that had done nothing wrong. bk now removes a
-          # published build tree (go-zpkg/bk#217); what a run INHERITS from
+          # naming a project that had done nothing wrong. zpkb now removes a
+          # published build tree (go-zpkg/zpkb#217); what a run INHERITS from
           # earlier ones it cannot remove, and only a number shows that.
           if [ -n "${{ github.event.inputs.clean_build_root }}" ]; then
             echo "clearing the build root a previous run left behind:"
-            du -sh "$HOME/.local/share/brewkit" 2>/dev/null || true
-            rm -rf "$HOME/.local/share/brewkit"
+            # BOTH roots: zpkb's own, and the pre-v0.80.0 `brewkit` spelling,
+            # which these long-lived runners still hold and which repointing
+            # the lane would otherwise make unreclaimable.
+            du -sh "$HOME/.local/share/zpkb" "$HOME/.local/share/brewkit" 2>/dev/null || true
+            rm -rf "$HOME/.local/share/zpkb" "$HOME/.local/share/brewkit"
           fi
           echo "disk before:"; df -h "$HOME" | tail -1
           # The cap this run will use was computed and printed by the step
@@ -737,7 +755,7 @@ jobs:
             JOBS="$MEM_JOBS"
             export JOBS
           fi
-          du -sh "$HOME/.local/share/brewkit" 2>/dev/null || echo "  (no build root yet)"
+          du -sh "$HOME/.local/share/zpkb" "$HOME/.local/share/brewkit" 2>/dev/null || echo "  (no build root yet)"
           MAX_VERSIONS="${{ github.event.inputs.max_versions }}"
           NO_CLOSURE="${{ github.event.inputs.no_closure }}"
           PIN_TO_DEPENDENTS="${{ github.event.inputs.pin_to_dependents }}"
@@ -781,14 +799,14 @@ jobs:
               "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \
               ${GLIBC:+--glibc "$GLIBC"} \
               ${VERSIONS:+--versions "$VERSIONS"}
-            # bk runs with the chroot's root as its CWD, so everything it
+            # zpkb runs with the chroot's root as its CWD, so everything it
             # writes lands in the rootfs and not in the workspace the upload
             # steps read. Without this the failure lists are LOST: a lot that
             # fails a dozen recipes uploads no artifacts at all, and the only
             # remaining trace is the job log — which is exactly the evidence a
             # campaign needs to tell a broken recipe from a broken factory.
             cp -r "$RUNNER_TEMP/rootfs/dist" dist 2>/dev/null || true
-            # tests.txt joins them: go-zpkg/bk#248 has the factory record
+            # tests.txt joins them: go-zpkg/zpkb#248 has the factory record
             # each published package's own test: block, and a record written
             # inside the rootfs is a record nobody reads.
             for f in failures.txt failures-detail.txt tests.txt; do
@@ -931,16 +949,19 @@ jobs:
           if [ -r /proc/meminfo ]; then
             awk '/^Mem(Total|Available):/{printf "%s %d MiB\n", $1, $2/1024}' /proc/meminfo
           fi
-          du -sh "$HOME/.local/share/brewkit" 2>/dev/null || echo "  (no build root)"
-          # The ten biggest directories left behind, at ANY depth. bk
-          # removes a tree once its artifact is PUBLISHED (go-zpkg/bk#217),
+          du -sh "$HOME/.local/share/zpkb" "$HOME/.local/share/brewkit" 2>/dev/null || echo "  (no build root)"
+          # The ten biggest directories left behind, at ANY depth. zpkb
+          # removes a tree once its artifact is PUBLISHED (go-zpkg/zpkb#217),
           # so what remains is what FAILED — kept on purpose, and worth
           # seeing the size of.
           #
           # No glob: a project name carries a variable number of slashes
           # (zlib.net against x.org/protocol/xcb), so a fixed `*/*/*`
           # would compare a project directory against a version one.
-          du -h "$HOME/.local/share/brewkit" 2>/dev/null | sort -rh | head -10 || true
+          #
+          # The pre-v0.80.0 `brewkit` root is listed beside it for as long as
+          # these runners still hold trees from before the rename.
+          du -h "$HOME/.local/share/zpkb" "$HOME/.local/share/brewkit" 2>/dev/null | sort -rh | head -10 || true
 
       # What a SEED generation was made of.
       #
@@ -961,7 +982,7 @@ jobs:
       # which is the part that is about ANY run.
       #
       # Found by needing it: a --test-only sweep chased the same question
-      # twice — which bk did this run install? — and the only trace was the
+      # twice — which zpkb did this run install? — and the only trace was the
       # module cache's tar warnings, which name whatever versions are on
       # disk rather than the one that ran.
       #
@@ -986,7 +1007,7 @@ jobs:
             echo
             # The commit above this file is only ONE of the run's inputs. The
             # pantry and the overlay are cloned --depth 1 from a moving branch
-            # and bk is installed @main, so three of the four inputs to a build
+            # and zpkb is installed @main, so three of the four inputs to a build
             # were, until this block, decided at run time and written nowhere.
             #
             # On 2026-09-29 two runs an hour apart at the SAME packages commit
@@ -1016,8 +1037,8 @@ jobs:
             # print NOTHING and succeed, and an empty field beside a label
             # reads as an answer. Ask whether it is empty, and say so.
             # ⛔ `zpkb`, AND THE MODULE FILTER BELOW IS WHY IT MATTERS HERE.
-            # The lookup was `command -v bk`; the binary is `zpkb` since the
-            # rename. Left as `bk` it finds nothing, prints `(unread)`, and
+            # The lookup was `command -v zpkb`; the binary is `zpkb` since the
+            # rename. Left as `zpkb` it finds nothing, prints `(unread)`, and
             # this provenance record silently stops saying which factory built
             # the run — the exact failure the comment above is about.
             bkver=""
@@ -1069,7 +1090,7 @@ jobs:
               #
               # The second generation died staging its rootfs on "zlib.net
               # v1.3.2 (linux/s390x) is unsigned (no signature referrer)",
-              # and the seed run HAS $SIGNING_KEY — bk signs whenever it is
+              # and the seed run HAS $SIGNING_KEY — zpkb signs whenever it is
               # set. So either the registry cannot store a referrer or the
               # push fails quietly, and nothing on the runner said which.
               #
@@ -1151,7 +1172,7 @@ jobs:
           if-no-files-found: ignore
 
       # What each published package's OWN test: block said — four states, one
-      # line each (go-zpkg/bk#248). Separate from failures.txt on purpose: a
+      # line each (go-zpkg/zpkb#248). Separate from failures.txt on purpose: a
       # failing test is not a failing build, and the factory's exit status is
       # untouched by it. Of 12 test failures measured over 120 packages only 2
       # were an artifact nobody can run, which is why this is a record and not a
