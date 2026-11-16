@@ -7,7 +7,7 @@
 # Installed with:  pkgm install -s --prefix /usr -f builder/toolchain.txt
 #
 # This list now also exists as a SET, in the recipe format rather than beside
-# it: go-zpkg/pantry-overlay projects/go-zpkg/base-toolchain. A set is an
+# it: go-zpkg/recipes projects/go-zpkg/base-toolchain. A set is an
 # ordinary recipe carrying `members`, so it can be versioned, published,
 # installed and depended on — none of which a text file can be. Verified
 # equivalent: `zpkb closure go-zpkg/base-toolchain` resolves to the same 41

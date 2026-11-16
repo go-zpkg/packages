@@ -1,4 +1,4 @@
-// Command reduce turns each pantry-overlay entry into what it actually
+// Command reduce turns each go-zpkg/recipes entry into what it actually
 // CHANGES, now that the overlay merges over upstream instead of replacing it
 // (go-zpkg/artifact#103).
 //
@@ -50,7 +50,7 @@ var (
 
 func main() {
 	fs := flag.NewFlagSet("reduce", flag.ExitOnError)
-	overlay := fs.String("overlay", "", "a pantry-overlay checkout")
+	overlay := fs.String("overlay", "", "a go-zpkg/recipes checkout")
 	pantry := fs.String("pantry", "pantry", "a PRISTINE upstream pantry — what a consumer merges over")
 	write := fs.Bool("write", false, "rewrite the files (the check runs either way)")
 	_ = fs.Parse(os.Args[1:])

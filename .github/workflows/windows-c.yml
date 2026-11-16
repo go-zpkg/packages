@@ -27,7 +27,7 @@ env:
   GOPROXY: https://proxy.golang.org,direct
   GONOPROXY: github.com/go-zpkg/*
   ZPKG_DIST: oci://ghcr.io/go-pkgx/packages
-  ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
+  ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
 
 jobs:
   build:

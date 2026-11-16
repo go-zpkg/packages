@@ -86,7 +86,7 @@ jobs:
       - name: clone pantry and overlay
         run: |
           git clone --depth 1 https://github.com/pkgxdev/pantry
-          git clone --depth 1 https://github.com/go-zpkg/pantry-overlay overlay
+          git clone --depth 1 https://github.com/go-zpkg/recipes overlay
           echo "pantry  $(git -C pantry rev-parse HEAD)"
           echo "overlay $(git -C overlay rev-parse HEAD)"
 

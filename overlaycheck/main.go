@@ -5,7 +5,7 @@
 //
 //   - overrides/<name>-new.patch, applied to a fresh pkgxdev/pantry clone, is
 //     what `zpkb` BUILDS from;
-//   - go-zpkg/pantry-overlay/projects/<project>/package.hcl is what a consumer
+//   - go-zpkg/recipes/projects/<project>/package.hcl is what a consumer
 //     RESOLVES over HTTP (artifact's fetchRecipe tries the overlay, then upstream,
 //     and nothing else).
 //
@@ -69,7 +69,7 @@ import (
 // is a property of the delivery path, not of this check, and it is not what
 // this check is for — a maintainer forgetting a half is about what is
 // COMMITTED.
-const overlayBase = "https://api.github.com/repos/go-zpkg/pantry-overlay/contents/projects"
+const overlayBase = "https://api.github.com/repos/go-zpkg/recipes/contents/projects"
 
 // httpGet is a seam so the tests do not reach the network.
 var httpGet = func(url string) (int, []byte, error) {
@@ -420,7 +420,7 @@ var closureKeys = []string{"build.dependencies"}
 var deliberate = map[string]bool{
 	// ── one declared edge, where upstream's recipe omits it ──
 	//
-	// go-zpkg/pantry-overlay#30: the published artifact links gettext on darwin
+	// go-zpkg/recipes#30: the published artifact links gettext on darwin
 	// and upstream's recipe names it only as a build dependency.
 	"gnu.org/libiconv": true,
 	// The published perl artifact NEEDs libcrypt.so.1; glibc dropped it, and
@@ -442,7 +442,7 @@ var deliberate = map[string]bool{
 	// ⛔ They are NOT "the overlay fallen behind the pantry", which is the
 	// other thing this gate reports and the reason it must not be silenced
 	// wholesale: that case is still an error for every project not listed here.
-	"gnu.org/bash":      true, // go-zpkg/pantry-overlay#87
+	"gnu.org/bash":      true, // go-zpkg/recipes#87
 	"gnu.org/grep":      true, // #84
 	"gnu.org/gzip":      true, // #83
 	"gnu.org/m4":        true, // #90, the first with no dependencies at all
