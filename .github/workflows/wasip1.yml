@@ -46,7 +46,13 @@ env:
   # will still overwrite an address, rewriting what every existing lock,
   # install and signature refers to (go-zpkg/zpkb#416). zpkbpin_test.go holds
   # the floor and the reason together.
-  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
+  #
+  # ⛔⛔ v0.83.0 now: that tag renames the environment variables this repository
+  # SETS — ZPKG_PANTRY_OVERLAY is ZPKG_RECIPES_OVERLAY, `pantry` having been
+  # pkgx's word (go-zpkg/zpkb#496). A lane below it reads the OLD name, gets the
+  # empty string, and builds with no overlay while exiting 0, which is why the
+  # FLOOR moved with the pins rather than only the pins.
+  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.83.0
 
 jobs:
   build:

@@ -303,7 +303,7 @@ jobs:
         with: { go-version: '1.27.4' }
 
       # OUR pkgx, not upstream's. Upstream resolves dependencies from its own
-      # bundled pantry, so neither overrides/ nor ZPKG_PANTRY_OVERLAY reaches it:
+      # bundled pantry, so neither overrides/ nor ZPKG_RECIPES_OVERLAY reaches it:
       # zpkb passes `+perl.org~5.42` (the pin texinfo's XS modules need) and
       # upstream intersects it with ITS idea of openssl's `perl.org: 5`, answering
       # "no intersection possible for perl.org" — with no way to correct the
@@ -477,7 +477,7 @@ jobs:
       - name: stage the sovereign rootfs
         if: env.SOVEREIGN_ON == '1'
         env:
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           # A SELF-HOSTED runner reuses $RUNNER_TEMP between jobs, and
@@ -680,7 +680,7 @@ jobs:
           # openssl.org satisfies ^1.1" — which is exactly how
           # github.com/containers/crun died, through python.org, on a runner
           # where every other correction WAS applied.
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
           VERSIONS: ${{ github.event.inputs.versions }}
           BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
           # A VARIABLE zpkb reads through envBool, never
@@ -823,7 +823,7 @@ jobs:
             # parse stops a publish, and the fortieth artifact of a chunk is six
             # hours into the run.
             zpkb factory \
-              --pantry pantry \
+              --recipe-dir pantry \
               --overrides overrides \
               --overlay overlay \
               --advisories advisories \
@@ -922,7 +922,7 @@ jobs:
         run: |
           set -eu
           zpkb catalog \
-            --pantry pantry \
+            --recipe-dir pantry \
             --overlay overlay \
             --overrides overrides \
             --versions \

@@ -307,7 +307,7 @@ What is left is not one problem. `zpkb depgaps` separates the two, ranks each by
 many recipes it blocks, and reads satisfiability through artifact's own semver so it
 agrees with what pkgx will decide at install:
 
-    zpkb depgaps --pantry pantry --overrides overrides --registry registry.json \
+    zpkb depgaps --recipe-dir pantry --overrides overrides --registry registry.json \
                --platform linux/x86-64
 
 - A **version line** the registry does not carry. `python.org ~3.12` blocked 23

@@ -29,7 +29,7 @@
 # and compile with it (the pantry mounted, the output bind-mounted out):
 #
 #   docker run --rm -v "$PWD/pantry:/pantry:ro" -v "$PWD/out:/out" zpkb-builder \
-#     factory --platform linux/aarch64 --pantry /pantry --recipes lz4.org \
+#     factory --platform linux/aarch64 --recipe-dir /pantry --recipes lz4.org \
 #             --libc zpkx --bottles /out/dist --to oci://…
 FROM scratch
 ENV ZPKG_DIR=/zpkg
@@ -46,7 +46,7 @@ ENV ZPKG_DIST=$DIST
 # and 4.x). overrides/ fixes those for BUILDS, but installing reads the pantry
 # directly — so the image consults our small corrected overlay first, exactly as
 # the from-scratch panel does.
-ENV ZPKG_PANTRY_OVERLAY=https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+ENV ZPKG_RECIPES_OVERLAY=https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
 
 COPY zpkm /zpkm
 COPY zpkx /usr/local/bin/zpkx
