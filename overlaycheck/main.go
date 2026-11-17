@@ -463,6 +463,61 @@ var deliberate = map[string]bool{
 	"lz4.org":        true,
 	"tukaani.org/xz": true,
 	"zlib.net":       true,
+
+	// ⭐ THE REST OF THE CAMPAIGN, and the criterion is MEASURED rather than
+	// asserted project by project. Every recipe in go-zpkg/recipes carries a
+	// `provenance` block naming the project's own files its build was written
+	// from — `zpkb lint --require-provenance` exits 0 over all 233 — so "this
+	// one was written from the project's sources" is a property the tree proves
+	// about itself, not a claim made twenty times here.
+	//
+	// ⛔ EACH IS STILL LISTED INDIVIDUALLY, because the other case this gate
+	// reports — an overlay entry that has FALLEN BEHIND the pantry — stays an
+	// error for every project not named, and a wildcard would retire the gate
+	// instead of answering it.
+	"freedesktop.org/pkg-config": true, // go-zpkg/recipes#133
+	"freetype.org":               true, // go-zpkg/recipes#121, the first CMake project
+	"github.com/westes/flex":     true, // go-zpkg/recipes#119, the first settled by BUILDING it
+	"gnu.org/autoconf":           true, // go-zpkg/recipes#129
+	"gnu.org/automake":           true, // go-zpkg/recipes#130
+	"gnu.org/binutils":           true, // go-zpkg/recipes#118, the first `provides` that could not be a list
+	"gnu.org/bison":              true, // go-zpkg/recipes#128
+	"gnu.org/coreutils":          true, // go-zpkg/recipes#117
+	"gnu.org/gawk":               true, // go-zpkg/recipes#114, it links libmpfr and libgmp and declared neither
+	"gnu.org/glibc":              true, // go-zpkg/recipes#127
+	"gnu.org/gmp":                true, // go-zpkg/recipes#134
+	"gnu.org/help2man":           true, // go-zpkg/recipes#115
+	"gnu.org/libtool":            true, // go-zpkg/recipes#131
+	"gnu.org/make":               true, // go-zpkg/recipes#111
+	"gnu.org/mpc":                true, // go-zpkg/recipes#136
+	"gnu.org/mpfr":               true, // go-zpkg/recipes#135
+	"gnu.org/sed":                true, // go-zpkg/recipes#112
+	"gnu.org/texinfo":            true, // go-zpkg/recipes#132
+	"gnu.org/wget":               true, // go-zpkg/recipes#120
+	"kernel.org/linux-headers":   true, // go-zpkg/recipes#126
+
+	// ── the overlay CORRECTS upstream's version enumeration ──
+	//
+	// ⛔ A THIRD KIND, and it is NOT the second one. These two are still
+	// FRAGMENTS — `zpkb lint --require-standalone` reports both as "states no
+	// distributable, no build" — so nothing here was written from the project's
+	// sources and the paragraph above does not describe them. What they change
+	// is `versions.ignore`, deliberately, each from a reading of the project's
+	// own data.
+	//
+	// curl.se (go-zpkg/recipes#124): upstream ignores `/8\.1[8-9]\..*/` and
+	// `/8\.2\d\..*/` for an OpenSSL 3 requirement that this entry's own
+	// `openssl.org ^3` already satisfies, and they capped the recipe at 8.17.0.
+	// Removing them is the point: measured A/B, 91 versions resolve with them
+	// and the newest is 8.17.0; without them the newest is 8.23.0. So the
+	// overlay's one ignore against the factory's three is the fix, not drift.
+	"curl.se": true,
+	// python.org (go-zpkg/recipes#123): upstream's six ignores include two
+	// written as GLOB idioms in a regex field — `3.[0-2].x` and `2.[0-6].x`,
+	// whose trailing `x` matches a literal x and so matched nothing. The four
+	// that work are kept verbatim and the inert pair is rewritten, which is why
+	// this half states nine where the factory's states six.
+	"python.org": true,
 }
 
 // overlayRecipeFile reads a project's recipe out of an overlay checkout, in the
