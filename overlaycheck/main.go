@@ -475,6 +475,12 @@ var deliberate = map[string]bool{
 	// reports — an overlay entry that has FALLEN BEHIND the pantry — stays an
 	// error for every project not named, and a wildcard would retire the gate
 	// instead of answering it.
+	// ⛔ zstd's entry is the one to read if only one is read. Its recipe pins
+	// HAVE_ZLIB=0, HAVE_LZMA=0 and HAVE_LZ4=0 because programs/Makefile:78,:89,
+	// :100 define each as a COMPILE-AND-LINK PROBE against whatever the sandbox
+	// staged — so upstream's recipe and ours do not merely differ in `provides`,
+	// they describe binaries with different DT_NEEDED lists.
+	"facebook.com/zstd":          true, // go-zpkg/recipes#146
 	"freedesktop.org/pkg-config": true, // go-zpkg/recipes#133
 	"freetype.org":               true, // go-zpkg/recipes#121, the first CMake project
 	"github.com/westes/flex":     true, // go-zpkg/recipes#119, the first settled by BUILDING it
@@ -484,6 +490,7 @@ var deliberate = map[string]bool{
 	"gnu.org/bison":              true, // go-zpkg/recipes#128
 	"gnu.org/coreutils":          true, // go-zpkg/recipes#117
 	"gnu.org/gawk":               true, // go-zpkg/recipes#114, it links libmpfr and libgmp and declared neither
+	"gnu.org/gcc/libstdcxx":      true, // go-zpkg/recipes#140, the base toolchain's last unwritten member
 	"gnu.org/glibc":              true, // go-zpkg/recipes#127
 	"gnu.org/gmp":                true, // go-zpkg/recipes#134
 	"gnu.org/help2man":           true, // go-zpkg/recipes#115
@@ -495,6 +502,18 @@ var deliberate = map[string]bool{
 	"gnu.org/texinfo":            true, // go-zpkg/recipes#132
 	"gnu.org/wget":               true, // go-zpkg/recipes#120
 	"kernel.org/linux-headers":   true, // go-zpkg/recipes#126
+	// ⛔ openssl.org is the most depended-on project in the tree — 141 recipes
+	// name it — and its entry exists because the recipe names `HASHBANGPERL`.
+	// Configure:780 defaults PERL to $^X, so upstream's recipe bakes the
+	// building perl's VERSIONED STORE PATH into bin/c_rehash's shebang, which
+	// `zpkb bakedpaths` refuses (go-zpkg/zpkb#397). Ours cannot agree with it.
+	"openssl.org": true, // go-zpkg/recipes#145
+	// ⛔ bzip2's `provides` is FOUR names against upstream's eleven, and that
+	// difference was measured by a lane rather than argued: go-zpkg/packages#310
+	// ran the published bottle on a scratch rootfs and got `bzegrep: line 63:
+	// egrep: command not found` — a green build and a red test, because seven
+	// of the eleven are shell scripts calling programs nothing declared.
+	"sourceware.org/bzip2": true, // go-zpkg/recipes#147
 
 	// ── the overlay CORRECTS upstream's version enumeration ──
 	//
