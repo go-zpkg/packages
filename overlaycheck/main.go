@@ -502,6 +502,17 @@ var deliberate = map[string]bool{
 	"gnu.org/texinfo":            true, // go-zpkg/recipes#132
 	"gnu.org/wget":               true, // go-zpkg/recipes#120
 	"kernel.org/linux-headers":   true, // go-zpkg/recipes#126
+	// ⛔ libexpat's entry is a SECURITY difference, not a cosmetic one. Its
+	// recipe names `--with-getentropy`, because configure.ac gives all five
+	// entropy probes the default `check` (:305) and a failed probe is SILENT
+	// there — the AC_MSG_ERROR at :332-333 fires only for an ENFORCED switch.
+	// Expat salts its HASH TABLE with that entropy (the defence against
+	// hash-collision denial of service, CVE-2012-0876), so upstream's recipe
+	// and ours can differ in how strong that salt is, on the same machine, with
+	// nothing said. It also names `--without-tests`, since configure.ac:216-217
+	// makes a C++11 compiler MANDATORY when tests are built and this is a pure
+	// C library.
+	"libexpat.github.io": true, // go-zpkg/recipes#148
 	// ⛔ openssl.org is the most depended-on project in the tree — 141 recipes
 	// name it — and its entry exists because the recipe names `HASHBANGPERL`.
 	// Configure:780 defaults PERL to $^X, so upstream's recipe bakes the
