@@ -484,24 +484,37 @@ var deliberate = map[string]bool{
 	"freedesktop.org/pkg-config": true, // go-zpkg/recipes#133
 	"freetype.org":               true, // go-zpkg/recipes#121, the first CMake project
 	"github.com/westes/flex":     true, // go-zpkg/recipes#119, the first settled by BUILDING it
-	"gnu.org/autoconf":           true, // go-zpkg/recipes#129
-	"gnu.org/automake":           true, // go-zpkg/recipes#130
-	"gnu.org/binutils":           true, // go-zpkg/recipes#118, the first `provides` that could not be a list
-	"gnu.org/bison":              true, // go-zpkg/recipes#128
-	"gnu.org/coreutils":          true, // go-zpkg/recipes#117
-	"gnu.org/gawk":               true, // go-zpkg/recipes#114, it links libmpfr and libgmp and declared neither
-	"gnu.org/gcc/libstdcxx":      true, // go-zpkg/recipes#140, the base toolchain's last unwritten member
-	"gnu.org/glibc":              true, // go-zpkg/recipes#127
-	"gnu.org/gmp":                true, // go-zpkg/recipes#134
-	"gnu.org/help2man":           true, // go-zpkg/recipes#115
-	"gnu.org/libtool":            true, // go-zpkg/recipes#131
-	"gnu.org/make":               true, // go-zpkg/recipes#111
-	"gnu.org/mpc":                true, // go-zpkg/recipes#136
-	"gnu.org/mpfr":               true, // go-zpkg/recipes#135
-	"gnu.org/sed":                true, // go-zpkg/recipes#112
-	"gnu.org/texinfo":            true, // go-zpkg/recipes#132
-	"gnu.org/wget":               true, // go-zpkg/recipes#120
-	"kernel.org/linux-headers":   true, // go-zpkg/recipes#126
+	// ⛔ gnome.org/libxml2 differs in WHICH ARTIFACT IS BUILT, and the pantry
+	// says so in its own words: its recipe passes `--with-python` and therefore
+	// build-depends on `doxygen.nl` ("since 2.15") and `python.org >=3<3.12`,
+	// and sets a runtime PYTHONPATH. Ours passes `--without-python`. python.org
+	// is one of the twenty-two go-zpkg/recipes#143 is about, so adopting the
+	// pantry's switch here would RAISE this tree's skip count rather than lower
+	// it — the one action this gate must not be read as asking for.
+	// ⚠ And the reason recorded above is the SECOND one written for this entry.
+	// go-zpkg/recipes#149 claimed the doxygen requirement was libxml2's DEFAULT,
+	// from the "(on)" in configure.ac:97-98; go-zpkg/recipes#150 measured that
+	// help text as stale against the generated `configure` and corrected it.
+	// The switch is deliberate either way; only the pantry makes it needed.
+	"gnome.org/libxml2":        true, // go-zpkg/recipes#149, corrected by go-zpkg/recipes#150
+	"gnu.org/autoconf":         true, // go-zpkg/recipes#129
+	"gnu.org/automake":         true, // go-zpkg/recipes#130
+	"gnu.org/binutils":         true, // go-zpkg/recipes#118, the first `provides` that could not be a list
+	"gnu.org/bison":            true, // go-zpkg/recipes#128
+	"gnu.org/coreutils":        true, // go-zpkg/recipes#117
+	"gnu.org/gawk":             true, // go-zpkg/recipes#114, it links libmpfr and libgmp and declared neither
+	"gnu.org/gcc/libstdcxx":    true, // go-zpkg/recipes#140, the base toolchain's last unwritten member
+	"gnu.org/glibc":            true, // go-zpkg/recipes#127
+	"gnu.org/gmp":              true, // go-zpkg/recipes#134
+	"gnu.org/help2man":         true, // go-zpkg/recipes#115
+	"gnu.org/libtool":          true, // go-zpkg/recipes#131
+	"gnu.org/make":             true, // go-zpkg/recipes#111
+	"gnu.org/mpc":              true, // go-zpkg/recipes#136
+	"gnu.org/mpfr":             true, // go-zpkg/recipes#135
+	"gnu.org/sed":              true, // go-zpkg/recipes#112
+	"gnu.org/texinfo":          true, // go-zpkg/recipes#132
+	"gnu.org/wget":             true, // go-zpkg/recipes#120
+	"kernel.org/linux-headers": true, // go-zpkg/recipes#126
 	// ⛔ libexpat's entry is a SECURITY difference, not a cosmetic one. Its
 	// recipe names `--with-getentropy`, because configure.ac gives all five
 	// entropy probes the default `check` (:305) and a failed probe is SILENT
