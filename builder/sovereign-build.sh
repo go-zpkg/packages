@@ -8,7 +8,7 @@
 # and passed as --advisories, so each published artifact carries the OpenVEX
 # document that says what is known about it.
 #
-# $SOVEREIGN_OVERLAY, when set, is a pantry-overlay checkout bound in as
+# $SOVEREIGN_OVERLAY, when set, is a go-zpkg/recipes checkout bound in as
 # /overlay and passed to `zpkb factory --overlay`. It does not change what is
 # BUILT — the factory still compiles the pantry's recipe — it widens the
 # CLOSURE, so a dependency only our overlay declares is built rather than left

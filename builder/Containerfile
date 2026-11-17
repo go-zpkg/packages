@@ -46,7 +46,7 @@ ENV ZPKG_DIST=$DIST
 # and 4.x). overrides/ fixes those for BUILDS, but installing reads the pantry
 # directly — so the image consults our small corrected overlay first, exactly as
 # the from-scratch panel does.
-ENV ZPKG_PANTRY_OVERLAY=https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
+ENV ZPKG_PANTRY_OVERLAY=https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
 
 COPY zpkm /zpkm
 COPY zpkx /usr/local/bin/zpkx

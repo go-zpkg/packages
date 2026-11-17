@@ -82,7 +82,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	pantry := fs.String("pantry", "pantry", "pantry checkout to read recipes from")
 	out := fs.String("overrides", "overrides", "directory the overrides are written to")
-	overlay := fs.String("overlay", "", "ALSO write each corrected recipe whole into this pantry-overlay projects/ dir")
+	overlay := fs.String("overlay", "", "ALSO write each corrected recipe whole into this go-zpkg/recipes projects/ dir")
 	dry := fs.Bool("n", false, "report what would change, write nothing")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -169,7 +169,7 @@ func pinned(projectsDir string) ([]string, error) {
 	return out, err
 }
 
-// writeOverlay writes the corrected recipe WHOLE into a pantry-overlay tree.
+// writeOverlay writes the corrected recipe WHOLE into a go-zpkg/recipes tree.
 // The two halves are not interchangeable: `overrides/` patches the pantry that
 // zpkb BUILDS from, while pkgx resolves an INSTALL by fetching the recipe itself,
 // through ZPKG_PANTRY_OVERLAY. Fixing only the build half leaves every consumer

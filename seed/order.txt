@@ -13,7 +13,7 @@
 #   gnu.org/make is built at 1 and needs gnu.org/m4 at 9
 #
 # gnu.org/m4 can lead: its recipe declares no dependencies at all, which is
-# measured rather than inferred — go-zpkg/pantry-overlay#90 reads configure.ac
+# measured rather than inferred — go-zpkg/recipes#90 reads configure.ac
 # and records that libsigsegv is opt-in.
 gnu.org/m4
 gnu.org/make

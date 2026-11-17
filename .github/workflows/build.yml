@@ -346,7 +346,7 @@ jobs:
       # pantry's recipe with the overrides applied. It widens the closure.
       - name: clone the pantry overlay
         run: |
-          git clone --depth 1 https://github.com/go-zpkg/pantry-overlay overlay
+          git clone --depth 1 https://github.com/go-zpkg/recipes overlay
           echo "overlay $(git -C overlay rev-parse HEAD)"
 
       # The sovereign path: a rootfs assembled from OUR artifacts, entered with
@@ -477,7 +477,7 @@ jobs:
       - name: stage the sovereign rootfs
         if: env.SOVEREIGN_ON == '1'
         env:
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
+          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           # A SELF-HOSTED runner reuses $RUNNER_TEMP between jobs, and
@@ -680,7 +680,7 @@ jobs:
           # openssl.org satisfies ^1.1" — which is exactly how
           # github.com/containers/crun died, through python.org, on a runner
           # where every other correction WAS applied.
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
+          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
           VERSIONS: ${{ github.event.inputs.versions }}
           BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
           # A VARIABLE zpkb reads through envBool, never

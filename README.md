@@ -192,7 +192,7 @@ support ticket becomes unanswerable. See
 
 A project upstream does not carry lives in two places that must agree:
 `overrides/<name>-new.patch`, applied to a fresh pantry clone, is what **`zpkb`
-builds** from; [`pantry-overlay`](https://github.com/go-zpkg/pantry-overlay) is
+builds** from; [`recipes`](https://github.com/go-zpkg/recipes) is
 what a consumer **resolves** over HTTP — `artifact`'s `fetchRecipe` tries the
 overlay, then upstream, and nothing else.
 

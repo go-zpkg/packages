@@ -237,7 +237,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           rm -rf "$RUNNER_TEMP/overlay"
-          git clone --depth 1 https://github.com/go-zpkg/pantry-overlay "$RUNNER_TEMP/overlay"
+          git clone --depth 1 https://github.com/go-zpkg/recipes "$RUNNER_TEMP/overlay"
           # --overrides, because the pantry on disk is no longer the recipe
           # the factory builds: the logical overrides are applied as a recipe
           # is READ and change nothing on the filesystem. Without it this

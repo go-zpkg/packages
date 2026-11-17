@@ -105,7 +105,7 @@ jobs:
 
       - name: stage the sovereign rootfs
         env:
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
+          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
@@ -129,7 +129,7 @@ jobs:
         env:
           ZPKG_DIR: /zpkg
           HOME: /root
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/pantry-overlay/main/projects
+          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
           QEMU_RESERVED_VA: ${{ github.event.inputs.arch == 'aarch64' && '0x400000000' || '' }}
           JOBS: ${{ github.event.inputs.arch == 'aarch64' && '4' || '' }}
           RECIPES: ${{ github.event.inputs.recipe || 'zlib.net' }}

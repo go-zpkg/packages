@@ -104,7 +104,7 @@ and argued about together.
 ## A project upstream does not carry is not an override at all
 
 It is a recipe of ours, and it lives in
-[`pantry-overlay`](https://github.com/go-zpkg/pantry-overlay) — which is also
+[`recipes`](https://github.com/go-zpkg/recipes) — which is also
 what a consumer resolves over HTTP. `zpkb factory` reads it from there when the
 pantry has no such project, so nothing about it belongs in this directory.
 

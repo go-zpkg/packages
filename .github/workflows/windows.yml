@@ -179,7 +179,7 @@ jobs:
       - name: clone pantry and overlay
         run: |
           git clone --depth 1 https://github.com/pkgxdev/pantry
-          git clone --depth 1 https://github.com/go-zpkg/pantry-overlay overlay
+          git clone --depth 1 https://github.com/go-zpkg/recipes overlay
       - name: publish the catalogue
         env:
           OCI_USERNAME: ${{ github.actor }}
