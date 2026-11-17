@@ -183,7 +183,7 @@ jobs:
 
       # OUR pkgx, not upstream's — the same choice build.yml makes, and for the
       # same reason. Upstream resolves from its own bundled pantry and its own
-      # dist, so neither overrides/ nor ZPKG_PANTRY_OVERLAY reaches it: zpkb asks
+      # dist, so neither overrides/ nor ZPKG_RECIPES_OVERLAY reaches it: zpkb asks
       # for `+perl.org~5.42` (the pin texinfo's XS modules need), upstream
       # intersects it with ITS idea of openssl's `perl.org: 5`, and answers
       #   Error: "no intersection possible for perl.org"
@@ -279,7 +279,7 @@ jobs:
           # from the one we publish, and the reason a recipe corrected in the
           # overlay (openssl ^1.1 → ^3) still failed here.
           ZPKG_DIST: oci://ghcr.io/go-pkgx/packages
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           # FORCE on a manual dispatch, exactly as build.yml does. Without it a
           # dispatch SKIPS the version it was asked for whenever that version is
@@ -313,7 +313,7 @@ jobs:
           # re-triage what we already decided — and a flag added to one lane is
           # the half-a-pair defect this repository has paid for before.
           zpkb factory \
-            --pantry pantry \
+            --recipe-dir pantry \
             --overrides overrides \
             --overlay overlay \
             --advisories advisories \
@@ -383,7 +383,7 @@ jobs:
         run: |
           set -eu
           zpkb catalog \
-            --pantry pantry \
+            --recipe-dir pantry \
             --overlay overlay \
             --overrides overrides \
             --versions \

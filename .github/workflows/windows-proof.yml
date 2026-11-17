@@ -83,7 +83,7 @@ jobs:
           $srv = Start-Process python -PassThru -ArgumentList '-m','http.server','8213' -WorkingDirectory (Resolve-Path dist)
           Start-Sleep -Seconds 3
           $env:ZPKG_DIST   = "http://127.0.0.1:8213"
-          $env:ZPKG_PANTRY = "http://127.0.0.1:8213"
+          $env:ZPKG_RECIPES = "http://127.0.0.1:8213"
           $env:ZPKG_DIR    = "$PWD\store"
           try {
             $out = (& .\pkgx\pkgx.exe sqlite.org ':memory:' "select 'win-sqlite '|| sqlite_version();" 2>&1 | Out-String).Trim()

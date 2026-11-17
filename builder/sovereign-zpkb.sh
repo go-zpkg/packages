@@ -42,7 +42,7 @@ SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 # --preserve-env is sudo's flag, so it goes when sudo does (see sovereign-build.sh).
 PRESERVE=""
-[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,OCI_PASSWORD,SIGNING_KEY,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_PANTRY_OVERLAY,SOURCE_DATE_EPOCH"
+[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,OCI_PASSWORD,SIGNING_KEY,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,SOURCE_DATE_EPOCH"
 
 # shellcheck disable=SC2016  # the inner script is literal: it runs in the new namespace.
 # shellcheck disable=SC2086  # $PRESERVE is one flag or nothing.

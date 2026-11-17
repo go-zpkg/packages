@@ -116,7 +116,7 @@ jobs:
         run: |
           set -eu
           zpkb catalog \
-            --pantry pantry \
+            --recipe-dir pantry \
             --overlay overlay \
             --overrides overrides \
             --versions \

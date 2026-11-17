@@ -112,7 +112,7 @@ jobs:
 
       - name: stage the sovereign rootfs
         env:
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           # ⛔⛔ `command -v pkgx` WOULD NOW FIND SOMEBODY ELSE'S PROGRAM.
           # Ours is `zpkx` since the rename, and `pkgx` is upstream's — a
@@ -164,7 +164,7 @@ jobs:
           # path no consumer has. Measured on the first artifact this job built.
           ZPKG_DIR: /zpkg
           HOME: /root
-          ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
           # Our aarch64 pool is emulated by construction — the host is amd64 —
           # and qemu-user fakes uname AND /proc/cpuinfo, so nothing inside the
           # container can tell. The workflow knows, so it says.

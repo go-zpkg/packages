@@ -125,7 +125,7 @@ and gates the half a consumer reads.
    recipe — and not a `zpkb` behaviour gap. Fix `zpkb` instead if it is.
 3. Write `overrides/<slug>.hcl`. Say **why**, and say what would make it
    unnecessary.
-4. `go run github.com/go-zpkg/zpkb/cmd/zpkb@main overrides --pantry <fresh clone>`
+4. `go run github.com/go-zpkg/zpkb/cmd/zpkb@main overrides --recipe-dir <fresh clone>`
    to see it apply.
 5. Validate it builds.
 6. Propose the equivalent change upstream; when it lands, `zpkb overrides` will

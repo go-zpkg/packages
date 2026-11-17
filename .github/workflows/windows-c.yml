@@ -27,7 +27,7 @@ env:
   GOPROXY: https://proxy.golang.org,direct
   GONOPROXY: github.com/go-zpkg/*
   ZPKG_DIST: oci://ghcr.io/go-pkgx/packages
-  ZPKG_PANTRY_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+  ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
 
 jobs:
   build:
@@ -73,7 +73,15 @@ jobs:
           # refuses to publish bytes that differ from what a hashed tag
           # already holds. A lane at v0.64.0 computes a good identity and will
           # still overwrite an address (go-zpkg/zpkb#416).
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.69.0
+          #
+          # ⛔⛔ v0.83.0 now, for a THIRD: that tag renames the environment
+          # variables this workflow SETS — ZPKG_PANTRY_OVERLAY is
+          # ZPKG_RECIPES_OVERLAY, because `pantry` was pkgx's word and
+          # go-zpkg/pantry-overlay is go-zpkg/recipes now (go-zpkg/zpkb#496).
+          # A lane left behind reads the OLD name, gets the empty string, and
+          # builds with no overlay while exiting 0. The pin and the variable
+          # move together or the lane goes quietly wrong.
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.83.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@main
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"

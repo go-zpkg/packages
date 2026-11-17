@@ -51,7 +51,7 @@ import (
 // lane must not be without. It is not a "latest" check and must never become
 // one: a lane pinned behind for a reason of its own is fine until it is
 // behind THIS.
-const zpkbIdentityFloor = "v0.69.0"
+const zpkbIdentityFloor = "v0.83.0"
 
 // zpkbFloorReason says what THIS floor buys, and moves with it.
 //
@@ -63,10 +63,13 @@ const zpkbIdentityFloor = "v0.69.0"
 // names the wrong cause sends the reader to fix the wrong thing, and it reads
 // as authoritative because it came from a gate.
 const zpkbFloorReason = "from v0.66.0 the factory REFUSES to publish an artifact that is unsigned or " +
-	"unidentified, v0.67.0 added --spec-recipe-from so a lane with no pantry plan can state its " +
-	"identity instead of hashing one in the shell, and v0.69.0 carries the trust set as it stands " +
+	"unidentified, v0.67.0 added --spec-recipe-from so a lane with no recipe plan can state its " +
+	"identity instead of hashing one in the shell, v0.69.0 carries the trust set as it stands " +
 	"after the 2026-11-06 key rotation — a lane below that reports an artifact signed by the retired " +
-	"key as signed by nobody it knows (go-zpkg/zpkb#416)"
+	"key as signed by nobody it knows (go-zpkg/zpkb#416) — and v0.83.0 reads the environment " +
+	"variables this repository now SETS: the `pantry` names were retired with the repository's own " +
+	"rename, so a lane below it looks for ZPKG_PANTRY_OVERLAY, finds the empty string, and builds " +
+	"with NO OVERLAY while exiting 0 (go-zpkg/zpkb#496)"
 
 // zpkbPinRE matches an install or run of our factory at an explicit version.
 // `@main` is deliberately NOT matched: this repository runs most lanes from

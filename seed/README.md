@@ -20,13 +20,13 @@ So the order is a human artefact with a machine-checkable property, and both
 halves matter:
 
 ```
-zpkb closure --cycles --build --pantry P --overlay O --overrides overrides $(…)
+zpkb closure --cycles --build --recipe-dir P --overlay O --overrides overrides $(…)
 ```
 
 names the components, and
 
 ```
-zpkb closure --build --check-order seed/order.txt --pantry P --overlay O --overrides overrides $(…)
+zpkb closure --build --check-order seed/order.txt --recipe-dir P --overlay O --overrides overrides $(…)
 ```
 
 separates what the file decided from what it got wrong:

@@ -151,7 +151,7 @@ jobs:
           # GONOPROXY (workflow env:): a proxy-cached `@main` can be an older
           # zpkb, and "unknown subcommand" is a confusing way to learn that.
           go run github.com/go-zpkg/zpkb/cmd/zpkb@main overrides \
-            --dir overrides --pantry "$RUNNER_TEMP/pantry"
+            --dir overrides --recipe-dir "$RUNNER_TEMP/pantry"
 
       # The step above leaves a pantry with every override applied — which is
       # the recipe the FACTORY builds. The overlay is the recipe a CONSUMER
@@ -285,7 +285,7 @@ jobs:
         run: |
           go run github.com/go-zpkg/zpkb/cmd/zpkb@main closure --build \
             --check-order seed/order.txt \
-            --pantry "$RUNNER_TEMP/pantry" \
+            --recipe-dir "$RUNNER_TEMP/pantry" \
             --overlay "$RUNNER_TEMP/overlay" \
             --overrides overrides \
             $(grep -vE '^[[:space:]]*(#|$)' seed/order.txt | tr '\n' ' ')
