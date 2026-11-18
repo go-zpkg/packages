@@ -33,6 +33,14 @@ gnu.org/mpfr
 gnu.org/mpc
 bytereef.org/mpdecimal
 invisible-island.net/ncurses
+# ⛔ patch MOVED UP FROM 49 BECAUSE readline NOW NEEDS IT. go-zpkg/recipes#153
+# applies the six official readline-8.3 patches, so `gnu.org/patch` became a
+# build dependency of a project built at 19 while patch sat at 32 — one edge out
+# of order, outside any cycle, and the `--check-order` lane went red on main the
+# moment that recipe merged. gnu.org/patch declares NO dependencies of its own
+# (measured: its recipe has no `dependencies` block at all), so it can lead;
+# moving readline down instead would have dragged everything that follows it.
+gnu.org/patch
 gnu.org/readline
 libexpat.github.io
 sourceware.org/bzip2
@@ -46,7 +54,6 @@ x.org/util-macros
 x.org/protocol
 x.org/xau
 x.org/xdmcp
-gnu.org/patch
 x.org/protocol/xcb
 x.org/xcb
 gnu.org/sed

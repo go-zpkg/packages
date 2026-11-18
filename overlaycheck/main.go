@@ -510,10 +510,26 @@ var deliberate = map[string]bool{
 	"gnu.org/libtool":       true, // go-zpkg/recipes#131
 	"gnu.org/make":          true, // go-zpkg/recipes#111
 	"gnu.org/mpc":           true, // go-zpkg/recipes#136
-	"gnu.org/mpfr":          true, // go-zpkg/recipes#135
-	"gnu.org/sed":           true, // go-zpkg/recipes#112
-	"gnu.org/texinfo":       true, // go-zpkg/recipes#132
-	"gnu.org/wget":          true, // go-zpkg/recipes#120
+	// ⛔⛔ gnu.org/readline's entry exists for something THIS GATE CANNOT SEE,
+	// and that is the reason to read it. What it prints is two fields —
+	// `versions.strip[0]` anchored, and a `distributable.sha256` the pantry does
+	// not pin. What it does not print is the build: ours applies the SIX
+	// official patches GNU publishes for 8.3 (readline83-001…006, each signed
+	// by the key that signed the tarball), where the pantry applies none and
+	// carries `#TODO brew has a couple patches we should apply`. Two of the six
+	// fix crashes — 002 is a use-after-free in a signal handler, reachable by
+	// pressing Ctrl-C during a reverse i-search; 006 crashes on a prompt over
+	// 256 wrapped lines — and TWELVE recipes here link readline.
+	// ⚠ Ours also replaces the pantry's `LDFLAGS: -lncursesw` workaround with
+	// `--with-shared-termcap-library=-lncursesw`, the switch readline provides
+	// for the branch that causes it: configure:7425-7427 sets TERMCAP_LIB to the
+	// EMPTY STRING when the termcap probe answers `libc`. Aligning either of
+	// those with the pantry would ship a known segfault to twelve consumers.
+	"gnu.org/readline": true, // go-zpkg/recipes#153
+	"gnu.org/mpfr":     true, // go-zpkg/recipes#135
+	"gnu.org/sed":      true, // go-zpkg/recipes#112
+	"gnu.org/texinfo":  true, // go-zpkg/recipes#132
+	"gnu.org/wget":     true, // go-zpkg/recipes#120
 	// ⛔ invisible-island.net/ncurses differs in a way that would be invisible
 	// in a build log and fatal at link time if it were "corrected" the other
 	// way. `--with-shared` is NOT the default — configure:6125-6130 has
