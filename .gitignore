@@ -41,3 +41,9 @@ tests.txt
 /builder/zpkx
 /builder/zpkgm
 /builder/zpkgx
+
+# A session waiting on CI writes `prwait -repo O/R N > .prwait-N.log` in the
+# checkout, and one of those reached a commit in this repository on 2026-11-18.
+# A log that names a pull request is a transient of one turn; nothing here reads
+# it, and `git add -A` picks it up by construction.
+/.prwait-*.log
