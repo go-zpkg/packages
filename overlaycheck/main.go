@@ -610,6 +610,18 @@ var deliberate = map[string]bool{
 	// Configure:780 defaults PERL to $^X, so upstream's recipe bakes the
 	// building perl's VERSIONED STORE PATH into bin/c_rehash's shebang, which
 	// `zpkb bakedpaths` refuses (go-zpkg/zpkb#397). Ours cannot agree with it.
+	// ⛔ nghttp2.org's entry is about a `build.script` difference that looks
+	// like a simplification and is the opposite. The pantry runs
+	// `make -C lib install` — building only the lib subdirectory, which is why
+	// it needs no dependency — while configure still has --enable-app,
+	// --enable-hpack-tools and --enable-examples at `check` (configure:
+	// 1637-1640) and probes for openssl, libev, c-ares, zlib and jansson on
+	// every build. Ours passes `--enable-lib-only` (configure:1642-1644,
+	// upstream's own shorthand for the three --disable flags) and runs a plain
+	// `make install`, so the probes stop. Same artifact, decided rather than
+	// skipped. ⚠ Also: .tar.xz rather than .tar.gz, one checksums.txt covering
+	// both, and a distributable.sha256 the pantry does not pin.
+	"nghttp2.org": true, // go-zpkg/recipes#158
 	"openssl.org": true, // go-zpkg/recipes#145
 	// ⛔ pcre.org/v2's entry is a SECURITY FLOOR, and it is the one to read
 	// beside gnu.org/patch's. `--enable-jit` is off by default
