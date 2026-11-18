@@ -586,6 +586,21 @@ var deliberate = map[string]bool{
 	// egrep: command not found` — a green build and a red test, because seven
 	// of the eleven are shell scripts calling programs nothing declared.
 	"sourceware.org/bzip2": true, // go-zpkg/recipes#147
+	// ⛔⛔ sourceware.org/libffi's entry is about an artifact that differs BY
+	// BUILD MACHINE, which is the hardest kind for this gate to show: what it
+	// prints is two fields, `versions.strip` and a `distributable.sha256` the
+	// pantry does not pin. What it cannot print is that the pantry's
+	// three-line recipe lets configure:19824-20145 read the BUILDER'S CPUID and
+	// pick `-march=<that cpu>` — pentium through ivybridge in one table — so a
+	// library built on one runner can SIGILL on the next. Ours passes
+	// `--with-gcc-arch=no`, which configure:20147 makes skip the whole
+	// selection; `--enable-portable-binary` would NOT be enough, since
+	// configure:20150 restores `-march=` for clang.
+	// ⚠ It also passes `--disable-multi-os-directory`, because
+	// configure:21536-21541 otherwise runs `$CC -print-multi-os-directory` and
+	// installs into lib64 on a multilib gcc, where the five consumers do not
+	// look. Aligning this entry with the pantry would restore both.
+	"sourceware.org/libffi": true, // go-zpkg/recipes#154
 
 	// ── the overlay CORRECTS upstream's version enumeration ──
 	//
