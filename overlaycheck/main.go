@@ -480,6 +480,20 @@ var deliberate = map[string]bool{
 	// :100 define each as a COMPILE-AND-LINK PROBE against whatever the sandbox
 	// staged — so upstream's recipe and ours do not merely differ in `provides`,
 	// they describe binaries with different DT_NEEDED lists.
+	// ⭐ bytereef.org/mpdecimal's entry is the mildest of these, and it is
+	// listed anyway because a wildcard would retire the gate. Ours drops the
+	// pantry's `rm -rf {{prefix}}/share   # docs are online` — a recipe
+	// removing part of its own prefix — in favour of `--disable-doc`, which
+	// configure:1394 offers and which asks for the same outcome instead of
+	// undoing it; and it pins a distributable.sha256 against the sha256sum
+	// column bytereef.org publishes.
+	// ⚠ What it deliberately does NOT change: the arithmetic backend.
+	// configure.ac:883-919 picks it from the compiler as well as the target, so
+	// one target with two compilers yields x64, uint128 or ansi64 — but all
+	// three are correctly rounded, so the binary varies and the answer does
+	// not. Pinning MACHINE would make configure.ac:703 refuse outright on an
+	// unanticipated toolchain, which is a worse trade.
+	"bytereef.org/mpdecimal":     true, // go-zpkg/recipes#157
 	"facebook.com/zstd":          true, // go-zpkg/recipes#146
 	"freedesktop.org/pkg-config": true, // go-zpkg/recipes#133
 	"freetype.org":               true, // go-zpkg/recipes#121, the first CMake project
