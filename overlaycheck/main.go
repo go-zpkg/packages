@@ -532,6 +532,22 @@ var deliberate = map[string]bool{
 	// building perl's VERSIONED STORE PATH into bin/c_rehash's shebang, which
 	// `zpkb bakedpaths` refuses (go-zpkg/zpkb#397). Ours cannot agree with it.
 	"openssl.org": true, // go-zpkg/recipes#145
+	// ⛔ pcre.org/v2's entry is a SECURITY FLOOR, and it is the one to read
+	// beside gnu.org/patch's. `--enable-jit` is off by default
+	// (configure:15950-15956); both recipes turn it on; and 10.49 is a
+	// security-only release for GHSA-r9hj-j2rw-4q3m, an out-of-bounds write
+	// with attacker-controlled data through pcre2_jit_stack_create(), affecting
+	// 10.48 and earlier. Ours pins a digest at 10.49 and asserts JIT through
+	// `pcre2test -C`; the pantry pins no digest at all, so "aligning" this entry
+	// would drop the floor that makes enabling JIT defensible for the 9 recipes
+	// that link it.
+	// ⚠ The differences this gate prints are three, and only the first is about
+	// the constraint: `provides` is 2 against the pantry's 3, since
+	// bin/pcre2-config is a #!/bin/sh script (Makefile.am:390) that is installed
+	// and not promised; `versions.ignore` drops /-RC\d+$/, which the pantry's
+	// enumeration offers as versions; and the bzip2 bound differs only in
+	// spelling, HCL "^1" against the pantry's YAML int 1.
+	"pcre.org/v2": true, // go-zpkg/recipes#151
 	// ⛔ bzip2's `provides` is FOUR names against upstream's eleven, and that
 	// difference was measured by a lane rather than argued: go-zpkg/packages#310
 	// ran the published bottle on a scratch rootfs and got `bzegrep: line 63:
