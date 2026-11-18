@@ -496,25 +496,41 @@ var deliberate = map[string]bool{
 	// from the "(on)" in configure.ac:97-98; go-zpkg/recipes#150 measured that
 	// help text as stale against the generated `configure` and corrected it.
 	// The switch is deliberate either way; only the pantry makes it needed.
-	"gnome.org/libxml2":        true, // go-zpkg/recipes#149, corrected by go-zpkg/recipes#150
-	"gnu.org/autoconf":         true, // go-zpkg/recipes#129
-	"gnu.org/automake":         true, // go-zpkg/recipes#130
-	"gnu.org/binutils":         true, // go-zpkg/recipes#118, the first `provides` that could not be a list
-	"gnu.org/bison":            true, // go-zpkg/recipes#128
-	"gnu.org/coreutils":        true, // go-zpkg/recipes#117
-	"gnu.org/gawk":             true, // go-zpkg/recipes#114, it links libmpfr and libgmp and declared neither
-	"gnu.org/gcc/libstdcxx":    true, // go-zpkg/recipes#140, the base toolchain's last unwritten member
-	"gnu.org/glibc":            true, // go-zpkg/recipes#127
-	"gnu.org/gmp":              true, // go-zpkg/recipes#134
-	"gnu.org/help2man":         true, // go-zpkg/recipes#115
-	"gnu.org/libtool":          true, // go-zpkg/recipes#131
-	"gnu.org/make":             true, // go-zpkg/recipes#111
-	"gnu.org/mpc":              true, // go-zpkg/recipes#136
-	"gnu.org/mpfr":             true, // go-zpkg/recipes#135
-	"gnu.org/sed":              true, // go-zpkg/recipes#112
-	"gnu.org/texinfo":          true, // go-zpkg/recipes#132
-	"gnu.org/wget":             true, // go-zpkg/recipes#120
-	"kernel.org/linux-headers": true, // go-zpkg/recipes#126
+	"gnome.org/libxml2":     true, // go-zpkg/recipes#149, corrected by go-zpkg/recipes#150
+	"gnu.org/autoconf":      true, // go-zpkg/recipes#129
+	"gnu.org/automake":      true, // go-zpkg/recipes#130
+	"gnu.org/binutils":      true, // go-zpkg/recipes#118, the first `provides` that could not be a list
+	"gnu.org/bison":         true, // go-zpkg/recipes#128
+	"gnu.org/coreutils":     true, // go-zpkg/recipes#117
+	"gnu.org/gawk":          true, // go-zpkg/recipes#114, it links libmpfr and libgmp and declared neither
+	"gnu.org/gcc/libstdcxx": true, // go-zpkg/recipes#140, the base toolchain's last unwritten member
+	"gnu.org/glibc":         true, // go-zpkg/recipes#127
+	"gnu.org/gmp":           true, // go-zpkg/recipes#134
+	"gnu.org/help2man":      true, // go-zpkg/recipes#115
+	"gnu.org/libtool":       true, // go-zpkg/recipes#131
+	"gnu.org/make":          true, // go-zpkg/recipes#111
+	"gnu.org/mpc":           true, // go-zpkg/recipes#136
+	"gnu.org/mpfr":          true, // go-zpkg/recipes#135
+	"gnu.org/sed":           true, // go-zpkg/recipes#112
+	"gnu.org/texinfo":       true, // go-zpkg/recipes#132
+	"gnu.org/wget":          true, // go-zpkg/recipes#120
+	// ⛔ invisible-island.net/ncurses differs in a way that would be invisible
+	// in a build log and fatal at link time if it were "corrected" the other
+	// way. `--with-shared` is NOT the default — configure:6125-6130 has
+	// `with_shared=no` in its else branch — so the recipe's one irreplaceable
+	// flag is the one a tidying pass would drop, and eight recipes here link
+	// the result.
+	// ⚠ The differences this gate prints: `provides` is 10 against the pantry's
+	// 11, since bin/ncursesw6-config is a generated script
+	// (misc/ncurses-config.in:1, `#!@SHELL@`) that is installed and not
+	// promised; and `versions.match` escapes its dots, where the pantry's
+	// `(\.\d+)+.tar.gz` leaves two unescaped and would match a byte it did not
+	// mean. The build also drops the pantry's `libtinfo.so.5` symlink, which
+	// publishes an soname this ABI-6 library does not have (dist.mk:39), and
+	// its `rm -rf {{prefix}}/include`, which that recipe guards with a FIXME
+	// about its own factory.
+	"invisible-island.net/ncurses": true, // go-zpkg/recipes#152
+	"kernel.org/linux-headers":     true, // go-zpkg/recipes#126
 	// ⛔ libexpat's entry is a SECURITY difference, not a cosmetic one. Its
 	// recipe names `--with-getentropy`, because configure.ac gives all five
 	// entropy probes the default `check` (:305) and a failed probe is SILENT
