@@ -484,6 +484,21 @@ var deliberate = map[string]bool{
 	"freedesktop.org/pkg-config": true, // go-zpkg/recipes#133
 	"freetype.org":               true, // go-zpkg/recipes#121, the first CMake project
 	"github.com/westes/flex":     true, // go-zpkg/recipes#119, the first settled by BUILDING it
+	// ⛔⛔ github.com/besser82/libxcrypt's entry is about TWO FLAGS OURS DOES
+	// NOT PASS, and both change behaviour rather than the build — so this gate
+	// reports a `build.env.ARGS` difference that reads as ours being less
+	// complete, when it is the pantry adding two things upstream does not.
+	//   --disable-failure-tokens: upstream's own help (configure:1535-1543)
+	//     says it makes crypt/crypt_r "return NULL on failure, instead of a
+	//     special 'failure token' string … but will break programs that assume
+	//     these functions never return NULL". Default ON (configure:17294).
+	//   --disable-symvers: configure:1526 is `[default=auto]`, and :16039-16045
+	//     show auto already probes the linker and falls back. Disabling turns
+	//     symbol versioning off where the probe would have succeeded, and that
+	//     versioning is what makes libxcrypt a drop-in for glibc's libcrypt.
+	// Three recipes here link it, and both differences are asserted by tests in
+	// the recipe so that re-adding either goes red.
+	"github.com/besser82/libxcrypt": true, // go-zpkg/recipes#156
 	// ⛔ gnome.org/libxml2 differs in WHICH ARTIFACT IS BUILT, and the pantry
 	// says so in its own words: its recipe passes `--with-python` and therefore
 	// build-depends on `doxygen.nl` ("since 2.15") and `python.org >=3<3.12`,
