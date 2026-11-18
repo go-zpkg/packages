@@ -558,6 +558,24 @@ var deliberate = map[string]bool{
 	// makes a C++11 compiler MANDATORY when tests are built and this is a pure
 	// C library.
 	"libexpat.github.io": true, // go-zpkg/recipes#148
+	// ⛔⛔ libpng.org's entry is about its `versions`, and the difference is one
+	// a reader would be tempted to "simplify" back. The pantry enumerates
+	// `glennrp/libpng/tags` — a REDIRECT to pnggroup/libpng, which answers
+	// today and breaks the day someone claims the freed name — and carries no
+	// `ignore`, while 89 of the 100 newest tags are v1.7.0beta1…beta89 of an
+	// unreleased line against exactly ONE stable, v1.6.59. The betas are the
+	// newest, so aligning this entry would offer a beta of the PNG library to
+	// five consumers. Ours reads the real repository and refuses /beta\d*$/.
+	// ⚠ Also: one mirror URL rather than the pantry's two (a second mirror
+	// turns wrong bytes into a success on the second try), a pinned
+	// distributable.sha256 the pantry does not have, and `provides` of 2
+	// against 4 — bin/libpng-config and bin/libpng16-config are generated shell
+	// scripts (Makefile.am:122, `bin_SCRIPTS= @binconfigs@`).
+	// ⭐ What this entry is NOT about: libpng's hardware optimisations. They
+	// look like sourceware.org/libffi's defect and are not — configure:15650
+	// dispatches on $host_cpu, the TARGET, so the artifact is reproducible and
+	// no flag is named for it.
+	"libpng.org": true, // go-zpkg/recipes#155
 	// ⛔ openssl.org is the most depended-on project in the tree — 141 recipes
 	// name it — and its entry exists because the recipe names `HASHBANGPERL`.
 	// Configure:780 defaults PERL to $^X, so upstream's recipe bakes the
