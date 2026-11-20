@@ -47,6 +47,14 @@ sourceware.org/bzip2
 sourceware.org/libffi
 nixos.org/patchelf
 sqlite.org
+# ⛔ zstd, cmake and ninja MOVED UP from 51-53 to lead the cmake users. The
+# sovereign recipes name their build tools (go-zpkg/recipes), so brotli and
+# freetype need cmake, cmake needs zstd, and binutils, gcc and python need zstd:
+# edges that did not exist while these were inherited fragments. Re-ordered
+# against `zpkb closure --build --check-order`, which is the authority.
+facebook.com/zstd
+cmake.org
+ninja-build.org
 github.com/google/brotli
 libpng.org
 freetype.org
@@ -60,21 +68,21 @@ gnu.org/sed
 x.org/xtrans
 x.org/x11
 x.org/exts
+# libidn2 moved up from 61 for wget, which now needs it (rsync needs it too, and
+# linux-headers needs rsync, so the three keep that order below).
+gnu.org/libidn2
 gnu.org/wget
-info-zip.org/zip
 tcl-lang.org
 python.org
-doxygen.nl
 gnome.org/libxml2
 gnu.org/gettext
 github.com/westes/flex
-gnu.org/gcc
-gnu.org/texinfo
+# binutils before gcc, and zip after gcc: each is a build dependency now.
 gnu.org/binutils
+gnu.org/gcc
+info-zip.org/zip
+gnu.org/texinfo
 gnu.org/gcc/libstdcxx
-cmake.org
-ninja-build.org
-facebook.com/zstd
 libssh2.org
 libgit2.org
 gnu.org/autoconf
@@ -86,14 +94,11 @@ gnu.org/automake
 # declared nothing: the edge did not exist to be out of order.
 gnu.org/gzip
 gnu.org/tar
-kernel.org/linux-headers@~7.2
-# gnu.org/libidn2 exists in the closure only through OUR override of
-# rsync.samba.org. `zpkb closure --build` could not see it until go-zpkg/zpkb#232:
-# with --overlay it read the pantry half UNOVERRIDDEN, and rsync is one of the
-# six projects the overlay does not carry. Measured 2026-09-28 on a fresh
-# pantry: 77 projects with the fix, 76 without, and this is the one.
-gnu.org/libidn2
+# gnu.org/libidn2 (above, for wget) exists in the closure only through OUR
+# override of rsync.samba.org. `zpkb closure --build` could not see it until
+# go-zpkg/zpkb#232. rsync before linux-headers, which now needs it.
 rsync.samba.org
+kernel.org/linux-headers@~7.2
 # llvm.org BEFORE rust: `zpkb closure --check-order` (go-zpkg/bk) found this
 # as an edge out of order OUTSIDE any cycle — llvm sits in the 27-project
 # component, rust/cargo/semverator in their own, so nothing forced it. It is
@@ -121,6 +126,8 @@ llvm.org
 # ninja-build.org (52) and python.org (42), which it builds WITH. All three
 # were already here.
 libcxx.llvm.org
+# doxygen after llvm.org, flex and cmake: it needs all three now.
+doxygen.nl
 rust-lang.org
 rust-lang.org/cargo
 crates.io/semverator
@@ -135,3 +142,16 @@ gnu.org/bash
 gnu.org/libtool
 cpanmin.us
 gnu.org/help2man
+# The ten projects the closure reaches since the recipes of cups, tk, libpsl and
+# the X libraries stood alone and named their dependencies. Placed after
+# everything they could need, then checked.
+gnu.org/gperf
+gnu.org/libunistring
+rockdaboot.github.io/libpsl
+freedesktop.org/fontconfig
+x.org/xrender
+x.org/xext
+x.org/xft
+x.org/xscrnsaver
+openprinting.github.io/cups
+tcl-lang.org/tk
