@@ -501,7 +501,10 @@ func TestRunAgainstPantryAsksTheConsumerQuestionFirst(t *testing.T) {
 	writeFile(t, filepath.Join(pantry, "projects", "acme.org", "package.yml"),
 		"distributable:\n  url: https://acme.org/{{version}}.tar.gz\nbuild:\n  script: make\nversions:\n  url: https://sourceforge.net/x\n")
 	writeFile(t, filepath.Join(overlay, "projects", "acme.org", "package.hcl"),
-		"distributable {\n  url = \"https://acme.org/{{version}}.tar.gz\"\n}\nbuild {\n  script = \"gmake\"\n}\nversions {\n  url = \"https://acme.org/downloads\"\n}\n")
+		// No `distributable`: an overlay stating all three essentials is the whole
+		// recipe since zpkb v0.90.0 and is not compared at all, so this one stays a
+		// fragment and inherits the key from the pantry.
+		"build {\n  script = \"gmake\"\n}\nversions {\n  url = \"https://acme.org/downloads\"\n}\n")
 	var buf bytes.Buffer
 	if code := runAgainstPantry(pantry, overlay, "", &buf); code != 1 {
 		t.Fatalf("code = %d\n%s", code, buf.String())
@@ -734,6 +737,38 @@ edits   = [{ path = "dependencies[\"openssl.org\"]", set = "^3" }]
 	}
 	if strings.Contains(buf.String(), "provides") {
 		t.Errorf("a key the entry inherits was read as missing:\n%s", buf.String())
+	}
+}
+
+// TestAStandaloneOverlayRecipeIsNotComparedWithThePantry. Since zpkb v0.90.0 a
+// recipe that states versions, distributable and build is the whole recipe, so
+// differing from the pantry is not drift. The same difference in a FRAGMENT
+// still fails, which is asserted beside it so the skip cannot become "skip
+// everything".
+func TestAStandaloneOverlayRecipeIsNotComparedWithThePantry(t *testing.T) {
+	standalone := "versions {\n  github = \"acme/acme\"\n}\n" +
+		"distributable {\n  url = \"https://acme.org/{{version}}.tar.gz\"\n}\n" +
+		"build {\n  script = [\"make\"]\n}\n" +
+		"dependencies = {\n  \"gnu.org/gettext\" = \"^1\"\n}\n"
+	fragment := "distributable {\n  url = \"https://acme.org/{{version}}.tar.gz\"\n}\n" +
+		"dependencies = {\n  \"gnu.org/gettext\" = \"^1\"\n}\n"
+
+	for _, tc := range []struct {
+		name    string
+		overlay string
+		want    int
+	}{
+		{"standalone", standalone, 0},
+		{"fragment", fragment, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pantry, overlay := twoHalves(t)
+			writeFile(t, filepath.Join(overlay, "projects", "acme.org", "package.hcl"), tc.overlay)
+			var buf bytes.Buffer
+			if code := runAgainstPantry(pantry, overlay, "", &buf); code != tc.want {
+				t.Fatalf("code = %d, want %d\n%s", code, tc.want, buf.String())
+			}
+		})
 	}
 }
 
