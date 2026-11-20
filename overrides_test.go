@@ -59,37 +59,12 @@ func TestAnOverrideThatNamesAnArchForTheBuildNamesItForTheTest(t *testing.T) {
 	}
 }
 
-// ⛔ TestGlibcNamesALoaderForEveryArchItClaims is the specific statement,
-// kept beside the general one because the general one passes vacuously if
-// somebody deletes the s390x entry from BOTH tables.
-//
-// An empty loader name is not a missing feature, it is an artifact that builds,
-// publishes and then fails in somebody else's build with "No such file or
-// directory" against a path that plainly exists.
-func TestGlibcNamesALoaderForEveryArchItClaims(t *testing.T) {
-	doc := overrideDoc(t, filepath.Join("overrides", "gnu.org-glibc.hcl"))
-	merge, ok := doc["merge"].(map[string]any)
-	if !ok {
-		t.Fatal("the glibc override merges nothing")
-	}
-	for _, block := range []string{"build", "test"} {
-		env := envOf(merge, block)
-		if env == nil {
-			t.Errorf("merge.%s.env is absent, so %s has no loader for any architecture the recipe omits", block, block)
-			continue
-		}
-		s390x, ok := env["s390x"].(map[string]any)
-		if !ok {
-			t.Errorf("merge.%s.env has no s390x entry", block)
-			continue
-		}
-		// The s390x ABI calls it ld64.so.1, and it cannot be derived from the
-		// other two names — which is why it was missed in the first place.
-		if got := s390x["LDSO"]; got != "ld64.so.1" {
-			t.Errorf("merge.%s.env.s390x.LDSO = %v, want ld64.so.1", block, got)
-		}
-	}
-}
+// ⛔ TestGlibcNamesALoaderForEveryArchItClaims WAS HERE, and went with the
+// gnu.org/glibc override it read: that override is deleted because go-zpkg/zpkb
+// #514 made the standalone recipe the whole recipe, and the recipe has no
+// `$LDSO`, no `ld.so` link and no per-architecture env table to compare (see the
+// note above its `runtime` block in go-zpkg/recipes projects/gnu.org/glibc).
+// The general test above still covers every override that remains.
 
 // overrideFiles is every HCL override in this directory.
 func overrideFiles(t *testing.T) []string {

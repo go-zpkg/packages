@@ -80,7 +80,12 @@ var zpkbPinRE = regexp.MustCompile(`github\.com/go-zpkg/zpkb/cmd/zpkb@(v[0-9][^\
 // pins and passes, which is how a scan that could not read reports a clean
 // result. If the spelling of these invocations changes, this fails and says
 // so rather than going quietly green.
-const zpkbPinsExpected = 3
+//
+// 3 → 4 with the `lint --overrides` step of ci.yml ("no standalone recipe
+// silently retires a live override"), which reads recipes and builds nothing:
+// it is pinned at v0.91.0, the first tag whose lint knows --overrides, and
+// clears the floor above all the same.
+const zpkbPinsExpected = 4
 
 func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {
 	dir := filepath.Join(".github", "workflows")
