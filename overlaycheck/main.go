@@ -862,6 +862,23 @@ func recipeDiffDoc(overlay []byte, overlayName string, b, upstream map[string]an
 	if err != nil {
 		return "", fmt.Errorf("the overlay's %s: %w", overlayName, err)
 	}
+	// ⛔⛔ A STANDALONE OVERLAY RECIPE IS NOT MERGED OVER UPSTREAM ANY MORE, so
+	// there are no two halves to compare. Since zpkb v0.90.0 (go-zpkg/zpkb#514)
+	// a recipe that states versions, distributable and build itself is the
+	// WHOLE recipe, for the consumer and for the factory alike: neither reads the
+	// pantry's copy underneath it. The comparison below answers "has the overlay
+	// fallen behind the pantry it is merged over", which is a question about a
+	// fragment; asked of a recipe written from the project's own files it reports
+	// every difference as drift — 107 of them on 2026-11-20, from the first
+	// packages run after the recipes began to stand alone, with the lane red on
+	// main for no recipe's fault. A recipe that differs from the pantry on
+	// purpose is exactly what "ours" means here.
+	//
+	// artifact.IsStandalone is the one definition (zpkb lint, zpkb closure and
+	// the loader all call it), not a copy of its three keys.
+	if artifact.IsStandalone(a) {
+		return "", nil
+	}
 	if upstream != nil {
 		a = mergeOver(upstream, a)
 	}
