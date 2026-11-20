@@ -245,6 +245,34 @@ jobs:
           # 180 disagreements, every one of them ours.
           go run ./overlaycheck --pantry "$RUNNER_TEMP/pantry" --overlay "$RUNNER_TEMP/overlay" --overrides overrides
 
+      # ⛔⛔ A STANDALONE RECIPE RETIRES ITS OVERRIDES IN SILENCE.
+      # Since zpkb v0.90.0 (go-zpkg/zpkb#514) a standalone recipe in
+      # go-zpkg/recipes is the WHOLE recipe, so the logical override for the same
+      # project is no longer applied, and nothing failed: 29 of 217 overrides
+      # were dead when go-zpkg/zpkb#516 counted them, seven of them carrying a
+      # fix the recipe did not (selinux linked into find, tar and gettext; the
+      # darwin rpath for texinfo's XS modules; glibc's GCONV_PATH; ...).
+      #
+      # This step reads both trees with the tool that made that count. It runs on
+      # this repository's pull requests, so an override edit is judged against the
+      # recipes as they are on main; a recipe that turns a project standalone is
+      # judged here the next time this lane runs, and its author is told which
+      # override to carry or delete.
+      #
+      # ⚠ WITHOUT --require-live-overrides FOR NOW, ON PURPOSE: four overrides are
+      # dead because recipes written the same day by other work (llvm.org,
+      # rust-lang.org, rust-lang.org/cargo, openprinting.github.io/cups) went
+      # standalone after the 29 were counted, and those authors own the carry-or-
+      # delete decision for them. Without the flag the tool WARNS and lists them
+      # in this step's log. ⭐ THE FLAG GOES ON THE DAY THAT LIST IS EMPTY, which
+      # is a one-line change here: `lint` exits 1 on a dead override with it.
+      - name: no standalone recipe silently retires a live override
+        run: |
+          rm -rf "$RUNNER_TEMP/recipes-live"
+          git clone --depth 1 https://github.com/go-zpkg/recipes "$RUNNER_TEMP/recipes-live"
+          go run github.com/go-zpkg/zpkb/cmd/zpkb@v0.91.0 lint \
+            --dir "$RUNNER_TEMP/recipes-live" --overrides overrides
+
       # The seed order is a human artefact with a machine-checkable property.
       # An order over a graph with CYCLES is not a topological sort — there is
       # none — it is a topological sort of everything else plus a choice of
