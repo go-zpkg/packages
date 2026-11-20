@@ -259,13 +259,15 @@ jobs:
       # judged here the next time this lane runs, and its author is told which
       # override to carry or delete.
       #
-      # ⚠ WITHOUT --require-live-overrides FOR NOW, ON PURPOSE: four overrides are
-      # dead because recipes written the same day by other work (llvm.org,
-      # rust-lang.org, rust-lang.org/cargo, openprinting.github.io/cups) went
-      # standalone after the 29 were counted, and those authors own the carry-or-
-      # delete decision for them. Without the flag the tool WARNS and lists them
-      # in this step's log. ⭐ THE FLAG GOES ON THE DAY THAT LIST IS EMPTY, which
-      # is a one-line change here: `lint` exits 1 on a dead override with it.
+      # ⚠ WITHOUT --require-live-overrides FOR NOW, ON PURPOSE. The four that
+      # were dead when this was written (llvm.org, rust-lang.org,
+      # rust-lang.org/cargo, openprinting.github.io/cups) are classified and
+      # deleted in this change; the list was empty for them, and then three more
+      # recipes of other work went standalone the same afternoon (kerberos.org,
+      # openjpeg.org, info-zip.org/zip), each with an override whose fix its
+      # author has to carry or retire. Without the flag the tool WARNS and lists
+      # them in this step's log. ⭐ THE FLAG GOES ON THE DAY THAT LIST IS EMPTY,
+      # which is a one-line change here: `lint` exits 1 on a dead override with it.
       - name: no standalone recipe silently retires a live override
         run: |
           rm -rf "$RUNNER_TEMP/recipes-live"
