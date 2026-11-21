@@ -85,7 +85,11 @@ var zpkbPinRE = regexp.MustCompile(`github\.com/go-zpkg/zpkb/cmd/zpkb@(v[0-9][^\
 // silently retires a live override"), which reads recipes and builds nothing:
 // it is pinned at v0.91.0, the first tag whose lint knows --overrides, and
 // clears the floor above all the same.
-const zpkbPinsExpected = 4
+//
+// 4 → 5 with the `--check-order` step (go-zpkg/packages#480): it walks zpkb's
+// own closure, so it is pinned at v0.97.0 and a zpkb change cannot redden an
+// unrelated pull request. It builds nothing and clears the floor all the same.
+const zpkbPinsExpected = 5
 
 func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {
 	dir := filepath.Join(".github", "workflows")
