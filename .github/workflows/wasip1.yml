@@ -52,7 +52,9 @@ env:
   # pkgx's word (go-zpkg/zpkb#496). A lane below it reads the OLD name, gets the
   # empty string, and builds with no overlay while exiting 0, which is why the
   # FLOOR moved with the pins rather than only the pins.
-  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.83.0
+  # v0.98.0 links go-zpkg/artifact v0.91.0, whose signing key matches the
+  # ZPKG_SIGNING_KEY every destination is signed with (packages#479).
+  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.98.0
 
 jobs:
   build:
