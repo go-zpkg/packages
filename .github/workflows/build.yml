@@ -74,6 +74,10 @@ on:
         description: "copy the artifacts from this dist instead of building them — republished signed + attested (used for the glibc sweep). Blank, as it should normally be: this builds. The example here used to name an upstream pkgx dist, which we are no longer compatible with and do not copy from."
         required: false
         default: ""
+      require_origin:
+        description: "`1`, with mirror_from, PROMOTES instead of mirrors: zpkb refuses any artifact whose provenance does not prove the host toolchain was unused, and carries the source's verdict forward. How a sovereign seed reaches go-zpkg/packages. Blank or `1` only."
+        required: false
+        default: ""
       oci_to:
         description: "registry to PUBLISH to, `oci://host/repo`. Blank = the registry the run reads (ghcr go-pkgx), as always. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the run fails when that secret is empty; the old key never signs there. Not with seed_dist (go-zpkg/packages#440)."
         required: false
@@ -165,9 +169,21 @@ jobs:
           IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
           IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
           SEED_DIST: ${{ github.event.inputs.seed_dist }}
+          IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
+          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
         run: |
           set -eu
+          # `1` or nothing: the factory step passes the flag on "non-empty",
+          # and a `0` there would turn it ON (the FORCE=0 lesson, zpkb#251).
+          case "$IN_REQUIRE_ORIGIN" in
+            ""|1) ;;
+            *) echo "::error::require_origin must be blank or 1, not '$IN_REQUIRE_ORIGIN'"; exit 1 ;;
+          esac
+          if [ -n "$IN_REQUIRE_ORIGIN" ] && [ -z "$IN_MIRROR_FROM" ]; then
+            echo "::error::require_origin reads the provenance of the artifact being copied, so it needs mirror_from."
+            exit 1
+          fi
           if [ -n "$SEED_DIST" ] && { [ -n "$IN_OCI_TO" ] || [ -n "$IN_DIST_FROM" ]; }; then
             echo "::error::seed_dist already names the one registry a seed run reads and writes; oci_to and dist_from cannot be combined with it."
             exit 1
@@ -750,6 +766,7 @@ jobs:
           SIGNING_KEY: ${{ (contains(env.OCI_TO, 'go-zpkg') && secrets.ZPKG_SIGNING_KEY) || (!contains(env.OCI_TO, 'go-zpkg') && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           GLIBC: ${{ github.event.inputs.glibc }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+          REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
           SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
           # The overlay is what zpkb's `--overrides` does for the recipes zpkb READS,
           # but for the recipes PKGX reads while materialising a build's
@@ -911,6 +928,7 @@ jobs:
               ${GLIBC:+--glibc "$GLIBC"} \
               ${VERSIONS:+--versions "$VERSIONS"} \
               ${MIRROR_FROM:+--mirror-from "$MIRROR_FROM"} \
+              ${REQUIRE_ORIGIN:+--require-origin} \
             ${SOURCE_MIRROR:+--source-mirror "$SOURCE_MIRROR"}
           fi
 
