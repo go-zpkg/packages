@@ -153,5 +153,16 @@ x.org/xrender
 x.org/xext
 x.org/xft
 x.org/xscrnsaver
+# kerberos.org BEFORE cups, which needs it (go-zpkg/packages#480): an edge out
+# of order outside any cycle when it was appended last.
+kerberos.org
 openprinting.github.io/cups
 tcl-lang.org/tk
+# The remaining members the closure reaches since go-zpkg/recipes gained whole
+# recipes for setuptools, meson, dbus and avahi (go-zpkg/packages#480). Last,
+# after everything they could need, then checked: all four sit in the python/tk
+# component with cups, so only edges inside that cycle are given up.
+pypa.io/setuptools
+mesonbuild.com
+freedesktop.org/dbus
+avahi.org
