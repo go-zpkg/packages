@@ -311,9 +311,12 @@ jobs:
       - name: the seed order builds the toolchain the toolchain wants
         run: go run ./seedpins --order seed/order.txt --builder-toolchain builder/toolchain.txt
 
+      # Pinned to a zpkb TAG, not @main: the closure it walks is zpkb's, so a
+      # zpkb change must not redden an unrelated PR (go-zpkg/packages#480).
+      # Bump it deliberately, together with seed/order.txt.
       - name: the seed order honours every edge outside a cycle
         run: |
-          go run github.com/go-zpkg/zpkb/cmd/zpkb@main closure --build \
+          go run github.com/go-zpkg/zpkb/cmd/zpkb@v0.97.0 closure --build \
             --check-order seed/order.txt \
             --recipe-dir "$RUNNER_TEMP/pantry" \
             --overlay "$RUNNER_TEMP/overlay" \
