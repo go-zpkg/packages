@@ -90,6 +90,10 @@ on:
         description: "go-zpkg/recipes branch, tag or SHA the overlay is read from. Blank = main, a moving ref; pass a SHA to make a run reproducible."
         required: false
         default: "main"
+      extra_trusted_keys:
+        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners). Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with an oci_to naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
+        required: false
+        default: ""
   # Continuous population: rebuild recipes.txt daily. skip-if-published means
   # only new/updated (project,version,platform) are actually built.
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
@@ -108,6 +112,13 @@ env:
   # ./goproxycheck.
   GOPROXY: https://proxy.golang.org,direct
   GONOPROXY: github.com/go-zpkg/*
+  # Workflow level, so EVERY job and step that installs or verifies sees it:
+  # the sovereign rootfs staging, the non-sovereign lanes, mirror and
+  # promotion. Blank is the default and means "no extra key". The `setup` job
+  # validates the value (and refuses it with a go-zpkg oci_to) before any
+  # build job starts. The chroot gets it through PRESERVE in
+  # builder/sovereign-build.sh.
+  ZPKG_EXTRA_TRUSTED_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
 
 jobs:
   # Split recipes.txt into CHUNK-sized slices and emit a matrix over both linux
@@ -172,8 +183,46 @@ jobs:
           IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
           IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+          IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
         run: |
           set -eu
+          # ⛔ extra_trusted_keys: `name:RW<base64>` entries separated by
+          # whitespace (go-zpkg/artifact trust.go ParseSigners, strings.Fields),
+          # checked strictly here because the value becomes an environment
+          # variable of every later step.
+          if [ -n "$IN_EXTRA_KEYS" ]; then
+            case "$IN_EXTRA_KEYS" in
+              *[!A-Za-z0-9._:+/\ -]*) echo "::error::extra_trusted_keys holds a character outside A-Za-z0-9._:+/ - and the space separator"; exit 1 ;;
+            esac
+            case "${IN_OCI_TO,,}" in
+              *go-zpkg*) echo "::error::extra_trusted_keys cannot be combined with an oci_to naming go-zpkg: a promotion into go-zpkg must not widen trust, it re-signs with ZPKG_SIGNING_KEY (go-zpkg/packages#440)."; exit 1 ;;
+            esac
+            n=0
+            set -f
+            for e in $IN_EXTRA_KEYS; do
+              n=$((n+1))
+              name=${e%%:*}
+              key=${e#*:}
+              case "$e" in
+                *:*) ;;
+                *) echo "::error::extra_trusted_keys entry '$e' is not name:key"; exit 1 ;;
+              esac
+              case "$name" in
+                ""|*[!A-Za-z0-9._-]*) echo "::error::extra_trusted_keys name '$name' is empty or outside A-Za-z0-9._-"; exit 1 ;;
+              esac
+              [ "${#name}" -le 64 ] || { echo "::error::extra_trusted_keys name '$name' is longer than 64 characters"; exit 1; }
+              case "$key" in
+                RW*) ;;
+                *) echo "::error::extra_trusted_keys key for '$name' does not start with RW"; exit 1 ;;
+              esac
+              case "$key" in
+                *[!A-Za-z0-9+/]*) echo "::error::extra_trusted_keys key for '$name' is not base64"; exit 1 ;;
+              esac
+              [ "${#key}" -eq 56 ] || { echo "::error::extra_trusted_keys key for '$name' is ${#key} characters, a minisign public key is 56"; exit 1; }
+            done
+            set +f
+            [ "$n" -le 8 ] || { echo "::error::extra_trusted_keys names $n keys, more than 8"; exit 1; }
+          fi
           # `1` or nothing: the factory step passes the flag on "non-empty",
           # and a `0` there would turn it ON (the FORCE=0 lesson, zpkb#251).
           case "$IN_REQUIRE_ORIGIN" in
