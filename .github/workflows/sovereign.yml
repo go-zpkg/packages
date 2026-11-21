@@ -36,6 +36,18 @@ on:
         description: "`x86-64` (default) or `aarch64`"
         required: false
         default: "x86-64"
+      oci_to:
+        description: "registry to PUBLISH to, `oci://host/repo`. Blank = oci://ghcr.io/go-pkgx/packages, as always. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the job fails when that secret is empty; the old key never signs there (go-zpkg/packages#440)."
+        required: false
+        default: ""
+      dist_from:
+        description: "registry the toolchain and dependencies are READ from, `oci://host/repo`. Blank = oci://ghcr.io/go-pkgx/packages. Generation 1 of a two-stage bootstrap sets it to generation 0's throwaway registry."
+        required: false
+        default: ""
+      overlay_ref:
+        description: "go-zpkg/recipes branch, tag or SHA the overlay is read from. Blank = main, a moving ref; pass a SHA to make a run reproducible."
+        required: false
+        default: "main"
 
 permissions:
   contents: read
@@ -63,6 +75,53 @@ jobs:
         run: |
           SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
           command -v git >/dev/null || { $SUDO apt-get update -qq; $SUDO apt-get install -y --no-install-recommends git ca-certificates; }
+
+      # Inputs reach the shell as ENVIRONMENT, never interpolated into the
+      # script: a value like `main; curl …` must stay a value. They are
+      # validated here, once, and every later step reads the validated
+      # spelling from $GITHUB_ENV.
+      #
+      # ⛔ A DESTINATION NAMING go-zpkg NEEDS THE go-zpkg KEY. The match is the
+      # same broad `*go-zpkg*` the SIGNING_KEY expression below uses, so the
+      # two cannot disagree: a destination that merely contains the name is
+      # treated as go-zpkg and refused without the new key rather than signed
+      # with the old one.
+      - name: validate oci_to, dist_from and overlay_ref
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
+          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: |
+          set -eu
+          oci_to=${IN_OCI_TO:-oci://ghcr.io/go-pkgx/packages}
+          dist_from=${IN_DIST_FROM:-oci://ghcr.io/go-pkgx/packages}
+          ref=${IN_OVERLAY_REF:-main}
+          for v in "$oci_to" "$dist_from"; do
+            case "$v" in
+              oci://*) ;;
+              *) echo "::error::'$v' is not an oci:// registry"; exit 1 ;;
+            esac
+            case "$v" in
+              *[!A-Za-z0-9./:_@-]*) echo "::error::registry '$v' holds a character outside A-Za-z0-9./:_@-"; exit 1 ;;
+            esac
+          done
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::overlay_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
+          esac
+          case "${oci_to,,}" in
+            *go-zpkg*)
+              if [ "$HAVE_ZPKG_KEY" != true ]; then
+                echo "::error::publishing to $oci_to needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts."
+                exit 1
+              fi ;;
+          esac
+          {
+            echo "OCI_TO=$oci_to"
+            echo "DIST_FROM=$dist_from"
+            echo "OVERLAY_URL=https://raw.githubusercontent.com/go-zpkg/recipes/$ref/projects"
+          } >> "$GITHUB_ENV"
+          echo "publish to $oci_to, read from $dist_from, overlay at $ref"
 
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -102,7 +161,7 @@ jobs:
           # use — `gnu.org/bash` is published as `5.3`, not `5.3.0`:
           #   install gnu.org/bash 5.3.0: …/gnu.org/bash:5.3.0: not found
           # Listing stays on ghcr; ZPKG_CACHE is consulted for the artifact itself.
-          echo "ZPKG_DIST=oci://ghcr.io/go-pkgx/packages" >> "$GITHUB_ENV"
+          echo "ZPKG_DIST=$DIST_FROM" >> "$GITHUB_ENV"
           if curl -fsS -m 3 http://10.46.81.1:5111/v2/ >/dev/null 2>&1; then
             echo "pull-through cache answers — artifacts will be pulled through it"
             echo "ZPKG_CACHE=oci://http://10.46.81.1:5111/go-zpkg/packages" >> "$GITHUB_ENV"
@@ -112,7 +171,7 @@ jobs:
 
       - name: stage the sovereign rootfs
         env:
-          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
         run: |
           # ⛔⛔ `command -v pkgx` WOULD NOW FIND SOMEBODY ELSE'S PROGRAM.
           # Ours is `zpkx` since the rename, and `pkgx` is upstream's — a
@@ -156,7 +215,14 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          # The key follows the DESTINATION. A go-zpkg destination gets
+          # ZPKG_SIGNING_KEY or nothing; every other destination keeps the old
+          # key. Written as two guarded halves rather than `a && X || Y`, which
+          # would hand Y (the old key) to go-zpkg whenever X is empty.
+          SIGNING_KEY: ${{ (contains(env.OCI_TO, 'go-zpkg') && secrets.ZPKG_SIGNING_KEY) || (!contains(env.OCI_TO, 'go-zpkg') && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # Read by builder/sovereign-build.sh's --to. Already whitelisted
+          # in its --preserve-env list.
+          OCI_TO: ${{ env.OCI_TO }}
           # builder/Containerfile's ENV lines, not just its ENTRYPOINT. Without
           # ZPKG_DIR the chroot inherits pkgx's $HOME/.pkgx default, which
           # (a) re-downloads the toolchain the staged tree already holds and
@@ -164,7 +230,7 @@ jobs:
           # path no consumer has. Measured on the first artifact this job built.
           ZPKG_DIR: /zpkg
           HOME: /root
-          ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
+          ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
           # Our aarch64 pool is emulated by construction — the host is amd64 —
           # and qemu-user fakes uname AND /proc/cpuinfo, so nothing inside the
           # container can tell. The workflow knows, so it says.
