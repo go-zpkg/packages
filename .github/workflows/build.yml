@@ -94,6 +94,10 @@ on:
         description: "pkgxdev/pantry commit the recipes are read from. Its recipe scripts run during the build, so the default is a recorded SHA and a newer pantry is a deliberate bump, not whatever HEAD is at the minute of the run. A branch, tag or SHA, validated like overlay_ref (go-zpkg/packages#440)."
         required: false
         default: "1879069619956097ab80525b9c27ad15f1f07229"
+      extra_trusted_keys:
+        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
+        required: false
+        default: ""
   # Continuous population: rebuild recipes.txt daily. skip-if-published means
   # only new/updated (project,version,platform) are actually built.
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
@@ -167,52 +171,40 @@ jobs:
       # which also writes the validated values to $GITHUB_ENV; this copy only
       # decides. ⛔ A destination naming go-zpkg needs the go-zpkg key, and the
       # old key never signs there (go-zpkg/packages#440).
-      - name: oci_to, dist_from and overlay_ref are well formed and consistent
+      #
+      # Every dispatch input is checked by `inputcheck` (a Go program with
+      # tests), in both jobs, so the two cannot disagree: character sets,
+      # newlines and control characters refused, the effective destination (the
+      # one `zpkb factory --to` publishes to, after the blank-oci_to fallback)
+      # tested for go-zpkg, extra_trusted_keys checked entry by entry.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: '1.27.4' }
+      - name: dispatch inputs are well formed and consistent
         env:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
           IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
           IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
-          SEED_DIST: ${{ github.event.inputs.seed_dist }}
+          IN_SEED_DIST: ${{ github.event.inputs.seed_dist }}
           IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
           IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+          IN_SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
+          IN_GLIBC: ${{ github.event.inputs.glibc }}
+          IN_VERSIONS: ${{ github.event.inputs.versions }}
+          IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_LOCK: ${{ github.event.inputs.lock }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
+          IN_FORCE: ${{ github.event.inputs.force }}
+          IN_REBUILD: ${{ github.event.inputs.rebuild }}
+          IN_NO_CLOSURE: ${{ github.event.inputs.no_closure }}
+          IN_PIN_TO_DEPENDENTS: ${{ github.event.inputs.pin_to_dependents }}
+          IN_CLEAN_BUILD_ROOT: ${{ github.event.inputs.clean_build_root }}
+          IN_BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
+          IN_TEST_ONLY: ${{ github.event.inputs.test_only }}
+          IN_SOVEREIGN: ${{ github.event.inputs.sovereign }}
           HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
-        run: |
-          set -eu
-          # `1` or nothing: the factory step passes the flag on "non-empty",
-          # and a `0` there would turn it ON (the FORCE=0 lesson, zpkb#251).
-          case "$IN_REQUIRE_ORIGIN" in
-            ""|1) ;;
-            *) echo "::error::require_origin must be blank or 1, not '$IN_REQUIRE_ORIGIN'"; exit 1 ;;
-          esac
-          if [ -n "$IN_REQUIRE_ORIGIN" ] && [ -z "$IN_MIRROR_FROM" ]; then
-            echo "::error::require_origin reads the provenance of the artifact being copied, so it needs mirror_from."
-            exit 1
-          fi
-          if [ -n "$SEED_DIST" ] && { [ -n "$IN_OCI_TO" ] || [ -n "$IN_DIST_FROM" ]; }; then
-            echo "::error::seed_dist already names the one registry a seed run reads and writes; oci_to and dist_from cannot be combined with it."
-            exit 1
-          fi
-          for v in "$IN_OCI_TO" "$IN_DIST_FROM"; do
-            [ -n "$v" ] || continue
-            case "$v" in
-              oci://*) ;;
-              *) echo "::error::'$v' is not an oci:// registry"; exit 1 ;;
-            esac
-            case "$v" in
-              *[!A-Za-z0-9./:_@-]*) echo "::error::registry '$v' holds a character outside A-Za-z0-9./:_@-"; exit 1 ;;
-            esac
-          done
-          ref=${IN_OVERLAY_REF:-main}
-          case "$ref" in
-            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::overlay_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
-          esac
-          case "${IN_OCI_TO,,}" in
-            *go-zpkg*)
-              if [ "$HAVE_ZPKG_KEY" != true ]; then
-                echo "::error::publishing to $IN_OCI_TO needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts."
-                exit 1
-              fi ;;
-          esac
+        run: go run ./inputcheck --check-only
 
       - name: a bootstrap dispatch states its two companions
         env:
@@ -235,8 +227,13 @@ jobs:
             echo "::error::bootstrap=$BOOTSTRAP with max_versions blank means every version of every project. Pass max_versions=1 for a seed, or state a number."
             exit 1
           }
-      - uses: actions/checkout@v7
+      # Dispatch inputs reach the shell as ENVIRONMENT, never interpolated into
+      # the script text: a value stays a value.
       - id: gen
+        env:
+          IN_RUNNER: ${{ github.event.inputs.runner }}
+          IN_ARCH: ${{ github.event.inputs.arch }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
         run: |
           # Our own pool needs no `container:` — the Incus container IS the
           # controlled environment. It is debian TRIXIE (glibc 2.41), not
@@ -306,12 +303,12 @@ jobs:
           # census computed: min(nproc, min(MemTotal, cgroup)/2 GiB).
           SELFZ='{"runner":["self-hosted","linux","s390x"],"platform":"linux/s390x","slug":"linux-s390x","container":"","jobs":""}'
           X64=$SELF; ARM=$SELFARM
-          if [ "${{ github.event.inputs.runner }}" = github ]; then X64=$GH64; ARM=$GHARM; fi
+          if [ "$IN_RUNNER" = github ]; then X64=$GH64; ARM=$GHARM; fi
           # `arch` drops one half of the pair. jq gets it as a string and
           # filters on the slug, so an unknown value yields an empty matrix
           # rather than silently building everything.
-          ONLY="${{ github.event.inputs.arch }}"
-          if [ -n "${{ github.event.inputs.recipes }}" ]; then
+          ONLY="$IN_ARCH"
+          if [ -n "$IN_RECIPES" ]; then
             m=$(jq -cn --argjson a "$X64" --argjson b "$ARM" --argjson z "$SELFZ" --arg only "$ONLY" \
               '{include: [($a, $b, $z) + {chunk:"manual"}
                           | select(if $only == "" then (.slug | endswith("s390x") | not)
@@ -446,6 +443,40 @@ jobs:
       # Unconditional: it only sets environment. A build that is NOT sovereign
       # still pulls its dependency artifacts from our registry, and gating this on
       # the sovereign path would quietly take the cache away from it.
+      # The setup job refused the bad combinations; this step turns the inputs
+      # into the three values later steps read. Inputs arrive as environment,
+      # never interpolated into the script. OCI_TO stays EMPTY unless the
+      # dispatch named one, so a run that did not is exactly what it was.
+      # `inputcheck` refuses the whole dispatch before it writes a single line,
+      # and writes only single-line, whitelisted values (OCI_TO, DIST_FROM,
+      # OVERLAY_URL, SEED_DIST). Later steps read those from $GITHUB_ENV and
+      # never the raw input.
+      - name: validate the dispatch inputs and export them
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
+          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
+          IN_SEED_DIST: ${{ github.event.inputs.seed_dist }}
+          IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
+          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+          IN_SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
+          IN_GLIBC: ${{ github.event.inputs.glibc }}
+          IN_VERSIONS: ${{ github.event.inputs.versions }}
+          IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_LOCK: ${{ github.event.inputs.lock }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
+          IN_FORCE: ${{ github.event.inputs.force }}
+          IN_REBUILD: ${{ github.event.inputs.rebuild }}
+          IN_NO_CLOSURE: ${{ github.event.inputs.no_closure }}
+          IN_PIN_TO_DEPENDENTS: ${{ github.event.inputs.pin_to_dependents }}
+          IN_CLEAN_BUILD_ROOT: ${{ github.event.inputs.clean_build_root }}
+          IN_BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
+          IN_TEST_ONLY: ${{ github.event.inputs.test_only }}
+          IN_SOVEREIGN: ${{ github.event.inputs.sovereign }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
+
       # Decide ONCE whether this job is sovereign, in shell, and hand the answer
       # to every later step. Expressing one decision as two conditions is how
       # they drift: the step-level `if` and the shell branch disagreed, staging
@@ -454,11 +485,12 @@ jobs:
       # (GitHub compares operands of different types as NUMBERS, so an omitted
       # input — null — equals the string '0'. The default case was the broken
       # one.) Shell has no such rule.
+      # After the validation above, so nothing is written to $GITHUB_ENV
+      # for a dispatch that is about to be refused.
       - name: decide the build path
         env:
           SOVEREIGN: ${{ github.event.inputs.sovereign }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
-          SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
         run: |
           if [ "$SOVEREIGN" = 0 ] || [ -n "$MIRROR_FROM" ]; then
             echo "building with the runner's distribution"
@@ -468,33 +500,9 @@ jobs:
             echo "SOVEREIGN_ON=1" >> "$GITHUB_ENV"
           fi
 
-      # The setup job refused the bad combinations; this step turns the inputs
-      # into the three values later steps read. Inputs arrive as environment,
-      # never interpolated into the script. OCI_TO stays EMPTY unless the
-      # dispatch named one, so a run that did not is exactly what it was.
-      - name: oci_to, dist_from and overlay_ref
-        env:
-          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
-          IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
-          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
-        run: |
-          set -eu
-          ref=${IN_OVERLAY_REF:-main}
-          case "$ref" in
-            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::overlay_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
-          esac
-          case "$IN_OCI_TO$IN_DIST_FROM" in
-            *[!A-Za-z0-9./:_@-]*) echo "::error::oci_to/dist_from hold a character outside A-Za-z0-9./:_@-"; exit 1 ;;
-          esac
-          {
-            echo "OCI_TO=$IN_OCI_TO"
-            echo "DIST_FROM=${IN_DIST_FROM:-oci://ghcr.io/go-pkgx/packages}"
-            echo "OVERLAY_URL=https://raw.githubusercontent.com/go-zpkg/recipes/$ref/projects"
-          } >> "$GITHUB_ENV"
-
+      # SEED_DIST and DIST_FROM come from $GITHUB_ENV, written by `inputcheck`:
+      # the validated spelling, never the raw input.
       - name: point at the pull-through cache if it answers
-        env:
-          SEED_DIST: ${{ github.event.inputs.seed_dist }}
         run: |
           # The cache accelerates BLOB pulls only. It must not become ZPKG_DIST:
           # zot cannot serve the tag listing of a repository it has not synced
@@ -585,6 +593,10 @@ jobs:
         if: env.SOVEREIGN_ON == '1'
         env:
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
+          MATRIX_PLATFORM: ${{ matrix.platform }}
+          # Step-scoped: the steps that install or verify get the validated
+          # extra keys, nothing else does (go-zpkg/packages#440).
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           # A SELF-HOSTED runner reuses $RUNNER_TEMP between jobs, and
@@ -625,7 +637,7 @@ jobs:
           # the verdict, and a pre-flight that could fail a job the real step
           # would have passed is a second opinion nobody asked for.
           zpkb builder --dry-run \
-            --platform "${{ matrix.platform }}" \
+            --platform "$MATRIX_PLATFORM" \
             --toolchain builder/toolchain.txt || true
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
           # can be on the same PATH. See sovereign.yml.
@@ -635,7 +647,7 @@ jobs:
           # sovereign.yml for the control).
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
-            --platform "${{ matrix.platform }}" \
+            --platform "$MATRIX_PLATFORM" \
             --toolchain builder/toolchain.txt \
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
@@ -792,6 +804,7 @@ jobs:
           # github.com/containers/crun died, through python.org, on a runner
           # where every other correction WAS applied.
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
           VERSIONS: ${{ github.event.inputs.versions }}
           BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
           # A VARIABLE zpkb reads through envBool, never
@@ -803,18 +816,29 @@ jobs:
           TEST_ONLY: ${{ github.event.inputs.test_only }}
           JOBS: ${{ matrix.jobs }}
           QEMU_RESERVED_VA: ${{ matrix.qemu_va }}
+          # Read by the script below as environment, never interpolated into
+          # its text (they were checked by `inputcheck` before this job built).
+          MATRIX_CHUNK: ${{ matrix.chunk }}
+          IN_LOCK: ${{ github.event.inputs.lock }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_FORCE: ${{ github.event.inputs.force }}
+          IN_CLEAN_BUILD_ROOT: ${{ github.event.inputs.clean_build_root }}
+          IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
+          IN_NO_CLOSURE: ${{ github.event.inputs.no_closure }}
+          IN_PIN_TO_DEPENDENTS: ${{ github.event.inputs.pin_to_dependents }}
+          IN_REBUILD: ${{ github.event.inputs.rebuild }}
         run: |
           FORCE=""
           # A LOCK wins over every other way of naming the set, and is passed
           # to zpkb as a FILE rather than expanded here: zpkb reads it, and a
           # second expansion in shell would be a second answer to the same
           # question. See `zpkb factory --lock`.
-          if [ -n "${{ github.event.inputs.lock }}" ]; then
-            LOCK="${{ github.event.inputs.lock }}"
+          if [ -n "$IN_LOCK" ]; then
+            LOCK="$IN_LOCK"
             [ -r "$LOCK" ] || { echo "::error::no lock at $LOCK in this repository"; exit 1; }
             echo "locked build from $LOCK ($(grep -c '= { version' "$LOCK") pin(s))"
-          elif [ "${{ matrix.chunk }}" = "manual" ]; then
-            RECIPES="${{ github.event.inputs.recipes }}"
+          elif [ "$MATRIX_CHUNK" = "manual" ]; then
+            RECIPES="$IN_RECIPES"
             # A manual dispatch rebuilds what it names by default — that is what
             # refreshing a stale artifact is. `force: 0` turns the same list into
             # "build what is MISSING from this", which is the question a
@@ -823,13 +847,13 @@ jobs:
             # seed registry already holds. Without this the only way to ask was
             # to reconstruct the answer from the previous runs' logs, and a
             # count read off a log is a count of what the log happened to print.
-            [ "${{ github.event.inputs.force }}" = "0" ] || FORCE=1
+            [ "$IN_FORCE" = "0" ] || FORCE=1
           else
-            start=$(( ${{ matrix.chunk }} * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
+            start=$(( MATRIX_CHUNK * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
             RECIPES="$(grep -vE '^[[:space:]]*(#|$)' recipes.txt | sed -n "${start},${end}p" | tr '\n' ' ')"
           fi
           # shellcheck disable=SC2086  # RECIPES is intentionally word-split to count projects
-          echo "chunk ${{ matrix.chunk }} → $(printf '%s\n' $RECIPES | grep -c .) requested projects${FORCE:+ (FORCE rebuild)}"
+          echo "chunk $MATRIX_CHUNK →$(printf '%s\n' $RECIPES | grep -c .) requested projects${FORCE:+ (FORCE rebuild)}"
           # RECIPES / FORCE / MAX_VERSIONS / PLATFORM / LOCK are read from the
           # env by `zpkb factory` itself; the rest is passed explicitly.
           # Disk, before and after, because a full one does not announce
@@ -839,7 +863,7 @@ jobs:
           # naming a project that had done nothing wrong. zpkb now removes a
           # published build tree (go-zpkg/zpkb#217); what a run INHERITS from
           # earlier ones it cannot remove, and only a number shows that.
-          if [ -n "${{ github.event.inputs.clean_build_root }}" ]; then
+          if [ -n "$IN_CLEAN_BUILD_ROOT" ]; then
             echo "clearing the build root a previous run left behind:"
             # BOTH roots: zpkb's own, and the pre-v0.80.0 `brewkit` spelling,
             # which these long-lived runners still hold and which repointing
@@ -867,13 +891,13 @@ jobs:
             export JOBS
           fi
           du -sh "$HOME/.local/share/zpkb" "$HOME/.local/share/brewkit" 2>/dev/null || echo "  (no build root yet)"
-          MAX_VERSIONS="${{ github.event.inputs.max_versions }}"
-          NO_CLOSURE="${{ github.event.inputs.no_closure }}"
-          PIN_TO_DEPENDENTS="${{ github.event.inputs.pin_to_dependents }}"
+          MAX_VERSIONS="$IN_MAX_VERSIONS"
+          NO_CLOSURE="$IN_NO_CLOSURE"
+          PIN_TO_DEPENDENTS="$IN_PIN_TO_DEPENDENTS"
           # REBUILD is NOT derived from FORCE: a manual dispatch forces by
           # default, so deriving it would mint a `_N` on every retry of a lane
           # that failed at the publish step. Asked for explicitly or not at all.
-          REBUILD="${{ github.event.inputs.rebuild }}"
+          REBUILD="$IN_REBUILD"
           export RECIPES FORCE MAX_VERSIONS NO_CLOSURE PIN_TO_DEPENDENTS LOCK REBUILD
           # A glibc-pinned build links the pkgx glibc artifact directly, which bakes
           # an ABSOLUTE PT_INTERP pointing into $ZPKG_DIR. Under the default
@@ -1035,6 +1059,7 @@ jobs:
           # zpkb catalog --publish pushes to $ZPKG_DIST: an oci_to run must
           # catalogue where it published, not where it read.
           ZPKG_DIST: ${{ env.OCI_TO || env.ZPKG_DIST }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           zpkb catalog \
