@@ -124,7 +124,7 @@ PRESERVE=""
 # to clear the environment and the secrets would otherwise be inherited.
 # STAGE_ONLY is here because the factory reads it and the guard test
 # (preserveenv_test.go) holds every variable the factory reads to this list.
-[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,OCI_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
+[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,OCI_TO,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
 # shellcheck disable=SC2016  # the inner script is deliberately literal: it runs
 # in the new namespace, where these variables are the ones that matter.
 # shellcheck disable=SC2086  # $PRESERVE is one flag or nothing, and must not
@@ -154,7 +154,7 @@ $SUDO $PRESERVE \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
       -- /usr/local/bin/zpkb factory --stage-only \
            --recipe-dir /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
-           --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --artifacts /dist "$@"
+           --to "${PUBLISH_TO:?publishing requires an explicit destination}" --artifacts /dist "$@"
   ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
 
 # This script PUBLISHES NOTHING. It staged artifacts and a publish-plan.json under

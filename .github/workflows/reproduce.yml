@@ -140,6 +140,9 @@ jobs:
           # Nothing is pushed. This job reads the registry and writes nowhere;
           # its permissions say `packages: read` for the same reason.
           NO_PUBLISH: "1"
+          # sovereign-build.sh needs a destination for `--to`; this job
+          # publishes nothing, so it names one that cannot resolve.
+          PUBLISH_TO: oci://publishes-nothing.invalid/reproduce
         run: |
           set -eu
           root="$RUNNER_TEMP/rootfs"

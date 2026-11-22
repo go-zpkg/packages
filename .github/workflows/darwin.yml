@@ -41,6 +41,9 @@ on:
         description: "copy the artifacts from this upstream dist instead of building them, e.g. https://dist.pkgx.dev — the cheap way to restore a platform an index lost"
         required: false
         default: ""
+      oci_to:
+        description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. Exactly oci://ghcr.io/go-zpkg/packages is signed with secrets.ZPKG_SIGNING_KEY."
+        required: true
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
     # - cron: "0 7 * * *"
 
@@ -181,6 +184,16 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
 
+      # Publishing requires an explicit destination: oci_to is required, a blank
+      # one is refused, there is no default, and go-pkgx is refused as one.
+      # `inputcheck` decides it once for every lane and writes PUBLISH_TO and
+      # SIGN_PROD to $GITHUB_ENV.
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
+
       # OUR pkgx, not upstream's — the same choice build.yml makes, and for the
       # same reason. Upstream resolves from its own bundled pantry and its own
       # dist, so neither overrides/ nor ZPKG_RECIPES_OVERLAY reaches it: zpkb asks
@@ -268,7 +281,9 @@ jobs:
           # way. The token the job already holds for the registry raises the
           # ceiling to 5000/hour; it just was never handed to the build.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          # The key follows the destination inputcheck validated: ZPKG_SIGNING_KEY
+          # for exactly oci://ghcr.io/go-zpkg/packages, the old key otherwise.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           VERSIONS: ${{ github.event.inputs.versions }}
           MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
@@ -317,7 +332,7 @@ jobs:
             --overrides overrides \
             --overlay overlay \
             --advisories advisories \
-            --to oci://ghcr.io/go-pkgx/packages \
+            --to "$PUBLISH_TO" \
             --artifacts dist \
             ${VERSIONS:+--versions "$VERSIONS"} \
             ${MAX_VERSIONS:+--max-versions "$MAX_VERSIONS"} \
@@ -379,7 +394,10 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # zpkb catalog --publish pushes to $ZPKG_DIST: catalogue where this
+          # run published.
+          ZPKG_DIST: ${{ env.PUBLISH_TO }}
         run: |
           set -eu
           zpkb catalog \

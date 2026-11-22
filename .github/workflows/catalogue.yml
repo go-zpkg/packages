@@ -20,12 +20,18 @@
 name: catalogue
 
 on:
-  schedule:
+  # schedule:  # cron disabled 2026-11-22: a schedule dispatches no inputs, and
+  # publishing requires an explicit destination (oci_to; no default, go-pkgx
+  # refused). Restore it only with the destination NAMED by whoever decides it.
     # Monday, early. Before the factories' own crons (06:00 linux, 07:00
     # darwin, 08:00 windows) so that if those are ever switched back on,
     # this one has already run and theirs simply supersede it.
-    - cron: "0 5 * * 1"
+    # - cron: "0 5 * * 1"
   workflow_dispatch:
+    inputs:
+      oci_to:
+        description: "registry to PUBLISH the catalogues to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. Exactly oci://ghcr.io/go-zpkg/packages is signed with secrets.ZPKG_SIGNING_KEY."
+        required: true
 
 permissions: { contents: read, packages: write }
 
@@ -74,6 +80,12 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
 
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
+
       # GONOPROXY (workflow env:) keeps zpkb coming from GitHub rather than a
       # stale proxy cache. A catalogue built by an old zpkb is the one thing this
       # job must not publish, since the honesty of what it records lives in
@@ -112,7 +124,9 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # zpkb catalog --publish pushes to $ZPKG_DIST.
+          ZPKG_DIST: ${{ env.PUBLISH_TO }}
         run: |
           set -eu
           zpkb catalog \

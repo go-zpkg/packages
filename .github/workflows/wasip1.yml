@@ -21,6 +21,10 @@
 name: wasip1
 on:
   workflow_dispatch:
+    inputs:
+      oci_to:
+        description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. Exactly oci://ghcr.io/go-zpkg/packages is signed with secrets.ZPKG_SIGNING_KEY."
+        required: true
 permissions: { contents: read, packages: write }
 env:
   # Deps from the module proxy, OUR modules straight from GitHub; kept uniform
@@ -110,6 +114,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
       - uses: bytecodealliance/actions/wasmtime/setup@v1
       - name: install zpkb
         run: |
@@ -146,7 +155,7 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
         run: |
           slug="${{ matrix.slug }}"; ver="${{ matrix.version }}"
           stage="stage/$slug/v$ver/bin"; mkdir -p "$stage"
@@ -214,7 +223,7 @@ jobs:
           # worth pointing them at; that switch is a separate, deliberate step
           # and has a gate on it.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
-            zpkb publish --to oci://ghcr.io/go-zpkg/packages --project "$slug" \
+            zpkb publish --to "$PUBLISH_TO" --project "$slug" \
               --version "$ver" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
               --spec-dep "go.dev=${GOVER#go}" \
               --spec-recipe-from "$RUNNER_TEMP/build.txt" \
