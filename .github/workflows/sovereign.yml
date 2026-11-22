@@ -204,7 +204,7 @@ jobs:
           # (go-zpkg/packages#440), and each pin is a line a test can read, a
           # bump a deliberate edit.
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.0
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.39.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 

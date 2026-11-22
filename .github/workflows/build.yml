@@ -388,7 +388,7 @@ jobs:
           # A TAG, not main: this job holds the signing and registry secrets,
           # and a moving branch would run whatever it points at when the job
           # starts. A newer tool is a deliberate bump of this line (go-zpkg/packages#440).
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.39.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install zpkb
