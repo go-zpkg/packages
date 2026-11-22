@@ -25,6 +25,14 @@ func refused(t *testing.T, name string, in Inputs, want string) {
 	}
 }
 
+func envOf(r Result) map[string]string {
+	got := map[string]string{}
+	for _, p := range r.Env {
+		got[p[0]] = p[1]
+	}
+	return got
+}
+
 func TestABlankDispatchIsAccepted(t *testing.T) {
 	r, err := Validate(ok())
 	if err != nil {
@@ -207,9 +215,9 @@ func TestTheEffectiveDestinationDecidesTheGoZpkgRule(t *testing.T) {
 	// oci_to blank, seed_dist blank, dist_from naming go-zpkg: `zpkb factory
 	// --to "${OCI_TO:-$ZPKG_DIST}"` publishes to dist_from.
 	for name, set := range map[string]func(*Inputs){
-		"oci_to":    func(i *Inputs) { i.OCITo = "oci://ghcr.io/Go-ZPKG/packages" },
-		"dist_from": func(i *Inputs) { i.DistFrom = "oci://ghcr.io/go-zpkg/packages" },
-		"seed_dist": func(i *Inputs) { i.SeedDist = "oci://ghcr.io/go-zpkg/seed" },
+		"oci_to":    func(i *Inputs) { i.OCITo = prodDest },
+		"dist_from": func(i *Inputs) { i.DistFrom = prodDest },
+		"seed_dist": func(i *Inputs) { i.SeedDist = prodDest },
 	} {
 		in := ok()
 		set(&in)
@@ -217,8 +225,37 @@ func TestTheEffectiveDestinationDecidesTheGoZpkgRule(t *testing.T) {
 		refused(t, name, in, "needs secrets.ZPKG_SIGNING_KEY")
 		in.HaveZpkgKey = true
 		r, err := Validate(in)
-		if err != nil || !looksGoZpkg(r.Effective) {
+		if err != nil || r.Effective != prodDest || envOf(r)["SIGN_PROD"] != "true" {
 			t.Errorf("%s with the key: %v %q", name, err, r.Effective)
+		}
+	}
+	// Anything else that names go-zpkg is refused, with or without the key:
+	// neither key may sign a destination that only resembles production.
+	for name, set := range map[string]func(*Inputs){
+		"other repo":  func(i *Inputs) { i.OCITo = "oci://ghcr.io/go-zpkg/seed" },
+		"case":        func(i *Inputs) { i.OCITo = "oci://ghcr.io/Go-ZPKG/packages" },
+		"suffix":      func(i *Inputs) { i.OCITo = prodDest + "x" },
+		"trailing /":  func(i *Inputs) { i.OCITo = prodDest + "/" },
+		"other host":  func(i *Inputs) { i.OCITo = "oci://example.org/go-zpkg/packages" },
+		"seed":        func(i *Inputs) { i.SeedDist = "oci://ghcr.io/go-zpkg/seed" },
+		"dist_from":   func(i *Inputs) { i.DistFrom = "oci://ghcr.io/go-zpkg/other" },
+		"shorter org": func(i *Inputs) { i.OCITo = "oci://ghcr.io/go-zpkg" },
+	} {
+		for _, key := range []bool{false, true} {
+			in := ok()
+			set(&in)
+			in.HaveZpkgKey = key
+			refused(t, name, in, "must be exactly")
+		}
+	}
+	// A destination that does not name go-zpkg is signed with the other key.
+	for _, dest := range []string{"oci://ghcr.io/go-pkgx/packages", "oci://127.0.0.1:5000/seed"} {
+		in := ok()
+		in.OCITo = dest
+		in.HaveZpkgKey = true
+		r, err := Validate(in)
+		if err != nil || envOf(r)["SIGN_PROD"] != "false" {
+			t.Errorf("%s: %v SIGN_PROD=%q", dest, err, envOf(r)["SIGN_PROD"])
 		}
 	}
 	in := ok()
@@ -409,4 +446,60 @@ func TestMainExitsWithTheRunStatus(t *testing.T) {
 	if got != 1 {
 		t.Errorf("exit %d", got)
 	}
+}
+
+func TestIsLoopbackRegistryIsExact(t *testing.T) {
+	for dist, want := range map[string]bool{
+		"oci://127.0.0.1:5000/seed":      true,
+		"oci://127.0.0.1/seed":           true,
+		"oci://127.0.0.1:99999/seed":     true,
+		"oci://127.0.0.1:0/seed":         true,
+		"oci://127.0.0.1":                true,
+		"oci://localhost:5000/seed":      true,
+		"oci://[::1]:5000/seed":          true,
+		"oci://[::1]/seed":               true,
+		"oci://127.0.0.2:5000/seed":      false,
+		"oci://127.evil.example/seed":    false,
+		"oci://127.0.0.1@evil.example/x": false,
+		"oci://localhost.example/seed":   false,
+		"oci://LOCALHOST:5000/seed":      false,
+		"oci://127.0.0.1:/seed":          false,
+		"oci://127.0.0.1:50a0/seed":      false,
+		"oci://127.0.0.1:500000/seed":    false,
+		"oci://127.0.0.1x:5000/seed":     false,
+		"oci://[::1/seed":                false,
+		"oci://[::1]x/seed":              false,
+		"oci://::1/seed":                 false,
+		"https://127.0.0.1:5000/seed":    false,
+		"127.0.0.1:5000/seed":            false,
+		"":                               false,
+	} {
+		if got := isLoopbackRegistry(dist); got != want {
+			t.Errorf("isLoopbackRegistry(%q) = %v, want %v", dist, got, want)
+		}
+	}
+}
+
+func TestSeedLoopbackIsExported(t *testing.T) {
+	in := ok()
+	if envOf(mustValidate(t, in))["SEED_LOOPBACK"] != "false" {
+		t.Error("a blank seed_dist is not loopback")
+	}
+	in.SeedDist = "oci://127.0.0.1:5000/seed"
+	if envOf(mustValidate(t, in))["SEED_LOOPBACK"] != "true" {
+		t.Error("a loopback seed_dist is loopback")
+	}
+	in.SeedDist = "oci://127.evil.example/seed"
+	if envOf(mustValidate(t, in))["SEED_LOOPBACK"] != "false" {
+		t.Error("a lookalike seed_dist is not loopback")
+	}
+}
+
+func mustValidate(t *testing.T, in Inputs) Result {
+	t.Helper()
+	r, err := Validate(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }

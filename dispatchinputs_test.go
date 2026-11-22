@@ -92,3 +92,90 @@ func TestBuildValidatesWithInputcheckBeforeAnythingIsExported(t *testing.T) {
 		}
 	}
 }
+
+// The production signing key is chosen by SIGN_PROD, which is decided once (in
+// inputcheck, or in sovereign.yml's validate step) from the EFFECTIVE
+// destination and is true only for the exact production registry. A substring
+// test on one input, as the expressions used to be, signs a lookalike and
+// misses a destination that arrives through another input.
+func TestTheProductionKeyFollowsSignProdAndNothingElse(t *testing.T) {
+	seen := 0
+	for _, f := range workflowFiles {
+		for _, s := range loadWorkflow(t, f).steps() {
+			v, ok := s.Env["SIGNING_KEY"]
+			if !ok {
+				continue
+			}
+			seen++
+			if strings.Contains(v, "contains(") || strings.Contains(v, "OCI_TO") {
+				t.Errorf("%s: step %q picks the signing key from the destination text: %s", f, s.Name, v)
+			}
+			if !strings.Contains(v, "env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY") ||
+				!strings.Contains(v, "env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY") {
+				t.Errorf("%s: step %q does not tie each key to SIGN_PROD: %s", f, s.Name, v)
+			}
+		}
+	}
+	if seen != 3 {
+		t.Errorf("found %d SIGNING_KEY steps, expected 3 (build, catalogue, sovereign)", seen)
+	}
+}
+
+func TestTheSovereignValidateStepRefusesALookalikeDestination(t *testing.T) {
+	var run string
+	for _, s := range loadWorkflow(t, ".github/workflows/sovereign.yml").steps() {
+		if strings.Contains(s.Run, "sign_prod=") {
+			run = s.Run
+		}
+	}
+	for _, want := range []string{
+		"oci://ghcr.io/go-zpkg/packages)",
+		`echo "SIGN_PROD=$sign_prod"`,
+		"must be exactly oci://ghcr.io/go-zpkg/packages",
+	} {
+		if !strings.Contains(run, want) {
+			t.Errorf("sovereign.yml validate step lacks %q", want)
+		}
+	}
+}
+
+// Both workflows run with the signing and registry secrets, so the tools they
+// install are tags: a moving branch is whatever it points at when the job starts.
+func TestSecretHoldingLanesInstallTaggedTools(t *testing.T) {
+	tag := regexp.MustCompile(`go install github\.com/go-zpkg/(zpkb/cmd/zpkb|zpkx|zpkm)@v[0-9]+\.[0-9]+\.[0-9]+\b`)
+	for _, f := range workflowFiles {
+		n := 0
+		for _, s := range loadWorkflow(t, f).steps() {
+			for _, line := range strings.Split(s.Run, "\n") {
+				if !strings.Contains(line, "go install") || strings.HasPrefix(strings.TrimSpace(line), "#") {
+					continue
+				}
+				if !tag.MatchString(line) {
+					t.Errorf("%s: step %q installs a tool that is not pinned to a tag: %s", f, s.Name, strings.TrimSpace(line))
+					continue
+				}
+				n++
+			}
+		}
+		if n != 3 {
+			t.Errorf("%s: %d pinned installs, expected zpkb, zpkx and zpkm", f, n)
+		}
+	}
+}
+
+// The loopback decision is Go (inputcheck.isLoopbackRegistry), not a shell
+// glob: no run: block of either workflow may pattern-match a host.
+func TestNoShellGlobDecidesWhatIsLoopback(t *testing.T) {
+	for _, f := range workflowFiles {
+		for _, s := range loadWorkflow(t, f).steps() {
+			if strings.Contains(s.Run, "127.*") || strings.Contains(s.Run, "seed_host") {
+				t.Errorf("%s: step %q decides loopback in shell", f, s.Name)
+			}
+		}
+	}
+	for _, s := range loadWorkflow(t, ".github/workflows/build.yml").steps() {
+		if strings.Contains(s.Run, "ZPKG_VERIFY=0") && !strings.Contains(s.Run, `"$SEED_LOOPBACK" = true`) {
+			t.Errorf("step %q turns verification off without SEED_LOOPBACK", s.Name)
+		}
+	}
+}

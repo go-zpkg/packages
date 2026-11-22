@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -211,7 +212,15 @@ func Validate(in Inputs) (Result, error) {
 	default:
 		r.Effective = distFrom
 	}
-	if looksGoZpkg(r.Effective) {
+	// The production key signs ONE destination, spelled exactly. A
+	// destination that merely resembles it (another repository in the same
+	// organisation, another case, a suffix) is refused rather than signed
+	// with either key.
+	prod := r.Effective == prodDest
+	if looksGoZpkg(r.Effective) && !prod {
+		return r, fmt.Errorf("a destination naming go-zpkg must be exactly %s, got %s", prodDest, r.Effective)
+	}
+	if prod {
 		if !in.HaveZpkgKey {
 			return r, fmt.Errorf("publishing to %s needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts", r.Effective)
 		}
@@ -228,12 +237,59 @@ func Validate(in Inputs) (Result, error) {
 		// zpkb as ZPKG_EXTRA_TRUSTED_KEYS in their own env, so that the build
 		// step is not given a trust variable the dispatch did not mean for it.
 		{"EXTRA_KEYS", in.ExtraKeys},
+		// Read by the SIGNING_KEY expressions: ZPKG_SIGNING_KEY signs only
+		// when this is `true`, every other destination gets the other key.
+		{"SIGN_PROD", strconv.FormatBool(prod)},
+		// Signature verification may be off only for a throwaway registry on
+		// loopback; see isLoopbackRegistry for what counts.
+		{"SEED_LOOPBACK", strconv.FormatBool(in.SeedDist != "" && isLoopbackRegistry(in.SeedDist))},
 	}
 	return r, nil
 }
 
+// isLoopbackRegistry reports whether an `oci://host[:port]/repo` names the
+// local machine: the host is EXACTLY 127.0.0.1, [::1] or localhost, and what
+// follows it is nothing or a numeric port. No glob, no prefix: `127.0.0.1@h`,
+// `127.evil.example` and `localhost.example` are other machines.
+func isLoopbackRegistry(dist string) bool {
+	h, ok := strings.CutPrefix(dist, "oci://")
+	if !ok {
+		return false
+	}
+	h, _, _ = strings.Cut(h, "/")
+	host, rest := h, ""
+	if strings.HasPrefix(h, "[") {
+		// No closing bracket leaves end at -1, an empty host, refused below.
+		end := strings.IndexByte(h, ']')
+		host, rest = h[:end+1], h[end+1:]
+	} else if i := strings.IndexByte(h, ':'); i >= 0 {
+		host, rest = h[:i], h[i:]
+	}
+	switch host {
+	case "127.0.0.1", "[::1]", "localhost":
+	default:
+		return false
+	}
+	if rest == "" {
+		return true
+	}
+	port, ok := strings.CutPrefix(rest, ":")
+	if !ok || port == "" || len(port) > 5 {
+		return false
+	}
+	for _, c := range port {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// prodDest is the one destination the production signing key may sign.
+const prodDest = "oci://ghcr.io/go-zpkg/packages"
+
 // looksGoZpkg is deliberately the broad match: a destination that merely
-// contains the name is treated as go-zpkg and refused without the new key.
+// contains the name must be exactly prodDest, or it is refused.
 func looksGoZpkg(dest string) bool { return strings.Contains(strings.ToLower(dest), "go-zpkg") }
 
 // checkExtraKeys validates `name:RW<base64>` entries separated by whitespace

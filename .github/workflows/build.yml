@@ -384,15 +384,18 @@ jobs:
           # start there at all —
           #   /usr/local/bin/zpkx: error while loading shared libraries:
           #     libc.so.6: cannot open shared object file
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@main
+          #
+          # A TAG, not main: this job holds the signing and registry secrets,
+          # and a moving branch would run whatever it points at when the job
+          # starts. A newer tool is a deliberate bump of this line (go-zpkg/packages#440).
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.39.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install zpkb
-        # GONOPROXY (workflow env:): pull the current main straight from GitHub,
-        # else the module proxy serves a stale cached @main and CI runs an old zpkb.
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@main
+          # A tag, like zpkx above; the version go.mod links.
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.98.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -560,25 +563,16 @@ jobs:
             # want. It simply has to EARN the artifacts it serves, like ghcr
             # does. If it cannot hold a signature it will say so at the first
             # install, which is a better failure than a silent one.
-            # Host extraction, written out because two shapes break the
-            # one-liner that suggests itself. `[` opens a glob, so stripping
-            # it needs quoting; and `${h%%:*}` cuts at the FIRST colon, which
-            # for `[::1]:5000` is inside the brackets and leaves `[`.
-            seed_host=${SEED_DIST#*://}
-            seed_host=${seed_host%%/*}
-            case "$seed_host" in
-              "["*) seed_host=${seed_host#"["}; seed_host=${seed_host%%"]"*} ;;
-              *)    seed_host=${seed_host%%:*} ;;
-            esac
-            case "$seed_host" in
-              127.*|localhost|::1)
-                echo "verification off: a loopback throwaway registry is not a trust boundary"
-                echo "ZPKG_VERIFY=0" >> "$GITHUB_ENV"
-                ;;
-              *)
-                echo "::notice::seed_dist host '$seed_host' is not loopback, so signature verification STAYS ON — the throwaway-registry argument does not reach it"
-                ;;
-            esac
+            # SEED_LOOPBACK is decided in Go, by `inputcheck` (isLoopbackRegistry):
+            # the host is EXACTLY 127.0.0.1, [::1] or localhost, with at most a
+            # numeric port. This was a shell glob, which also matched a host
+            # that merely begins with 127 — no pattern is left here.
+            if [ "$SEED_LOOPBACK" = true ]; then
+              echo "verification off: a loopback throwaway registry is not a trust boundary"
+              echo "ZPKG_VERIFY=0" >> "$GITHUB_ENV"
+            else
+              echo "::notice::seed_dist '$SEED_DIST' is not a loopback registry, so signature verification STAYS ON — the throwaway-registry argument does not reach it"
+            fi
             exit 0
           fi
           echo "ZPKG_DIST=$DIST_FROM" >> "$GITHUB_ENV"
@@ -598,7 +592,8 @@ jobs:
           # extra keys, nothing else does (go-zpkg/packages#440).
           ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
+          # A tag, not main (go-zpkg/packages#440).
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           # A SELF-HOSTED runner reuses $RUNNER_TEMP between jobs, and
           # artifact.InstallFor treats the mere EXISTENCE of <project>/v<ver> as
           # "already present":
@@ -788,10 +783,13 @@ jobs:
           # way. The token the job already holds for the registry raises the
           # ceiling to 5000/hour; it just was never handed to the build.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The key follows the DESTINATION: a go-zpkg one gets ZPKG_SIGNING_KEY
-          # or nothing, every other keeps the old key. Two guarded halves, not
+          # The key follows the EFFECTIVE destination, as `inputcheck` decided
+          # it: SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key, and one that merely names go-zpkg was refused
+          # before this step. Two guarded halves, not
           # `a && X || Y`, which would hand go-zpkg the old key when X is empty.
-          SIGNING_KEY: ${{ (contains(env.OCI_TO, 'go-zpkg') && secrets.ZPKG_SIGNING_KEY) || (!contains(env.OCI_TO, 'go-zpkg') && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           GLIBC: ${{ github.event.inputs.glibc }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
@@ -1055,7 +1053,7 @@ jobs:
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Same destination rule as the build step above.
-          SIGNING_KEY: ${{ (contains(env.OCI_TO, 'go-zpkg') && secrets.ZPKG_SIGNING_KEY) || (!contains(env.OCI_TO, 'go-zpkg') && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # zpkb catalog --publish pushes to $ZPKG_DIST: an oci_to run must
           # catalogue where it published, not where it read.
           ZPKG_DIST: ${{ env.OCI_TO || env.ZPKG_DIST }}

@@ -89,7 +89,10 @@ var zpkbPinRE = regexp.MustCompile(`github\.com/go-zpkg/zpkb/cmd/zpkb@(v[0-9][^\
 // 4 → 5 with the `--check-order` step (go-zpkg/packages#480): it walks zpkb's
 // own closure, so it is pinned at v0.97.0 and a zpkb change cannot redden an
 // unrelated pull request. It builds nothing and clears the floor all the same.
-const zpkbPinsExpected = 5
+//
+// 5 → 7 with the two lanes that hold the signing and registry secrets,
+// build.yml and sovereign.yml, which installed zpkb @main (go-zpkg/packages#440).
+const zpkbPinsExpected = 7
 
 func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {
 	dir := filepath.Join(".github", "workflows")

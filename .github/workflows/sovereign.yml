@@ -89,11 +89,10 @@ jobs:
       # validated here, once, and every later step reads the validated
       # spelling from $GITHUB_ENV.
       #
-      # ⛔ A DESTINATION NAMING go-zpkg NEEDS THE go-zpkg KEY. The match is the
-      # same broad `*go-zpkg*` the SIGNING_KEY expression below uses, so the
-      # two cannot disagree: a destination that merely contains the name is
-      # treated as go-zpkg and refused without the new key rather than signed
-      # with the old one.
+      # ⛔ ONLY oci://ghcr.io/go-zpkg/packages IS SIGNED WITH THE go-zpkg KEY.
+      # This step writes SIGN_PROD, the one thing the SIGNING_KEY expression
+      # below reads, so the two cannot disagree. A destination that merely
+      # contains the name is refused, never signed with either key.
       - name: validate oci_to, dist_from and overlay_ref
         env:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
@@ -157,14 +156,23 @@ jobs:
           case "$ref" in
             -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::overlay_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
           esac
-          case "${oci_to,,}" in
-            *go-zpkg*)
+          # The production key signs ONE destination, spelled exactly. One
+          # that merely names go-zpkg is refused, with either key.
+          sign_prod=false
+          case "$oci_to" in
+            oci://ghcr.io/go-zpkg/packages)
+              sign_prod=true
               if [ "$HAVE_ZPKG_KEY" != true ]; then
                 echo "::error::publishing to $oci_to needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts."
                 exit 1
               fi ;;
+            *)
+              case "${oci_to,,}" in
+                *go-zpkg*) echo "::error::a destination naming go-zpkg must be exactly oci://ghcr.io/go-zpkg/packages, got $oci_to"; exit 1 ;;
+              esac ;;
           esac
           {
+            echo "SIGN_PROD=$sign_prod"
             echo "OCI_TO=$oci_to"
             echo "DIST_FROM=$dist_from"
             echo "OVERLAY_URL=https://raw.githubusercontent.com/go-zpkg/recipes/$ref/projects"
@@ -178,15 +186,17 @@ jobs:
 
       - name: build zpkb, pkgx and pkgm (static)
         run: |
-          # ⛔⛔ ASSEMBLED FROM A VARIABLE, SO THE RENAME DID NOT SEE IT. The
-          # go-pkgx → go-zpkg pass is a rule table over literal text, and
-          # there is no string `go-zpkg/bk/cmd/bk` in this file to match —
-          # only `github.com/go-zpkg/$m`. The modules are `zpkb/cmd/zpkb`,
-          # `zpkx` and `zpkm`, and the binaries they install are `zpkb`,
-          # `zpkx` and `zpkm`.
-          for m in zpkb/cmd/zpkb zpkx zpkm; do
-            CGO_ENABLED=0 go install "github.com/go-zpkg/$m@main"
-          done
+          # This used to assemble the module path from a loop variable, so the
+          # go-pkgx → go-zpkg rename pass (a rule table over literal text) did
+          # not see it. Each module is spelled out now, which also means the
+          # rename pass reads every one.
+          #
+          # Tags, not main: this job holds the signing and registry secrets
+          # (go-zpkg/packages#440), and each pin is a line a test can read, a
+          # bump a deliberate edit.
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.98.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.39.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # A recorded commit, never a moving branch: the pantry's recipe scripts
@@ -278,11 +288,13 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # The key follows the DESTINATION. A go-zpkg destination gets
-          # ZPKG_SIGNING_KEY or nothing; every other destination keeps the old
-          # key. Written as two guarded halves rather than `a && X || Y`, which
-          # would hand Y (the old key) to go-zpkg whenever X is empty.
-          SIGNING_KEY: ${{ (contains(env.OCI_TO, 'go-zpkg') && secrets.ZPKG_SIGNING_KEY) || (!contains(env.OCI_TO, 'go-zpkg') && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # The key follows the destination as the validate step decided it:
+          # SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key. Written as two guarded halves rather than
+          # `a && X || Y`, which would hand Y (the old key) to go-zpkg
+          # whenever X is empty.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # Read by builder/sovereign-build.sh's --to. Already whitelisted
           # in its --preserve-env list.
           OCI_TO: ${{ env.OCI_TO }}
