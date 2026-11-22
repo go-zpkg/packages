@@ -115,3 +115,33 @@ func TestNoOCIVariableReachesTheChroot(t *testing.T) {
 		t.Errorf("found %d steps running sovereign-build.sh, expected at least 2", ran)
 	}
 }
+
+// ⛔ build.yml CLONES THE OVERLAY AT overlay_ref. The step "clone the pantry
+// overlay" was `git clone --depth 1 .../recipes overlay`: a moving main that
+// ignored overlay_ref, while OVERLAY_URL (another consumer of the same input)
+// named the ref. A dispatch that pinned a ref built from whatever main was.
+func TestBuildOverlayIsClonedAtOverlayRef(t *testing.T) {
+	const f = ".github/workflows/build.yml"
+	found := 0
+	for _, s := range loadWorkflow(t, f).steps() {
+		if !strings.Contains(s.Run, "go-zpkg/recipes") || !strings.Contains(s.Run, "overlay") {
+			continue
+		}
+		if strings.Contains(s.Run, "git clone") {
+			t.Errorf("%s: step %q clones the overlay with git clone, which ignores overlay_ref", f, s.Name)
+		}
+		if !strings.Contains(s.Run, "git -C overlay fetch") || !strings.Contains(s.Run, `"$ref"`) {
+			t.Errorf("%s: step %q does not fetch the overlay at \"$ref\"", f, s.Name)
+		}
+		if !strings.Contains(s.Env["IN_OVERLAY_REF"], "github.event.inputs.overlay_ref") {
+			t.Errorf("%s: step %q does not take the ref from the overlay_ref input", f, s.Name)
+		}
+		if !strings.Contains(s.Run, `:-main}`) {
+			t.Errorf("%s: step %q has no main default for an empty overlay_ref", f, s.Name)
+		}
+		found++
+	}
+	if found != 1 {
+		t.Errorf("%s: found %d overlay clone steps, expected 1", f, found)
+	}
+}
