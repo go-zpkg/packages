@@ -90,6 +90,10 @@ on:
         description: "go-zpkg/recipes branch, tag or SHA the overlay is read from. Blank = main, a moving ref; pass a SHA to make a run reproducible."
         required: false
         default: "main"
+      pantry_ref:
+        description: "pkgxdev/pantry commit the recipes are read from. Its recipe scripts run during the build, so the default is a recorded SHA and a newer pantry is a deliberate bump, not whatever HEAD is at the minute of the run. A branch, tag or SHA, validated like overlay_ref (go-zpkg/packages#440)."
+        required: false
+        default: "1879069619956097ab80525b9c27ad15f1f07229"
   # Continuous population: rebuild recipes.txt daily. skip-if-published means
   # only new/updated (project,version,platform) are actually built.
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
@@ -394,11 +398,23 @@ jobs:
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      # --depth 1 of a moving branch, so WHICH pantry is a property of the
-      # minute the run started and of nothing that is written down. Say it.
-      - name: clone pantry
+      # The pantry is a recorded commit, never a moving branch: its recipe
+      # scripts run during the build, so which commit that is has to be a
+      # decision somebody wrote down (the `pantry_ref` input, whose default is
+      # a SHA) rather than a property of the minute the run started. The input
+      # reaches the shell as environment and is validated like overlay_ref.
+      - name: clone pantry at the recorded commit
+        env:
+          PANTRY_REF: ${{ github.event.inputs.pantry_ref }}
         run: |
-          git clone --depth 1 https://github.com/pkgxdev/pantry
+          set -eu
+          ref=${PANTRY_REF:?pantry_ref is empty}
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::pantry_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
+          esac
+          git init -q pantry
+          git -C pantry fetch -q --depth 1 https://github.com/pkgxdev/pantry "$ref"
+          git -C pantry checkout -q FETCH_HEAD
           echo "pantry $(git -C pantry rev-parse HEAD)"
 
       # The overlay is the half a CONSUMER resolves from, and it declares edges
@@ -1233,6 +1249,20 @@ jobs:
             echo
           } >> seed-provenance.txt
           cat seed-provenance.txt
+
+      # A file a build wrote and a later step uploads is NOT masked the way the
+      # job log is: whatever a recipe printed into failures-detail.txt would go
+      # out verbatim. This step holds the secrets only to find them, rewrites
+      # the files that are uploaded, and removes one it cannot rewrite.
+      - name: keep secrets out of the uploaded records
+        if: always()
+        env:
+          SIGNING_KEY_ZPKG: ${{ secrets.ZPKG_SIGNING_KEY }}
+          SIGNING_KEY_SEED: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          go run ./scrubsecrets --env SIGNING_KEY_ZPKG,SIGNING_KEY_SEED,OCI_PASSWORD \
+            failures.txt failures-detail.txt tests.txt seed-provenance.txt
 
       - name: upload seed provenance
         if: always()

@@ -48,6 +48,10 @@ on:
         description: "go-zpkg/recipes branch, tag or SHA the overlay is read from. Blank = main, a moving ref; pass a SHA to make a run reproducible."
         required: false
         default: "main"
+      pantry_ref:
+        description: "pkgxdev/pantry commit the recipes are read from. Its recipe scripts run during the build, so the default is a recorded SHA and a newer pantry is a deliberate bump, not whatever HEAD is at the minute of the run. A branch, tag or SHA, validated like overlay_ref (go-zpkg/packages#440)."
+        required: false
+        default: "1879069619956097ab80525b9c27ad15f1f07229"
 
 permissions:
   contents: read
@@ -140,8 +144,21 @@ jobs:
           done
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: clone pantry
-        run: git clone --depth 1 https://github.com/pkgxdev/pantry
+      # A recorded commit, never a moving branch: the pantry's recipe scripts
+      # run during the build. See build.yml's step of the same purpose.
+      - name: clone pantry at the recorded commit
+        env:
+          PANTRY_REF: ${{ github.event.inputs.pantry_ref }}
+        run: |
+          set -eu
+          ref=${PANTRY_REF:?pantry_ref is empty}
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::pantry_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
+          esac
+          git init -q pantry
+          git -C pantry fetch -q --depth 1 https://github.com/pkgxdev/pantry "$ref"
+          git -C pantry checkout -q FETCH_HEAD
+          echo "pantry $(git -C pantry rev-parse HEAD)"
 
       # A directory, not an image: builder/README.md's primitive. --container
       # writes /etc/ld.so.conf listing every staged library directory, without
