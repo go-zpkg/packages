@@ -151,7 +151,7 @@ jobs:
         # all and say nothing. The pin and the variable move together or the
         # lane goes quietly wrong.
         run: |
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.2
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.3
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@main
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
