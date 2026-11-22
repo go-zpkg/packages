@@ -765,7 +765,8 @@ jobs:
       - name: build + publish this chunk
         env:
           PLATFORM: ${{ matrix.platform }}
-          OCI_USERNAME: ${{ github.actor }}
+          # ⛔ NO OCI_USERNAME EITHER: without its password it is a half credential,
+          # which ghcr.io refuses (403) where an anonymous pull succeeds.
           # ⛔ NEITHER OCI_PASSWORD NOR SIGNING_KEY IS IN THIS STEP. It runs recipe
           # code — third-party shell — and anything in its environment is
           # readable by that code (go-zpkg/packages#440 context, secaudit

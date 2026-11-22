@@ -122,9 +122,16 @@ PRESERVE=""
 # on the HOST side of the chroot, which runs no recipe (go-zpkg/zpkb publish-stage;
 # secaudit finding 2). `env -u` below is for the root case, where there is no sudo
 # to clear the environment and the secrets would otherwise be inherited.
+#
+# ⛔⛔ NO OCI_* NAME IS ON IT AT ALL, THE USERNAME INCLUDED. OCI_USERNAME alone
+# is a half credential: zpkx in the chroot sent Basic auth with an EMPTY
+# password and ghcr.io answered 403 to a pull it serves anonymously (smoke run
+# 45059582252: `zpkx: GET …/gnu.org/coreutils/tags/list: … 403: denied`). It
+# stayed here when OCI_PASSWORD was taken out. The destination travels as
+# PUBLISH_TO, so OCI_TO is not needed either.
 # STAGE_ONLY is here because the factory reads it and the guard test
 # (preserveenv_test.go) holds every variable the factory reads to this list.
-[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,OCI_TO,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
+[ -n "$SUDO" ] && PRESERVE="--preserve-env=STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
 # shellcheck disable=SC2016  # the inner script is deliberately literal: it runs
 # in the new namespace, where these variables are the ones that matter.
 # shellcheck disable=SC2086  # $PRESERVE is one flag or nothing, and must not
