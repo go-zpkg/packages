@@ -427,10 +427,20 @@ jobs:
       #
       # It does NOT change what is compiled: `zpkb factory` still builds the
       # pantry's recipe with the overrides applied. It widens the closure.
+      # It is cloned AT overlay_ref, the same ref OVERLAY_URL names, never at a
+      # moving main: a dispatch that pinned a ref must build from that ref.
       - name: clone the pantry overlay
+        env:
+          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
         run: |
-          git clone --depth 1 https://github.com/go-zpkg/recipes overlay
-          echo "overlay $(git -C overlay rev-parse HEAD)"
+          ref="${IN_OVERLAY_REF:-main}"
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "refusing overlay_ref" >&2; exit 1 ;;
+          esac
+          git init -q overlay
+          git -C overlay fetch -q --depth 1 https://github.com/go-zpkg/recipes "$ref"
+          git -C overlay checkout -q FETCH_HEAD
+          echo "overlay $ref $(git -C overlay rev-parse HEAD)"
 
       # The sovereign path: a rootfs assembled from OUR artifacts, entered with
       # chroot. The host then contributes three static Go binaries and a mount
