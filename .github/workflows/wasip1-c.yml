@@ -29,6 +29,10 @@
 name: wasip1-c
 on:
   workflow_dispatch:
+    inputs:
+      oci_to:
+        description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. Exactly oci://ghcr.io/go-zpkg/packages is signed with secrets.ZPKG_SIGNING_KEY."
+        required: true
 permissions: { contents: read, packages: write }
 env:
   GOPROXY: https://proxy.golang.org,direct
@@ -98,6 +102,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
       - uses: bytecodealliance/actions/wasmtime/setup@v1
       # The host's only jobs: run three static Go binaries and hold a namespace.
       - name: build zpkb, pkgx and pkgm (static)
@@ -233,7 +242,7 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
         run: |
           SIGN_ARGS=()
           if [ -n "${SIGNING_KEY:-}" ]; then
@@ -253,7 +262,7 @@ jobs:
           # fixing them. actionlint SC2215 is the gate; it caught this one too.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
             builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-              /usr/local/bin/zpkb publish --to oci://ghcr.io/go-pkgx/packages --project "${{ matrix.slug }}" \
+              /usr/local/bin/zpkb publish --to "$PUBLISH_TO" --project "${{ matrix.slug }}" \
               --version "${{ matrix.version }}" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
               --advisories /advisories \
               "/dist/${{ matrix.slug }}/wasip1/wasm/v${{ matrix.version }}.tar.zst"

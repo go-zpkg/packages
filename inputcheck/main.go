@@ -200,17 +200,23 @@ func Validate(in Inputs) (Result, error) {
 
 	distFrom := in.DistFrom
 	if distFrom == "" {
-		distFrom = defaultDist
+		distFrom = defaultDist // a READ default only
 	}
-	// The destination `zpkb factory --to "${OCI_TO:-$ZPKG_DIST}"` actually
-	// publishes to, not the input that may be blank.
+	// The destination a run publishes to is named, never inferred: oci_to, or
+	// seed_dist (which names one registry for both). dist_from is only ever
+	// read from, so it is not a fallback.
 	switch {
 	case in.OCITo != "":
 		r.Effective = in.OCITo
 	case in.SeedDist != "":
 		r.Effective = in.SeedDist
+	case testOnly(in):
+		// Nothing is published.
 	default:
-		r.Effective = distFrom
+		return r, errors.New("publishing requires an explicit destination; set oci_to (blank is refused, there is no default)")
+	}
+	if looksGoPkgx(r.Effective) {
+		return r, fmt.Errorf("publishing requires an explicit destination; go-pkgx is refused as one, got %s", r.Effective)
 	}
 	// The production key signs ONE destination, spelled exactly. A
 	// destination that merely resembles it (another repository in the same
@@ -230,6 +236,10 @@ func Validate(in Inputs) (Result, error) {
 	}
 	r.Env = [][2]string{
 		{"OCI_TO", in.OCITo},
+		// What the run publishes to, decided once, here: oci_to or seed_dist.
+		// Blank only for test_only, which publishes nothing. Steps read THIS,
+		// never a fallback of their own.
+		{"PUBLISH_TO", r.Effective},
 		{"DIST_FROM", distFrom},
 		{"OVERLAY_URL", "https://raw.githubusercontent.com/go-zpkg/recipes/" + ref + "/projects"},
 		{"SEED_DIST", in.SeedDist},
@@ -291,6 +301,16 @@ const prodDest = "oci://ghcr.io/go-zpkg/packages"
 // looksGoZpkg is deliberately the broad match: a destination that merely
 // contains the name must be exactly prodDest, or it is refused.
 func looksGoZpkg(dest string) bool { return strings.Contains(strings.ToLower(dest), "go-zpkg") }
+
+// looksGoPkgx is the broad match, like looksGoZpkg: nothing is published to
+// the go-pkgx registry any more, whatever the spelling or case.
+func looksGoPkgx(dest string) bool { return strings.Contains(strings.ToLower(dest), "go-pkgx") }
+
+// testOnly reports a run that builds and tests without publishing.
+func testOnly(in Inputs) bool {
+	v := in.Flags["test_only"]
+	return v != "" && v != "0" && v != "false"
+}
 
 // checkExtraKeys validates `name:RW<base64>` entries separated by whitespace
 // (go-zpkg/artifact trust.go ParseSigners).

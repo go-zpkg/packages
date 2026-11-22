@@ -37,9 +37,8 @@ on:
         required: false
         default: "x86-64"
       oci_to:
-        description: "registry to PUBLISH to, `oci://host/repo`. Blank = oci://ghcr.io/go-pkgx/packages, as always. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the job fails when that secret is empty; the old key never signs there (go-zpkg/packages#440)."
-        required: false
-        default: ""
+        description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the job fails when that secret is empty; the old key never signs there (go-zpkg/packages#440)."
+        required: true
       dist_from:
         description: "registry the toolchain and dependencies are READ from, `oci://host/repo`. Blank = oci://ghcr.io/go-pkgx/packages. Generation 1 of a two-stage bootstrap sets it to generation 0's throwaway registry."
         required: false
@@ -141,7 +140,16 @@ jobs:
             set +f
             [ "$n" -le 8 ] || { echo "::error::extra_trusted_keys names $n keys, more than 8"; exit 1; }
           fi
-          oci_to=${IN_OCI_TO:-oci://ghcr.io/go-pkgx/packages}
+          # No default for the destination: blank is refused, and go-pkgx is
+          # refused as one. dist_from keeps its READ default.
+          oci_to=${IN_OCI_TO:-}
+          if [ -z "$oci_to" ]; then
+            echo "::error::publishing requires an explicit destination; set oci_to (blank is refused, there is no default)"
+            exit 1
+          fi
+          case "${oci_to,,}" in
+            *go-pkgx*) echo "::error::publishing requires an explicit destination; go-pkgx is refused as one, got $oci_to"; exit 1 ;;
+          esac
           dist_from=${IN_DIST_FROM:-oci://ghcr.io/go-pkgx/packages}
           ref=${IN_OVERLAY_REF:-main}
           for v in "$oci_to" "$dist_from"; do
@@ -174,6 +182,7 @@ jobs:
           {
             echo "SIGN_PROD=$sign_prod"
             echo "OCI_TO=$oci_to"
+            echo "PUBLISH_TO=$oci_to"
             echo "DIST_FROM=$dist_from"
             echo "OVERLAY_URL=https://raw.githubusercontent.com/go-zpkg/recipes/$ref/projects"
             echo "EXTRA_KEYS=$IN_EXTRA_KEYS"
@@ -361,7 +370,7 @@ jobs:
           unsigned=
           [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
           # shellcheck disable=SC2086  # one flag or nothing
-          zpkb publish-stage "$stage" --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --advisories "$PWD/advisories" $unsigned
+          zpkb publish-stage "$stage" --to "${OCI_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" $unsigned
 
       - name: upload dist tree
         if: always()

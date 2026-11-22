@@ -11,7 +11,18 @@ import (
 
 const seedKey = "RWSsFdCUPJ7jCHA0LJCPd23ONL4OOKV5efaYVFSbp8jwO/JvWI0oKUYf"
 
-func ok() Inputs { return Inputs{Flags: map[string]string{}, HaveZpkgKey: true} }
+// ok is a dispatch that publishes nothing (test_only), so a test sets only the
+// field it is about; the destination rules are tested with okTo.
+func ok() Inputs {
+	return Inputs{Flags: map[string]string{"test_only": "1"}, HaveZpkgKey: true}
+}
+
+func okTo(dest string) Inputs {
+	in := ok()
+	in.Flags["test_only"] = ""
+	in.OCITo = dest
+	return in
+}
 
 func refused(t *testing.T, name string, in Inputs, want string) {
 	t.Helper()
@@ -33,12 +44,71 @@ func envOf(r Result) map[string]string {
 	return got
 }
 
-func TestABlankDispatchIsAccepted(t *testing.T) {
+func TestABlankDestinationIsRefusedUnlessTestOnly(t *testing.T) {
+	in := ok()
+	in.Flags["test_only"] = ""
+	refused(t, "blank", in, "publishing requires an explicit destination; set oci_to")
+	in.Flags["test_only"] = "0"
+	refused(t, "test_only 0", in, "publishing requires an explicit destination; set oci_to")
+	// A dist_from naming a registry is a READ source, never a destination.
+	in.DistFrom = prodDest
+	refused(t, "dist_from is not a destination", in, "publishing requires an explicit destination; set oci_to")
+	in = okTo("oci://127.0.0.1:5000/seed")
+	if r, err := Validate(in); err != nil || r.Effective != in.OCITo {
+		t.Errorf("explicit destination: %v %q", err, r.Effective)
+	}
+}
+
+func TestGoPkgxIsRefusedAsADestination(t *testing.T) {
+	const want = "publishing requires an explicit destination; go-pkgx is refused as one"
+	for name, dest := range map[string]string{
+		"default":    "oci://ghcr.io/go-pkgx/packages",
+		"case":       "oci://ghcr.io/Go-PKGX/packages",
+		"other":      "oci://ghcr.io/go-pkgx/seed",
+		"other host": "oci://example.org/go-pkgx/x",
+	} {
+		for _, key := range []bool{false, true} {
+			in := okTo(dest)
+			in.HaveZpkgKey = key
+			refused(t, "oci_to "+name, in, want)
+		}
+		in := ok()
+		in.SeedDist = dest
+		refused(t, "seed_dist "+name, in, want)
+	}
+	// Reading from go-pkgx stays allowed.
+	in := okTo("oci://127.0.0.1:5000/seed")
+	in.DistFrom = "oci://ghcr.io/go-pkgx/packages"
+	r, err := Validate(in)
+	if err != nil || envOf(r)["DIST_FROM"] != "oci://ghcr.io/go-pkgx/packages" {
+		t.Errorf("dist_from go-pkgx refused: %v", err)
+	}
+}
+
+func TestPublishToIsTheEffectiveDestination(t *testing.T) {
+	r, err := Validate(okTo("oci://127.0.0.1:5000/seed"))
+	if err != nil || envOf(r)["PUBLISH_TO"] != "oci://127.0.0.1:5000/seed" {
+		t.Errorf("oci_to: %v %v", err, envOf(r))
+	}
+	in := ok()
+	in.Flags["test_only"] = ""
+	in.SeedDist = "oci://127.0.0.1:5000/seed"
+	r, err = Validate(in)
+	if err != nil || envOf(r)["PUBLISH_TO"] != in.SeedDist || envOf(r)["OCI_TO"] != "" {
+		t.Errorf("seed_dist: %v %v", err, envOf(r))
+	}
+	r, err = Validate(ok())
+	if v, found := envOf(r)["PUBLISH_TO"]; err != nil || !found || v != "" {
+		t.Errorf("test_only: %v %q %v", err, v, found)
+	}
+}
+
+func TestATestOnlyDispatchIsAccepted(t *testing.T) {
 	r, err := Validate(ok())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Effective != defaultDist {
+	if r.Effective != "" {
 		t.Errorf("effective %q", r.Effective)
 	}
 	got := map[string]string{}
@@ -139,7 +209,7 @@ func TestOverlayRef(t *testing.T) {
 	in := ok()
 	in.OverlayRef = "0123456789abcdef0123456789abcdef01234567"
 	r, err := Validate(in)
-	if err != nil || !strings.Contains(r.Env[2][1], in.OverlayRef) {
+	if err != nil || !strings.Contains(envOf(r)["OVERLAY_URL"], in.OverlayRef) {
 		t.Errorf("%v %v", r, err)
 	}
 }
@@ -212,11 +282,9 @@ func TestEveryRecipeInTheRepositoryPassesTheWhitelist(t *testing.T) {
 }
 
 func TestTheEffectiveDestinationDecidesTheGoZpkgRule(t *testing.T) {
-	// oci_to blank, seed_dist blank, dist_from naming go-zpkg: `zpkb factory
-	// --to "${OCI_TO:-$ZPKG_DIST}"` publishes to dist_from.
+	// The destination is oci_to or seed_dist; dist_from is only read from.
 	for name, set := range map[string]func(*Inputs){
 		"oci_to":    func(i *Inputs) { i.OCITo = prodDest },
-		"dist_from": func(i *Inputs) { i.DistFrom = prodDest },
 		"seed_dist": func(i *Inputs) { i.SeedDist = prodDest },
 	} {
 		in := ok()
@@ -238,7 +306,6 @@ func TestTheEffectiveDestinationDecidesTheGoZpkgRule(t *testing.T) {
 		"trailing /":  func(i *Inputs) { i.OCITo = prodDest + "/" },
 		"other host":  func(i *Inputs) { i.OCITo = "oci://example.org/go-zpkg/packages" },
 		"seed":        func(i *Inputs) { i.SeedDist = "oci://ghcr.io/go-zpkg/seed" },
-		"dist_from":   func(i *Inputs) { i.DistFrom = "oci://ghcr.io/go-zpkg/other" },
 		"shorter org": func(i *Inputs) { i.OCITo = "oci://ghcr.io/go-zpkg" },
 	} {
 		for _, key := range []bool{false, true} {
@@ -249,7 +316,7 @@ func TestTheEffectiveDestinationDecidesTheGoZpkgRule(t *testing.T) {
 		}
 	}
 	// A destination that does not name go-zpkg is signed with the other key.
-	for _, dest := range []string{"oci://ghcr.io/go-pkgx/packages", "oci://127.0.0.1:5000/seed"} {
+	for _, dest := range []string{"oci://ghcr.io/other/packages", "oci://127.0.0.1:5000/seed"} {
 		in := ok()
 		in.OCITo = dest
 		in.HaveZpkgKey = true
@@ -400,13 +467,30 @@ func TestTheCommandWritesTheValidatedEnvironment(t *testing.T) {
 }
 
 func TestCheckOnlyWritesNothing(t *testing.T) {
-	setEnv(t, nil)
+	setEnv(t, map[string]string{"IN_OCI_TO": "oci://127.0.0.1:5000/seed"})
 	p := filepath.Join(t.TempDir(), "env")
 	if _, _, code := runCmd("--check-only", "--github-env", p); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if _, err := os.Stat(p); err == nil {
 		t.Error("--check-only wrote the file")
+	}
+}
+
+func TestTheCommandRefusesABlankDestinationAndGoPkgx(t *testing.T) {
+	for name, kv := range map[string]map[string]string{
+		"blank":   nil,
+		"go-pkgx": {"IN_OCI_TO": "oci://ghcr.io/go-pkgx/packages"},
+	} {
+		setEnv(t, kv)
+		p := filepath.Join(t.TempDir(), "env")
+		_, errb, code := runCmd("--github-env", p)
+		if code != 1 || !strings.Contains(errb, "publishing requires an explicit destination") {
+			t.Errorf("%s: exit %d, %q", name, code, errb)
+		}
+		if _, err := os.Stat(p); err == nil {
+			t.Errorf("%s: a refused dispatch wrote the file", name)
+		}
 	}
 }
 
@@ -423,7 +507,7 @@ func TestARefusalExitsNonZeroAndWritesNothing(t *testing.T) {
 }
 
 func TestNoEnvironmentFileIsAnError(t *testing.T) {
-	setEnv(t, nil)
+	setEnv(t, map[string]string{"IN_OCI_TO": "oci://127.0.0.1:5000/seed"})
 	t.Setenv("GITHUB_ENV", "")
 	if _, errb, code := runCmd("--github-env", ""); code == 0 || !strings.Contains(errb, "no --github-env") {
 		t.Errorf("no environment file: exit %d, %q", code, errb)

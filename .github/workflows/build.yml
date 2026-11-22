@@ -79,7 +79,7 @@ on:
         required: false
         default: ""
       oci_to:
-        description: "registry to PUBLISH to, `oci://host/repo`. Blank = the registry the run reads (ghcr go-pkgx), as always. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the run fails when that secret is empty; the old key never signs there. Not with seed_dist (go-zpkg/packages#440)."
+        description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED (or seed_dist, or test_only): publishing requires an explicit destination, blank is refused and there is no default; go-pkgx is refused as one. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the run fails when that secret is empty; the old key never signs there. Not with seed_dist (go-zpkg/packages#440)."
         required: false
         default: ""
       dist_from:
@@ -973,7 +973,7 @@ jobs:
               --overrides overrides \
               --overlay overlay \
               --advisories advisories \
-              --to "${OCI_TO:-$ZPKG_DIST}" \
+              --to "${PUBLISH_TO:-oci://test-only.invalid/none}" \
               --artifacts dist \
               ${BOOTSTRAP:+--bootstrap} \
               ${GLIBC:+--glibc "$GLIBC"} \
@@ -1012,14 +1012,20 @@ jobs:
         run: |
           if [ "$SOVEREIGN_ON" = 1 ]; then
             stage="$RUNNER_TEMP/rootfs/dist"
-            to="${OCI_TO:-oci://ghcr.io/go-pkgx/packages}"
+            to="$PUBLISH_TO"
           else
             stage=dist
-            to="${OCI_TO:-$ZPKG_DIST}"
+            to="$PUBLISH_TO"
           fi
           if [ ! -f "$stage/publish-plan.json" ]; then
             echo "nothing staged: no publish-plan.json in $stage"
             exit 0
+          fi
+          # PUBLISH_TO is decided by inputcheck (oci_to or seed_dist; go-pkgx
+          # refused); it is blank only for test_only, which stages nothing.
+          if [ -z "$to" ]; then
+            echo "::error::publishing requires an explicit destination; there is none"
+            exit 1
           fi
           # The chroot's root wrote these; the key-holding process must read them.
           sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage" || true
@@ -1105,7 +1111,9 @@ jobs:
       # contents decides what <TAB> offers; it gets the same signature as any
       # other artifact. A seed run has no key and says so in its own output.
       - name: publish the catalogue
-        if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual')
+        # A test_only run has no destination (PUBLISH_TO is blank) and publishes
+        # no catalogue either: it never falls back to the registry it read.
+        if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
         env:
           PLATFORM: ${{ matrix.platform }}
           OCI_USERNAME: ${{ github.actor }}
@@ -1115,7 +1123,7 @@ jobs:
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # zpkb catalog --publish pushes to $ZPKG_DIST: an oci_to run must
           # catalogue where it published, not where it read.
-          ZPKG_DIST: ${{ env.OCI_TO || env.ZPKG_DIST }}
+          ZPKG_DIST: ${{ env.PUBLISH_TO }}
           ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu

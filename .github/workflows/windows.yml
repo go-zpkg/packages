@@ -12,6 +12,10 @@
 name: windows
 on:
   workflow_dispatch:
+    inputs:
+      oci_to:
+        description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. Exactly oci://ghcr.io/go-zpkg/packages is signed with secrets.ZPKG_SIGNING_KEY."
+        required: true
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
     # Staggered after the ghcr factories (linux 06:00, darwin 07:00). Go runs
     # before Rust (08:00 < 09:00). The Pages mirror is deployed later by pages.yml.
@@ -73,6 +77,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
       - name: install pkgx + zpkb (for signed OCI publish)
         run: |
           curl -fsS https://pkgx.sh | sh
@@ -87,7 +96,7 @@ jobs:
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
         run: |
           start=$(( ${{ matrix.chunk }} * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
           # Signing key → temp file, as factory.sh does; skip --sign if unset.
@@ -128,7 +137,7 @@ jobs:
             # a publish failure must not abort the chunk). windows/x86-64 is as
             # os/arch-generic to `zpkb publish` as linux/darwin are.
             if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
-               zpkb publish --to oci://ghcr.io/go-pkgx/packages --project "$slug" \
+               zpkb publish --to "$PUBLISH_TO" --project "$slug" \
                  --version "$ver" --platform windows/x86-64 "${SIGN_ARGS[@]}" \
                  --advisories "$GITHUB_WORKSPACE/advisories" \
                  "$d/v$ver.tar.gz"; then
@@ -172,6 +181,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
       - name: install zpkb
         run: |
           go install github.com/go-zpkg/zpkb/cmd/zpkb@main
@@ -185,7 +199,9 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # zpkb catalog --publish pushes to $ZPKG_DIST.
+          ZPKG_DIST: ${{ env.PUBLISH_TO }}
         run: |
           set -eu
           zpkb catalog \
