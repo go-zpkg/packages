@@ -185,6 +185,7 @@ jobs:
             echo "PUBLISH_TO=$oci_to"
             echo "DIST_FROM=$dist_from"
             echo "OVERLAY_URL=https://raw.githubusercontent.com/go-zpkg/recipes/$ref/projects"
+            echo "OVERLAY_REF=$ref"
             echo "EXTRA_KEYS=$IN_EXTRA_KEYS"
           } >> "$GITHUB_ENV"
           echo "publish to $oci_to, read from $dist_from, overlay at $ref"
@@ -203,8 +204,8 @@ jobs:
           # Tags, not main: this job holds the signing and registry secrets
           # (go-zpkg/packages#440), and each pin is a line a test can read, a
           # bump a deliberate edit.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.1
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.1
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.2
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.2
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
@@ -223,6 +224,27 @@ jobs:
           git -C pantry fetch -q --depth 1 https://github.com/pkgxdev/pantry "$ref"
           git -C pantry checkout -q FETCH_HEAD
           echo "pantry $(git -C pantry rev-parse HEAD)"
+
+      # ⛔ overlay_ref MUST REACH THE FACTORY AS A DIRECTORY TOO. ZPKG_RECIPES_OVERLAY
+      # (a URL) only steers what the tool environment resolves; the closure the
+      # factory orders and builds is widened by `--overlay <dir>`, which
+      # builder/sovereign-build.sh passes only when $SOVEREIGN_OVERLAY is set.
+      # This job never set it, so the 4th argument of the inner script was empty
+      # (smoke run 45059582252: `+ overlay=`) and a dependency only the overlay
+      # declares was left out of the closure. Pinned to the same ref as the URL.
+      - name: clone the recipes overlay at overlay_ref
+        env:
+          OVERLAY_REF: ${{ env.OVERLAY_REF }}
+        run: |
+          set -eu
+          ref=${OVERLAY_REF:?overlay_ref is empty}
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::overlay_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
+          esac
+          git init -q overlay
+          git -C overlay fetch -q --depth 1 https://github.com/go-zpkg/recipes "$ref"
+          git -C overlay checkout -q FETCH_HEAD
+          echo "overlay $(git -C overlay rev-parse HEAD)"
 
       # A directory, not an image: builder/README.md's primitive. --container
       # writes /etc/ld.so.conf listing every staged library directory, without
@@ -299,10 +321,10 @@ jobs:
       # no recipe (secaudit finding 2).
       - name: build inside the rootfs
         env:
-          OCI_USERNAME: ${{ github.actor }}
-          # Read by builder/sovereign-build.sh's --to. Already whitelisted
-          # in its --preserve-env list.
-          OCI_TO: ${{ env.OCI_TO }}
+          # ⛔ NO OCI_* HERE. A username without its password is a HALF
+          # credential, and ghcr.io refuses it (403) where an anonymous pull of a
+          # public repository succeeds. The destination reaches the script as
+          # PUBLISH_TO.
           # builder/Containerfile's ENV lines, not just its ENTRYPOINT. Without
           # ZPKG_DIR the chroot inherits pkgx's $HOME/.pkgx default, which
           # (a) re-downloads the toolchain the staged tree already holds and
@@ -343,6 +365,7 @@ jobs:
           # already published": the whole chain ran and compiled nothing.
           FORCE: ${{ github.event.inputs.force || '1' }}
         run: |
+          SOVEREIGN_OVERLAY="$PWD/overlay" \
           SOVEREIGN_ADVISORIES="$PWD/advisories" \
           builder/sovereign-build.sh \
             "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \

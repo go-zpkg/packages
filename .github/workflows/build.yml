@@ -388,14 +388,14 @@ jobs:
           # A TAG, not main: this job holds the signing and registry secrets,
           # and a moving branch would run whatever it points at when the job
           # starts. A newer tool is a deliberate bump of this line (go-zpkg/packages#440).
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.1
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.2
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install zpkb
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.1
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.2
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -765,7 +765,8 @@ jobs:
       - name: build + publish this chunk
         env:
           PLATFORM: ${{ matrix.platform }}
-          OCI_USERNAME: ${{ github.actor }}
+          # ⛔ NO OCI_USERNAME EITHER: without its password it is a half credential,
+          # which ghcr.io refuses (403) where an anonymous pull succeeds.
           # ⛔ NEITHER OCI_PASSWORD NOR SIGNING_KEY IS IN THIS STEP. It runs recipe
           # code — third-party shell — and anything in its environment is
           # readable by that code (go-zpkg/packages#440 context, secaudit
