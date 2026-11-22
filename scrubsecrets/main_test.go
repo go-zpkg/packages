@@ -177,6 +177,29 @@ func TestAFileWithoutTheSecretIsNotRewritten(t *testing.T) {
 	}
 }
 
+func TestMainExitsWithTheRunStatus(t *testing.T) {
+	old, oldArgs := osExit, os.Args
+	defer func() { osExit, os.Args = old, oldArgs }()
+	got := -1
+	osExit = func(c int) { got = c }
+	os.Args = []string{"scrubsecrets"}
+	main()
+	if got != 1 {
+		t.Errorf("no arguments exited %d, want 1", got)
+	}
+}
+
+func TestEmptyNamesInTheListAreSkipped(t *testing.T) {
+	t.Setenv("TEST_SECRET_K", "list-secret-value-1")
+	p := write(t, "x.txt", "list-secret-value-1\n")
+	if _, _, code := runCmd(t, "--env", ",TEST_SECRET_K, ,", p); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if b, _ := os.ReadFile(p); strings.Contains(string(b), "list-secret") {
+		t.Errorf("not scrubbed: %q", b)
+	}
+}
+
 func TestNoEnvNamesIsRefused(t *testing.T) {
 	p := write(t, "x.txt", "x\n")
 	if _, _, code := runCmd(t, p); code == 0 {
