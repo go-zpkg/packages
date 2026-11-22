@@ -116,8 +116,54 @@ func TestTheProductionKeyFollowsSignProdAndNothingElse(t *testing.T) {
 			}
 		}
 	}
-	if seen != 3 {
-		t.Errorf("found %d SIGNING_KEY steps, expected 3 (build, catalogue, sovereign)", seen)
+	if seen != 4 {
+		t.Errorf("found %d SIGNING_KEY steps, expected 4 (build for a mirror run, publish-stage, catalogue, sovereign publish-stage)", seen)
+	}
+}
+
+// A recipe is third-party shell, and anything in the environment of the step
+// that runs it is readable by it. The steps that RUN recipes therefore hold no
+// signing key and no registry password; the step after them, which runs none,
+// signs and pushes with `zpkb publish-stage`. The one exception is a mirror run,
+// which compiles nothing, and its secrets are conditional on mirror_from.
+func TestNoStepThatRunsRecipesHoldsTheKeyOrTheRegistryPassword(t *testing.T) {
+	ran := 0
+	for _, f := range []string{".github/workflows/build.yml", ".github/workflows/sovereign.yml"} {
+		for _, s := range loadWorkflow(t, f).steps() {
+			runsRecipes := strings.Contains(s.Run, "zpkb factory") || strings.Contains(s.Run, "sovereign-build.sh")
+			if !runsRecipes {
+				continue
+			}
+			ran++
+			for _, k := range []string{"SIGNING_KEY", "OCI_PASSWORD"} {
+				v, ok := s.Env[k]
+				if !ok {
+					continue
+				}
+				if !strings.HasPrefix(strings.TrimSpace(v), "${{ github.event.inputs.mirror_from != ''") {
+					t.Errorf("%s: step %q runs recipes and holds %s unconditionally: %s", f, s.Name, k, v)
+				}
+			}
+			if strings.Contains(s.Run, "zpkb factory") && !strings.Contains(s.Run, "--stage-only") {
+				t.Errorf("%s: step %q runs `zpkb factory` without --stage-only", f, s.Name)
+			}
+		}
+	}
+	if ran < 2 {
+		t.Errorf("found %d steps that run recipes, expected at least 2 (build, sovereign)", ran)
+	}
+	src, err := os.ReadFile("builder/sovereign-build.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pl := preserveList(t, string(src))
+	for _, k := range []string{"SIGNING_KEY", "OCI_PASSWORD"} {
+		if pl[k] {
+			t.Errorf("sovereign-build.sh carries %s across sudo into the chroot that runs recipes", k)
+		}
+	}
+	if !strings.Contains(string(src), "zpkb factory --stage-only") || !strings.Contains(string(src), "env -u SIGNING_KEY -u OCI_PASSWORD") {
+		t.Error("sovereign-build.sh must run `zpkb factory --stage-only` under `env -u SIGNING_KEY -u OCI_PASSWORD`")
 	}
 }
 

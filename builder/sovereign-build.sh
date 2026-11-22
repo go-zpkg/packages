@@ -114,12 +114,23 @@ PRESERVE=""
 # except what --preserve-env names; a job that sets NO_PUBLISH=1 and is not
 # listed here does not fail, it PUBLISHES. Every other name on this line
 # changes what gets built; this one changes whether the result is pushed.
-[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,OCI_PASSWORD,SIGNING_KEY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,OCI_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
+#
+# ⛔⛔ NEITHER OCI_PASSWORD NOR SIGNING_KEY IS ON THIS LIST, AND MUST NOT BE. This
+# list is what the process running RECIPE CODE can read, and a recipe is
+# third-party shell. The build is `zpkb factory --stage-only`: it holds no key and
+# no token. What it staged is signed and pushed afterwards by `zpkb publish-stage`,
+# on the HOST side of the chroot, which runs no recipe (go-zpkg/zpkb publish-stage;
+# secaudit finding 2). `env -u` below is for the root case, where there is no sudo
+# to clear the environment and the secrets would otherwise be inherited.
+# STAGE_ONLY is here because the factory reads it and the guard test
+# (preserveenv_test.go) holds every variable the factory reads to this list.
+[ -n "$SUDO" ] && PRESERVE="--preserve-env=OCI_USERNAME,STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,OCI_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
 # shellcheck disable=SC2016  # the inner script is deliberately literal: it runs
 # in the new namespace, where these variables are the ones that matter.
 # shellcheck disable=SC2086  # $PRESERVE is one flag or nothing, and must not
 # become an empty argument when it is nothing.
 $SUDO $PRESERVE \
+  env -u SIGNING_KEY -u OCI_PASSWORD \
   unshare --mount --pid --fork "$(command -v bash)" -euxc '
     r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; shift 5
     for d in null zero full random urandom tty; do
@@ -141,10 +152,16 @@ $SUDO $PRESERVE \
     fi
     exec chroot "$r" /usr/local/bin/zpkx \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
-      -- /usr/local/bin/zpkb factory \
+      -- /usr/local/bin/zpkb factory --stage-only \
            --recipe-dir /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
            --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --artifacts /dist "$@"
   ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
+
+# This script PUBLISHES NOTHING. It staged artifacts and a publish-plan.json under
+# $root/dist; the caller signs and pushes them in a LATER step that holds the
+# secrets (`zpkb publish-stage`), so this step never had them. Files written by
+# root in the chroot are made readable for that step.
+$SUDO chmod -R a+rX "$root/dist"
 
 # `zpkb factory` is best-effort: it exits 0 with a per-recipe tally. That is right
 # for a 50-project chunk and useless as a signal on its own, so read the tally.

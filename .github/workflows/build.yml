@@ -395,7 +395,7 @@ jobs:
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.98.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -766,9 +766,19 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
           OCI_USERNAME: ${{ github.actor }}
-          # The workflow's native token — no long-lived PAT; the go-zpkg/packages
-          # packages are owned by this repo, so GITHUB_TOKEN writes natively.
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # ⛔ NEITHER OCI_PASSWORD NOR SIGNING_KEY IS IN THIS STEP. It runs recipe
+          # code — third-party shell — and anything in its environment is
+          # readable by that code (go-zpkg/packages#440 context, secaudit
+          # finding 2). It stages with `zpkb factory --stage-only`; the step
+          # "sign and publish what the build staged" below holds the key and
+          # the token and runs no recipe.
+          #
+          # ⚠ NOT CLOSED HERE: GITHUB_TOKEN below is the SAME workflow token
+          # as OCI_PASSWORD, with the job's permissions (packages: write), and
+          # zpkb needs it for version lookups. The registry credential is
+          # therefore still readable by a recipe; only SIGNING_KEY is out of its
+          # reach. Closing that takes a lookup token that cannot write, which a
+          # job cannot split from its own token. Filed as a follow-up.
           # zpkb resolves a project's versions from api.github.com, and sends
           # `Authorization: Bearer $GITHUB_TOKEN` when it has one. Without it
           # the calls are ANONYMOUS — 60 requests an hour against a workflow
@@ -783,13 +793,12 @@ jobs:
           # way. The token the job already holds for the registry raises the
           # ceiling to 5000/hour; it just was never handed to the build.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The key follows the EFFECTIVE destination, as `inputcheck` decided
-          # it: SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
-          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
-          # keeps the old key, and one that merely names go-zpkg was refused
-          # before this step. Two guarded halves, not
-          # `a && X || Y`, which would hand go-zpkg the old key when X is empty.
-          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # EXCEPT a MIRROR run, which compiles nothing and so runs no recipe:
+          # `--stage-only` is refused with `--mirror-from`, so that one
+          # shape keeps publishing from here, with the same key rule as the
+          # publish step below (SIGN_PROD, two guarded halves, never `a && X || Y`).
+          OCI_PASSWORD: ${{ github.event.inputs.mirror_from != '' && secrets.GITHUB_TOKEN || '' }}
+          SIGNING_KEY: ${{ github.event.inputs.mirror_from != '' && ((env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '') || '' }}
           GLIBC: ${{ github.event.inputs.glibc }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
@@ -955,7 +964,11 @@ jobs:
             # Validated ONCE before the first build — a record that does not
             # parse stops a publish, and the fortieth artifact of a chunk is six
             # hours into the run.
-            zpkb factory \
+            # --stage-only unless this is a mirror run (see the env above).
+            stage_flag=--stage-only
+            [ -z "$MIRROR_FROM" ] || stage_flag=
+            # shellcheck disable=SC2086  # one flag or nothing
+            zpkb factory $stage_flag \
               --recipe-dir pantry \
               --overrides overrides \
               --overlay overlay \
@@ -969,6 +982,52 @@ jobs:
               ${REQUIRE_ORIGIN:+--require-origin} \
             ${SOURCE_MIRROR:+--source-mirror "$SOURCE_MIRROR"}
           fi
+
+      # The ONLY step of the build that holds the signing key and the registry
+      # token, and it runs no recipe: `zpkb publish-stage` reads the plan the
+      # build step wrote, re-checks every file against its recorded digest and
+      # size and every tag against its spec, then signs and pushes exactly what
+      # `zpkb factory --to` would have (go-zpkg/zpkb publish-stage; secaudit
+      # finding 2). `always()` so what a partly failed build staged is still
+      # published, as it was when the factory pushed each artifact itself; a
+      # build that wrote no plan has nothing to publish and says so. A mirror
+      # run publishes from the build step, which runs no recipe either.
+      #
+      # `--to` is spelled here and must equal the plan's: the plan is input
+      # from the side that ran recipes, so it does not choose the destination.
+      - name: sign and publish what the build staged
+        if: always() && github.event.inputs.mirror_from == ''
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          OCI_USERNAME: ${{ github.actor }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # The key follows the EFFECTIVE destination, as `inputcheck` decided
+          # it: SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key, and one that merely names go-zpkg was refused
+          # before the build step. Two guarded halves, not
+          # `a && X || Y`, which would hand go-zpkg the old key when X is empty.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          if [ "$SOVEREIGN_ON" = 1 ]; then
+            stage="$RUNNER_TEMP/rootfs/dist"
+            to="${OCI_TO:-oci://ghcr.io/go-pkgx/packages}"
+          else
+            stage=dist
+            to="${OCI_TO:-$ZPKG_DIST}"
+          fi
+          if [ ! -f "$stage/publish-plan.json" ]; then
+            echo "nothing staged: no publish-plan.json in $stage"
+            exit 0
+          fi
+          # The chroot's root wrote these; the key-holding process must read them.
+          sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage" || true
+          # A seed run has no key and says so; --allow-unsigned is only for that.
+          unsigned=
+          [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
+          # shellcheck disable=SC2086  # one flag or nothing
+          zpkb publish-stage "$stage" --to "$to" --advisories "$PWD/advisories" $unsigned
 
       # A NAMED dispatch that built nothing is a failed dispatch.
       #
