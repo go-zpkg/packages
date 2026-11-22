@@ -194,7 +194,7 @@ jobs:
           # Tags, not main: this job holds the signing and registry secrets
           # (go-zpkg/packages#440), and each pin is a line a test can read, a
           # bump a deliberate edit.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.98.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.39.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -284,17 +284,13 @@ jobs:
           ls -l "$root/lib64" "$root/lib" 2>/dev/null | grep -i "ld-linux" || true
           echo "glibc staged:"; find "$root" -maxdepth 5 -type d -name "glibc*" 2>/dev/null | head -3
 
-      - name: build + publish inside the rootfs
+      # ⛔ NO OCI_PASSWORD AND NO SIGNING_KEY HERE: this step runs recipe code.
+      # It stages (`zpkb factory --stage-only`, inside builder/sovereign-build.sh)
+      # and the step after it signs and pushes, holding the secrets and running
+      # no recipe (secaudit finding 2).
+      - name: build inside the rootfs
         env:
           OCI_USERNAME: ${{ github.actor }}
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # The key follows the destination as the validate step decided it:
-          # SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
-          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
-          # keeps the old key. Written as two guarded halves rather than
-          # `a && X || Y`, which would hand Y (the old key) to go-zpkg
-          # whenever X is empty.
-          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # Read by builder/sovereign-build.sh's --to. Already whitelisted
           # in its --preserve-env list.
           OCI_TO: ${{ env.OCI_TO }}
@@ -342,6 +338,30 @@ jobs:
           builder/sovereign-build.sh \
             "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \
             ${VERSIONS:+--versions "$VERSIONS"}
+
+      # The only step here that holds the key and the token; it runs no recipe.
+      # `--to` is spelled here and must equal the plan's destination.
+      - name: sign and publish what the build staged
+        env:
+          OCI_USERNAME: ${{ github.actor }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # The key follows the destination as the validate step decided it:
+          # SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key. Written as two guarded halves rather than
+          # `a && X || Y`, which would hand Y (the old key) to go-zpkg
+          # whenever X is empty.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          OCI_TO: ${{ env.OCI_TO }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          stage="$RUNNER_TEMP/rootfs/dist"
+          [ -f "$stage/publish-plan.json" ] || { echo "::error::the build staged nothing: no publish-plan.json in $stage"; exit 1; }
+          sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage" || true
+          unsigned=
+          [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
+          # shellcheck disable=SC2086  # one flag or nothing
+          zpkb publish-stage "$stage" --to "${OCI_TO:-oci://ghcr.io/go-pkgx/packages}" --advisories "$PWD/advisories" $unsigned
 
       - name: upload dist tree
         if: always()
