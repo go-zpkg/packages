@@ -704,7 +704,20 @@ Every platform — linux, darwin **and** windows — publishes to **both** chann
 
 The four build workflows (`build.yml`, `darwin.yml`, `windows.yml`,
 `windows-rust.yml`) each publish their packages to the OCI registry *and* upload
-their pkgx dist tree as a `dist-*` artifact. A single deployer,
+their pkgx dist tree as a `dist-*` artifact.
+
+Build and publish are separate jobs. The build job runs on the self-hosted
+runner with a read-only token and **no secret**: it builds, then declares the
+digest of what it staged (`declare-*` artifact). A GitHub-hosted `publish` job,
+the only one holding the signing key and registry credential, downloads the
+staged tree, checks it against the declared digest with `distdigest` (a missing
+declaration fails the leg) and only then runs `zpkb publish`. On `windows.yml`
+and `windows-rust.yml` it lists what may be published with `winstage`, which
+accepts only the expected layout; a failed publish fails the leg. The catalogue
+is signed and pushed from that hosted job too. A LAN/loopback destination is the
+exception: the build job pushes unsigned and unauthenticated, with no
+catalogue. Every action in the workflows is pinned to a commit SHA (tag kept as a
+comment), and a test keeps it so. A single deployer,
 `.github/workflows/pages.yml`, then unions the latest successful run of each build
 workflow into one combined site and deploys it to Pages — so the dist mirror
 carries all platforms side by side (`<project>/<os>/<arch>/…`).
@@ -723,11 +736,12 @@ signed `ghcr.io/go-pkgx/packages` OCI registry and the
   no per-recipe work. For each `slug|github-repo|bin` row it finds the newest tag,
   clones it, builds, lays the `.exe` out as a pkgx dist tree
   `<slug>/windows/x86-64/{versions.txt, v<ver>.tar.gz}` + `package.yml`, and
-  `zpkb publish`es it (signed) to the OCI registry as `windows/x86-64`.
+  stages it as a build artifact; the hosted `publish` job then verifies the
+  digest and `zpkb publish`es it (signed) to the OCI registry as `windows/x86-64`.
 - **`.github/workflows/windows-rust.yml` (Rust).** Cross-builds the Rust projects
   in `windows/rust-projects.txt` with mingw-w64 (colocating the mingw runtime DLLs
-  for self-containment), signs and publishes each to the OCI registry, and uploads
-  its dist tree for the Pages mirror.
+  for self-containment), stages each build, and the hosted `publish` job signs and
+  publishes it to the OCI registry; its dist tree is uploaded for the Pages mirror.
 - **`.github/workflows/windows-proof.yml` (e2e proof).** Cross-builds a *real* tool
   (`sqlite3`, x86-64 + aarch64) with the same llvm-mingw toolchain the pantry ships,
   then on a `windows-latest` runner builds `pkgx.exe`, serves the dist locally, and
