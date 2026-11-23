@@ -238,6 +238,17 @@ func Validate(in Inputs) (Result, error) {
 	if smoke && (in.RequireOrigin != "" || in.MirrorFrom != "") {
 		return r, fmt.Errorf("%s is never a promotion target: require_origin and mirror_from are refused for it", smokeDest)
 	}
+	// Every mirror is staged, and zpkb stages one only with its origin
+	// authenticated: without require_origin nothing would vouch for the copy
+	// between the build job and the job that signs it (go-zpkg/packages#500).
+	if in.MirrorFrom != "" && in.RequireOrigin == "" {
+		return r, errors.New("mirror_from stages a copy that the publish job signs, so it needs require_origin=1: the staged artifact must carry an authenticated origin")
+	}
+	// A seed run may turn signature verification off on its loopback registry,
+	// and a mirror is only worth staging if verification is on.
+	if in.MirrorFrom != "" && in.SeedDist != "" {
+		return r, errors.New("mirror_from cannot be combined with seed_dist: a seed run may read its registry unverified, and a mirror must be verified")
+	}
 	if prod {
 		if !in.HaveZpkgKey && !in.NoKeyCheck {
 			return r, fmt.Errorf("publishing to %s needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts", r.Effective)

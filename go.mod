@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/go-zpkg/artifact v0.92.3
-	github.com/go-zpkg/zpkb v0.101.1
+	github.com/go-zpkg/zpkb v0.102.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.41.0

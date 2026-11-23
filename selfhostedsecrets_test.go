@@ -509,7 +509,7 @@ jobs:
   installs-only:
     runs-on: ubuntu-latest
     steps:
-      - run: go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.1
+      - run: go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.102.0
 `
 	w, err := parseWorkflowBytes([]byte(shapes))
 	if err != nil {

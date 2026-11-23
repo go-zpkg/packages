@@ -133,17 +133,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Refused, not reinterpreted: `zpkb factory --mirror-from` pushes and signs
-      # by itself (`--stage-only` is refused with it), so that shape would need
-      # the key and the token inside the job that runs on the self-hosted pool.
-      - name: a mirror_from dispatch is not supported yet
-        env:
-          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
-        run: |
-          [ -z "$IN_MIRROR_FROM" ] || {
-            echo "::error::mirror_from is refused: the build job holds no secret any more and the factory's --mirror-from publishes by itself. Tracked in go-zpkg/packages#500."
-            exit 1
-          }
+      # A mirror_from dispatch is a STAGED promotion (go-zpkg/packages#500): the
+      # build job runs `zpkb factory --mirror-from --require-origin
+      # --stage-only`, which downloads and VERIFIES the seed artifacts and signs
+      # nothing, and the hosted `publish` job signs what it staged. inputcheck
+      # below refuses mirror_from without require_origin, and the hosted publish
+      # refuses a staged mirror whose plan does not record that verification.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -481,7 +476,7 @@ jobs:
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.1
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.102.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -1055,8 +1050,9 @@ jobs:
             # parse stops a publish, and the fortieth artifact of a chunk is six
             # hours into the run.
             # Always --stage-only: this job holds no key and no token that can
-            # push. A mirror_from dispatch is refused by `preflight`
-            # (go-zpkg/packages#500), so MIRROR_FROM is empty here.
+            # push. With mirror_from it fetches and verifies the seed artifacts
+            # and stages them (go-zpkg/packages#500); inputcheck guarantees
+            # require_origin is set then, which zpkb requires of a staged mirror.
             zpkb factory --stage-only \
               --recipe-dir pantry \
               --overrides overrides \
@@ -1595,7 +1591,7 @@ jobs:
         if: env.DECLARED_DIGEST != 'none'
         run: |
           # The version the build job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.1
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.102.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from

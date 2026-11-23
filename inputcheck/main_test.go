@@ -195,9 +195,25 @@ func TestRegistries(t *testing.T) {
 	in.MirrorFrom = "https://dist.example.org/a;b"
 	refused(t, "mirror_from chars", in, "mirror_from")
 	in.MirrorFrom = "https://dist.example.org/a"
+	in.RequireOrigin = "1"
 	if _, err := Validate(in); err != nil {
 		t.Errorf("mirror_from refused: %v", err)
 	}
+}
+
+// A mirror is staged and signed by another job (go-zpkg/packages#500): it needs
+// its origin authenticated, and a seed run's unverified registry is no source.
+func TestMirrorFromIsStagedOnlyWithAnAuthenticatedOriginAndVerification(t *testing.T) {
+	in := ok()
+	in.MirrorFrom = "https://dist.example.org/a"
+	refused(t, "mirror without require_origin", in, "needs require_origin")
+	in.RequireOrigin = "1"
+	if _, err := Validate(in); err != nil {
+		t.Fatalf("the unmodified dispatch is refused: %v", err)
+	}
+	in.SeedDist = "oci://127.0.0.1:5000/seed"
+	in.OCITo = ""
+	refused(t, "mirror with seed_dist", in, "cannot be combined with seed_dist")
 }
 
 func TestOverlayRef(t *testing.T) {
