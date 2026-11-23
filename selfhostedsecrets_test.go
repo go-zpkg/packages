@@ -96,7 +96,10 @@ func selfHostedCapable(runsOn any, workflowText string) bool {
 	if strings.Contains(r, "self-hosted") {
 		return true
 	}
-	return strings.Contains(r, "matrix.runner") && strings.Contains(workflowText, "self-hosted")
+	// darwin.yml's macOS runners are GitHub-hosted but run third-party recipe
+	// code exactly like the pool does, so they are judged the same way.
+	return strings.Contains(r, "matrix.runner") &&
+		(strings.Contains(workflowText, "self-hosted") || strings.Contains(workflowText, "macos-"))
 }
 
 // selfHostedViolations returns, per job, what a self-hosted-capable job holds
@@ -263,7 +266,7 @@ func TestEveryPublishJobVerifiesTheDigestOnAHostedRunner(t *testing.T) {
 			t.Errorf("%s: job %s %s", f, job, strings.Join(vs, "; "))
 		}
 	}
-	for _, f := range []string{"build.yml", "sovereign.yml"} {
+	for _, f := range []string{"build.yml", "sovereign.yml", "darwin.yml"} {
 		w, err := parseWorkflowBytes(files[f])
 		if err != nil {
 			t.Fatal(err)
@@ -272,15 +275,15 @@ func TestEveryPublishJobVerifiesTheDigestOnAHostedRunner(t *testing.T) {
 			publishJobs++
 		}
 	}
-	if publishJobs != 2 {
-		t.Errorf("found %d publish jobs, expected 2 (build.yml, sovereign.yml)", publishJobs)
+	if publishJobs != 3 {
+		t.Errorf("found %d publish jobs, expected 3 (build.yml, sovereign.yml, darwin.yml)", publishJobs)
 	}
 }
 
 // The workflows without a permissions block hand every job the repository's
 // default token; build.yml and sovereign.yml say read-only at the top.
 func TestTheBuildAndSovereignWorkflowsDefaultToNoToken(t *testing.T) {
-	for _, f := range []string{"build.yml", "sovereign.yml"} {
+	for _, f := range []string{"build.yml", "sovereign.yml", "darwin.yml"} {
 		w := loadWorkflow(t, filepath.Join(".github", "workflows", f))
 		if canWriteWithToken(w.Permissions, nil) {
 			t.Errorf("%s: no workflow-level permissions block that is read-only", f)
@@ -340,6 +343,27 @@ jobs:
 	}
 	if len(v["hosted"]) != 0 {
 		t.Errorf("a hosted job was flagged: %v", v["hosted"])
+	}
+
+	// A matrix of GitHub-hosted macOS runners that run recipes is judged too.
+	const macos = `
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include: [{runner: macos-15}]
+    steps:
+      - run: echo
+        env:
+          SIGNING_KEY: ${{ secrets.ZPKG_SIGNING_KEY }}
+`
+	w, err = parseWorkflowBytes([]byte(macos))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selfHostedViolations(w, macos)["build"]) == 0 {
+		t.Error("a macOS matrix job with a signing key was not flagged")
 	}
 
 	const noVerify = `

@@ -96,7 +96,7 @@ var zpkbPinRE = regexp.MustCompile(`github\.com/go-zpkg/zpkb/cmd/zpkb@(v[0-9][^\
 // 7 → 9 with the `publish` jobs of build.yml and sovereign.yml (secaudit
 // finding 14): the signing key now lives only there, on a GitHub-hosted runner,
 // and each installs zpkb at the same tag as the build job it publishes for.
-const zpkbPinsExpected = 9
+const zpkbPinsExpected = 10
 
 func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {
 	dir := filepath.Join(".github", "workflows")
