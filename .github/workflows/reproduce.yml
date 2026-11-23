@@ -162,6 +162,8 @@ jobs:
       # zero-entry pass, which is the one way this whole job could report
       # success having proved nothing.
       - name: do the two builds agree
+        env:
+          IGNORE_MTIME: ${{ github.event.inputs.ignore_mtime || '1' }}
         run: |
           set -eu
           a=$(find "$RUNNER_TEMP/dist-one" -name 'v*.tar.*' | sort | head -1)
@@ -172,7 +174,7 @@ jobs:
           fi
           echo "A $a"
           echo "B $b"
-          if [ "${{ github.event.inputs.ignore_mtime || '1' }}" = "1" ]; then
+          if [ "$IGNORE_MTIME" = "1" ]; then
             zpkb reproduce -ignore-mtime "$a" "$b"
           else
             zpkb reproduce "$a" "$b"

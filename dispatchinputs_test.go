@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -14,12 +15,63 @@ var workflowFiles = []string{".github/workflows/build.yml", ".github/workflows/s
 // env: block is a value. This reads every run: of both workflows.
 var interpolated = regexp.MustCompile(`\$\{\{\s*(github\.event\.inputs|github\.event\.inputs\.[a-z_]+|inputs|matrix|github\.head_ref|github\.event\.[a-z_.]*(title|body|label|ref|name))`)
 
+// dispatchOnly is the same detector without `matrix`, for the workflows whose
+// matrix comes from a list committed in this repository rather than from a
+// dispatch: only values a dispatcher or a PR author chooses are refused there.
+var dispatchOnly = regexp.MustCompile(`\$\{\{\s*(github\.event\.inputs|inputs|github\.head_ref|github\.event\.[a-z_.]*(title|body|label|ref|name))`)
+
+// Every workflow in the repository, never a hand-kept list: a new file is
+// covered the day it is added.
+func allWorkflowFiles(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, pat := range []string{".github/workflows/*.yml", ".github/workflows/*.yaml"} {
+		m, err := filepath.Glob(pat)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, m...)
+	}
+	if len(out) < 10 {
+		t.Fatalf("found %d workflow files, expected the whole directory", len(out))
+	}
+	return out
+}
+
 func TestNoDispatchValueIsInterpolatedIntoAScript(t *testing.T) {
-	for _, f := range workflowFiles {
+	for _, f := range allWorkflowFiles(t) {
+		re := dispatchOnly
+		for _, w := range workflowFiles {
+			if w == f {
+				re = interpolated
+			}
+		}
 		for _, s := range loadWorkflow(t, f).steps() {
-			if loc := interpolated.FindString(s.Run); loc != "" {
+			if loc := re.FindString(s.Run); loc != "" {
 				t.Errorf("%s: step %q interpolates %q into its script; pass it through env: and read it as a variable", f, s.Name, loc)
 			}
+		}
+	}
+}
+
+// The control: the detector must see the forms that were once missed, and
+// stay quiet on the same expressions held in an env: value.
+func TestTheInterpolationDetectorSeesEveryFormAndOnlyInScripts(t *testing.T) {
+	for _, run := range []string{
+		`if [ -n "${{ github.event.inputs.recipes }}" ]; then`,
+		`go run ./x -chunks "${{ inputs.chunks || '14' }}"`,
+		`if [ "${{ github.event.inputs.ignore_mtime || '1' }}" = "1" ]; then`,
+		`echo ${{inputs.platform}}`,
+		`echo "${{ matrix.chunk }}"`,
+		`echo "${{ github.head_ref }}"`,
+	} {
+		if interpolated.FindString(run) == "" {
+			t.Errorf("detector misses %q", run)
+		}
+	}
+	for _, run := range []string{`if [ -n "$RECIPES" ]; then`, `echo "${RUNNER_TEMP}"`} {
+		if interpolated.FindString(run) != "" {
+			t.Errorf("detector flags %q", run)
 		}
 	}
 }
