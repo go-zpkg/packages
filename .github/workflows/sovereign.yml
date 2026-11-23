@@ -203,10 +203,10 @@ jobs:
           echo "publish to $oci_to, read from $dist_from, overlay at $ref"
 
       # No credential is left in .git/config for the recipe code to find.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
 
       - name: build zpkb, pkgx and pkgm (static)
@@ -404,7 +404,7 @@ jobs:
 
       - name: upload dist tree
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sovereign-dist-${{ github.event.inputs.arch || 'x86-64' }}
           path: ${{ runner.temp }}/rootfs/dist

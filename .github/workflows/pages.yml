@@ -36,9 +36,9 @@ jobs:
       # jq is one apt line. A no-op wherever it is already there.
       - name: jq
         run: command -v jq >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends jq; }
-      - uses: actions/checkout@v7 # provides the catalog tool + go.mod for `go run ./catalog`
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # provides the catalog tool + go.mod for `go run ./catalog`
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
 
       - name: Generate registry.json from the ghcr OCI catalog + build list.html
@@ -74,7 +74,7 @@ jobs:
       #   ##[error]Process completed with exit code 127
       # so the published registry.json could not be refreshed by anyone, cron or
       # not (packages#176).
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { repository: go-zpkg/registry-viewer, path: registry-viewer }
 
       - name: Build the WASM tree-view viewer (go-widgets) → site root
@@ -87,7 +87,7 @@ jobs:
              registry-viewer/dist/index.html site/
           echo "site contents:"; du -sh site; ls -la site
 
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with: { path: site }
       - id: dep
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

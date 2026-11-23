@@ -246,10 +246,10 @@ jobs:
       # newlines and control characters refused, the effective destination (the
       # one `zpkb factory --to` publishes to, after the blank-oci_to fallback)
       # tested for go-zpkg, extra_trusted_keys checked entry by entry.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
       # No HAVE_ZPKG_KEY: this job holds no secret. `preflight` read it.
       - name: dispatch inputs are well formed and consistent
@@ -449,11 +449,11 @@ jobs:
           command -v python >/dev/null || $SUDO ln -sf "$(command -v python3)" /usr/local/bin/python
 
       # No credential is left in .git/config for recipe code to find.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
 
       # OUR pkgx, not upstream's. Upstream resolves dependencies from its own
@@ -1105,7 +1105,7 @@ jobs:
 
       - name: declare the digest for the publish job
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: declare-${{ matrix.slug }}-${{ matrix.chunk }}
           path: ${{ runner.temp }}/declare/digest.txt
@@ -1113,7 +1113,7 @@ jobs:
 
       - name: upload the staged tree for publishing
         if: always() && steps.digest.outputs.digest != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: publish-${{ matrix.slug }}-${{ matrix.chunk }}
           path: ${{ env.STAGE_DIR }}
@@ -1443,7 +1443,7 @@ jobs:
 
       - name: upload seed provenance
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: seed-provenance-${{ matrix.slug }}-${{ matrix.chunk }}
           path: seed-provenance.txt
@@ -1454,7 +1454,7 @@ jobs:
       # discovers every slice (it globs dist-*).
       - name: upload dist tree
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dist-${{ matrix.slug }}-${{ matrix.chunk }}
           path: dist
@@ -1462,7 +1462,7 @@ jobs:
 
       - name: upload failures list
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: failures-${{ matrix.slug }}-${{ matrix.chunk }}
           path: failures.txt
@@ -1472,7 +1472,7 @@ jobs:
       # artifact alone (container-job logs are not retrievable via the API).
       - name: upload failure details
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: failures-detail-${{ matrix.slug }}-${{ matrix.chunk }}
           path: failures-detail.txt
@@ -1486,7 +1486,7 @@ jobs:
       # gate.
       - name: upload the test record
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: tests-${{ matrix.slug }}-${{ matrix.chunk }}
           path: tests.txt

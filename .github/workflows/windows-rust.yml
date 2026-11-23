@@ -4,6 +4,12 @@
 #   - the GitHub Pages pkgx dist mirror (via the central pages.yml aggregator,
 #     which unions the `dist-*` artifact this job uploads).
 #
+# ⛔ THE BUILD HOLDS NO SECRET. It runs other people's code on the long-lived
+# self-hosted pool, so it stages the packages, uploads them and declares their
+# digest, and a separate `publish` job on an ephemeral GitHub-hosted runner
+# verifies that digest, re-derives every name it publishes (./winstage) and is
+# the only job that signs or pushes. Same design as build.yml (go-zpkg/packages#499).
+#
 # Trigger mirrors build.yml (the linux factory): workflow_dispatch + a daily
 # schedule, NOT on:push — so landing this file does not immediately fire a run.
 name: windows-rust
@@ -16,7 +22,7 @@ on:
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
     # After the Go factory (08:00). The Pages mirror is deployed later by pages.yml.
     # - cron: "0 9 * * *"
-permissions: { contents: read, packages: write }
+permissions: { contents: read }
 env:
   CHUNK: "6"   # cargo builds are heavy — smaller chunks stay under the 6h job cap
   # Deps from the module proxy, OUR modules straight from GitHub. `GOPROXY=direct`
@@ -29,7 +35,38 @@ env:
   TRIPLE: "x86_64-pc-windows-gnu"
 
 jobs:
+  # ⛔ THE ONLY PLACE BEFORE `publish` THAT READS A SECRET, even to test it for
+  # emptiness, and it runs on an ephemeral GitHub-hosted runner. `setup` and
+  # `build` run on the self-hosted pool and call inputcheck with --no-key-check;
+  # this job is what refuses a go-zpkg destination when the signing key is
+  # absent, so a refused dispatch takes no self-hosted runner at all.
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with: { go-version: '1.27.4' }
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        # Not --check-only: it also exports PUBLISH_LANE, read just below.
+        run: go run ./inputcheck
+      # Which lane the dispatch publishes through (none, lan or hosted): the
+      # `publish` job is skipped unless it is `hosted`.
+      - name: publish lane
+        id: lane
+        run: echo "lane=${PUBLISH_LANE:?inputcheck exported no lane}" >> "$GITHUB_OUTPUT"
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
+
   setup:
+    needs: preflight
     # Our own GARM/Incus pool: 32 cores, ephemeral container per job, tagged
     # [self-hosted, incus, amd64]. A nine-job fan-out once filled the VM's 20 GB
     # root with ENOSPC; runners now get their disks from a 1 TB volume, so the
@@ -43,7 +80,9 @@ jobs:
       # jq is one apt line. A no-op wherever it is already there.
       - name: jq
         run: command -v jq >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends jq; }
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - id: gen
         run: |
           total=$(grep -c . windows/rust-projects.txt)
@@ -52,13 +91,16 @@ jobs:
           echo "$total rust projects → $n chunks"
 
   build:
-    needs: setup
+    needs: [preflight, setup]
     # Our own GARM/Incus pool: 32 cores, ephemeral container per job, tagged
     # [self-hosted, incus, amd64]. A nine-job fan-out once filled the VM's 20 GB
     # root with ENOSPC; runners now get their disks from a 1 TB volume, so the
     # fan-out fits. If the pool is down, jobs queue — swap this line back to
     # `ubuntu-latest` to get moving again.
     runs-on: [self-hosted, incus, amd64]
+    # Read-only token, no secret anywhere in this job: it runs third-party code.
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       max-parallel: 8
@@ -70,23 +112,27 @@ jobs:
       # jq is one apt line. A no-op wherever it is already there.
       - name: jq
         run: command -v jq >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends jq; }
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
       - name: validate the destination
         env:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
-          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
-        run: go run ./inputcheck
-      - name: install pkgx + zpkb (for signed OCI publish)
+        # No HAVE_ZPKG_KEY, hence --no-key-check: `preflight` read the key's
+        # presence and `publish` reads it again; this job reads no secret.
+        run: go run ./inputcheck --no-key-check
+      # Only the smoke registry on the pool's own network is published from
+      # here, unsigned and unauthenticated (see the loop below); every other
+      # destination is published by the `publish` job.
+      - name: install zpkb (LAN smoke lane only)
+        if: env.PUBLISH_LANE == 'lan'
         run: |
-          curl -fsS https://pkgx.sh | sh
-          for d in "$HOME/.local/bin" /usr/local/bin; do
-            [ -x "$d/pkgx" ] && { echo "$d" >> "$GITHUB_PATH"; break; }
-          done
           # The proxy policy is the workflow-level env:, so it covers this and
           # every other go invocation here, and ./goproxycheck keeps it level.
-          go install github.com/go-zpkg/zpkb/cmd/zpkb@main
+          # A tag, never a moving branch.
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Toolchain (rust + mingw)
         run: |
@@ -96,7 +142,7 @@ jobs:
           # locate the mingw runtime DLLs to colocate for self-containment
           mgw=$(dirname "$(x86_64-w64-mingw32-gcc -print-libgcc-file-name)")
           echo "MGW_LIB=$mgw" >> "$GITHUB_ENV"
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.cargo/registry
@@ -104,22 +150,12 @@ jobs:
           key: cargo-${{ matrix.chunk }}-${{ hashFiles('windows/rust-projects.txt') }}
       - name: Cross-build chunk ${{ matrix.chunk }} → Windows packages
         env:
-          OCI_USERNAME: ${{ github.actor }}
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          CHUNK_N: ${{ matrix.chunk }}
         run: |
-          start=$(( ${{ matrix.chunk }} * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
+          start=$(( CHUNK_N * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
           # mingw dir holding libwinpthread etc. (sibling of libgcc)
           dlldir=$(dirname "$(dpkg -L gcc-mingw-w64-x86-64 | grep 'libwinpthread-1.dll' | head -1)")
           [ -n "$dlldir" ] || dlldir=/usr/x86_64-w64-mingw32/lib
-          # Signing key → temp file, as factory.sh does; skip --sign if unset.
-          SIGN_ARGS=()
-          if [ -n "${SIGNING_KEY:-}" ]; then
-            umask 077; KEYFILE="$(mktemp)"; printf '%s' "$SIGNING_KEY" > "$KEYFILE"
-            SIGN_ARGS=(--sign "$KEYFILE"); echo "signing: enabled"
-          else
-            echo "signing: disabled (no SIGNING_KEY)"
-          fi
           sed -n "${start},${end}p" windows/rust-projects.txt | while IFS='|' read -r slug repo bin; do
             [ -n "$slug" ] || continue
             echo "::group::$slug ($repo, bin=$bin)"
@@ -150,32 +186,194 @@ jobs:
             echo "$ver" > "$d/versions.txt"
             mkdir -p "$GITHUB_WORKSPACE/out/$slug"
             printf 'provides:\n  - bin/%s\n' "$realbin" > "$GITHUB_WORKSPACE/out/$slug/package.yml"
-            # Publish the same package to the signed OCI registry (best-effort:
-            # a publish failure must not abort the chunk).
+            # The smoke registry on the pool's network is not reachable from a
+            # GitHub-hosted runner, so that one lane keeps a path that needs no
+            # secret: UNSIGNED and UNAUTHENTICATED, best-effort. Nothing signed
+            # is ever produced here.
             #
-            # ⛔ --advisories here is BEST-EFFORT like the rest of this publish,
-            # which the linux factory's is not: an advisory record that will not
-            # parse makes zpkb refuse, and that refusal lands in the "non-fatal"
-            # branch below. The net under it is ci.yml, which runs
-            # `zpkb advisories` on every pull request, plus `zpkb factory`'s own
-            # up-front check on linux — so a record that cannot be read does not
-            # reach main unnoticed, and is not FIRST noticed here.
-            if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
-               zpkb publish --to "$PUBLISH_TO" --project "$slug" \
-                 --version "$ver" --platform windows/x86-64 "${SIGN_ARGS[@]}" \
-                 --advisories "$GITHUB_WORKSPACE/advisories" \
-                 "$d/v$ver.tar.gz"; then
-              echo "published $slug $ver → OCI"
-            else
-              echo "OCI publish failed for $slug (non-fatal)"
+            # ⛔ --advisories is BEST-EFFORT like the rest of this publish, which
+            # the linux factory's is not: an advisory record that will not parse
+            # makes zpkb refuse, and that refusal lands in the "non-fatal" branch
+            # below. The net under it is ci.yml, which runs `zpkb advisories` on
+            # every pull request, plus `zpkb factory`'s own up-front check on
+            # linux. The `publish` job fails on it instead.
+            if [ "${PUBLISH_LANE:-}" = lan ]; then
+              if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
+                 zpkb publish --to "$PUBLISH_TO" --project "$slug" \
+                   --version "$ver" --platform windows/x86-64 --allow-unsigned \
+                   --advisories "$GITHUB_WORKSPACE/advisories" \
+                   "$d/v$ver.tar.gz"; then
+                echo "published $slug $ver → LAN registry"
+              else
+                echo "LAN publish failed for $slug (non-fatal)"
+              fi
             fi
             echo "OK $slug v$ver"; echo "::endgroup::"
           done
-      # Upload the dist tree for the central pages.yml aggregator to union into
-      # the GitHub Pages mirror. Named `dist-*` so pages.yml discovers it.
-      - uses: actions/upload-artifact@v7
+
+      # Declares what the build staged, for the `publish` job: the sha256 digest
+      # of the tree, or `none` when nothing was staged. `publish` refuses unless
+      # the tree it downloads has exactly this digest.
+      - name: declare nothing staged
+        if: always()
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/declare"
+          echo none > "$RUNNER_TEMP/declare/digest.txt"
+      - name: digest what the build staged
+        id: digest
+        if: always() && hashFiles('out/**') != ''
+        run: |
+          set -eu
+          digest=$(go run ./distdigest out)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "$digest" > "$RUNNER_TEMP/declare/digest.txt"
+          echo "staged tree $digest"
+      - name: declare the digest for the publish job
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: declare-windows-rust-${{ matrix.chunk }}
+          path: ${{ runner.temp }}/declare/digest.txt
+          if-no-files-found: ignore
+
+      # Upload the dist tree: the central pages.yml aggregator unions the
+      # `dist-*` artifacts into the GitHub Pages mirror, and the `publish` job
+      # publishes the very same tree to the registry after checking its digest.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: hashFiles('out/**') != ''
         with:
           name: dist-windows-rust-${{ matrix.chunk }}
           path: out
           if-no-files-found: ignore
+
+  # ⛔ THE ONLY JOB HERE THAT HOLDS A SIGNING KEY AND A TOKEN THAT CAN WRITE,
+  # and it runs no recipe. One leg per build leg, on an ephemeral GitHub-hosted
+  # runner. It downloads the tree the build leg staged and REFUSES unless its
+  # sha256 digest equals the one the build leg declared; it then re-derives
+  # every package name from the tree with ./winstage, which refuses any file
+  # outside the layout the build writes. Actions are pinned by SHA: this is the
+  # job a compromised action would own.
+  publish:
+    needs: [preflight, setup, build]
+    # `matrix` is not available in a job-level `if`: the per-leg condition is
+    # DECLARED_DIGEST != 'none', tested by the steps below. A smoke run against
+    # the LAN registry is published from the build job, so no hosted leg starts.
+    if: always() && needs.setup.result == 'success' && needs.preflight.outputs.lane == 'hosted'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        chunk: ${{ fromJson(needs.setup.outputs.chunks) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with: { go-version: '1.27.4' }
+
+      # The same destination validation the build job ran, from the same input;
+      # it settles PUBLISH_TO and SIGN_PROD. Here the key's presence IS read: a
+      # go-zpkg destination without it fails. --publish-env: this job builds
+      # nothing, so it is not handed the build's OVERLAY_URL, DIST_FROM or SEED_*.
+      - name: validate the destination
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck --publish-env
+
+      # The build leg's declaration. A missing one is a failure, never a skip:
+      # only an explicit `none`, written by a leg that staged nothing, skips.
+      - name: download the build job's declaration
+        id: declared
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: declare-windows-rust-${{ matrix.chunk }}
+          path: ${{ runner.temp }}/declare
+
+      # distdigest accepts `none` or one sha256 line and nothing else, so what
+      # reaches the environment is a value.
+      - name: read the declared digest
+        run: |
+          set -eu
+          d=$(go run ./distdigest --declared "$RUNNER_TEMP/declare/digest.txt")
+          echo "DECLARED_DIGEST=$d" >> "$GITHUB_ENV"
+          if [ "$d" = none ]; then
+            echo "the build leg declared none: nothing staged, publishing skipped"
+          fi
+
+      - name: download the staged tree
+        if: env.DECLARED_DIGEST != 'none' && env.DECLARED_DIGEST != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: dist-windows-rust-${{ matrix.chunk }}
+          path: ${{ runner.temp }}/stage
+
+      # An empty or malformed declaration is a refusal, never "nothing to compare".
+      - name: verify the downloaded tree against the build job's digest
+        if: env.DECLARED_DIGEST != 'none' && env.DECLARED_DIGEST != ''
+        run: go run ./distdigest --verify "$DECLARED_DIGEST" "$RUNNER_TEMP/stage"
+
+      # The digest says the tree is the build job's; it does not make the names
+      # in it safe to hand to a publisher. winstage lists, for each tarball, a
+      # slug and a version it re-derived from a closed set of shapes, and fails
+      # on any other file.
+      - name: list what was staged
+        if: env.DECLARED_DIGEST != 'none' && env.DECLARED_DIGEST != ''
+        run: go run ./winstage "$RUNNER_TEMP/stage" > "$RUNNER_TEMP/staged.tsv"
+
+      - name: install zpkb
+        if: env.DECLARED_DIGEST != 'none' && env.DECLARED_DIGEST != ''
+        run: |
+          # The version build.yml's publish job installs; a tag, never a moving branch.
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # `--to` is the destination inputcheck validated; nothing in the staged
+      # tree chooses it.
+      - name: sign and publish what the build staged
+        if: env.DECLARED_DIGEST != 'none' && env.DECLARED_DIGEST != ''
+        env:
+          OCI_USERNAME: ${{ github.actor }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # The key follows the EFFECTIVE destination, as `inputcheck` decided
+          # it: SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+        run: |
+          set -eu
+          [ -n "$PUBLISH_TO" ] || { echo "::error::publishing requires an explicit destination; there is none"; exit 1; }
+          if [ -n "$SIGNING_KEY" ]; then
+            umask 077
+            keyfile="$RUNNER_TEMP/signing.key"
+            printf '%s' "$SIGNING_KEY" > "$keyfile"
+            trap 'rm -f "$keyfile"' EXIT
+            sign=(--sign "$keyfile")
+            echo "signing: enabled"
+          else
+            sign=(--allow-unsigned)
+            echo "signing: disabled (no key for this destination)"
+          fi
+          failed=0
+          while IFS=$'\t' read -r slug ver rel; do
+            echo "::group::$slug $ver"
+            if SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
+               zpkb publish --to "$PUBLISH_TO" --project "$slug" \
+                 --version "$ver" --platform windows/x86-64 "${sign[@]}" \
+                 --advisories "$PWD/advisories" \
+                 "$RUNNER_TEMP/stage/$rel"; then
+              echo "published $slug $ver"
+            else
+              echo "::error::publishing $slug $ver failed"
+              failed=$((failed + 1))
+            fi
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/staged.tsv"
+          [ "$failed" -eq 0 ] || { echo "::error::$failed package(s) were not published"; exit 1; }

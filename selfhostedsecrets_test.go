@@ -30,13 +30,17 @@ import (
 // exception cannot outlive the work.
 
 // knownSelfHostedSecretHolders: "<workflow file>#<job>" -> tracking issue.
-var knownSelfHostedSecretHolders = map[string]string{
-	"windows.yml#build":      "go-zpkg/packages#498",
-	"windows.yml#catalogue":  "go-zpkg/packages#498",
-	"windows-rust.yml#build": "go-zpkg/packages#499",
-}
+//
+// Empty since go-zpkg/packages#498 and #499 moved the windows lanes: a new entry
+// here is a lane that holds a secret on the pool again, and needs an issue.
+var knownSelfHostedSecretHolders = map[string]string{}
 
 var (
+	// publishCmdRE is every command that signs or pushes: `zpkb publish`,
+	// `zpkb publish-stage` and `zpkb catalog ... --publish`.
+	publishCmdRE = regexp.MustCompile(`(?s)\bzpkb (publish\b|catalog\b.*--publish\b)`)
+	// usesLineRE finds the action a step (or a reusable-workflow job) runs.
+	usesLineRE  = regexp.MustCompile(`(?m)^\s*(?:-\s+)?uses:\s*([^\s#]+)`)
 	secretRefRE = regexp.MustCompile(`\bsecrets(\.[A-Za-z0-9_-]+|\[|\))`)
 	tokenRefRE  = regexp.MustCompile(`secrets\.GITHUB_TOKEN|github\.token`)
 	sha40Use    = regexp.MustCompile(`@[0-9a-f]{40}(\s|$)`)
@@ -127,7 +131,8 @@ func selfHostedViolations(w workflow, workflowText string) map[string][]string {
 }
 
 // publishViolations judges the jobs that publish: a job named `publish*`, or any
-// job that runs `zpkb publish-stage` and is not the unsigned LAN push.
+// job that runs `zpkb publish`, `zpkb publish-stage` or `zpkb catalog --publish`
+// and is not the unsigned LAN push.
 //
 // Only a workflow with a self-hosted-capable job is judged: catalogue.yml has a
 // `publish` job of its own, runs on hosted runners alone and builds nothing to
@@ -146,7 +151,7 @@ func publishViolations(w workflow, workflowText string) map[string][]string {
 	for name, j := range w.Jobs {
 		runsPublish := false
 		for _, s := range j.Steps {
-			if strings.Contains(s.Run, "publish-stage") && !strings.Contains(s.Run, "--allow-unsigned") {
+			if publishCmdRE.MatchString(s.Run) && !strings.Contains(s.Run, "--allow-unsigned") && !strings.Contains(s.If, "PUBLISH_LANE == 'lan'") {
 				runsPublish = true
 			}
 		}
@@ -154,7 +159,7 @@ func publishViolations(w workflow, workflowText string) map[string][]string {
 			continue
 		}
 		if !strings.Contains(name, "publish") {
-			out[name] = append(out[name], "runs publish-stage but is not a publish job")
+			out[name] = append(out[name], "runs a publish command (zpkb publish, publish-stage or catalog --publish) but is not a publish job")
 			continue
 		}
 		if fmt.Sprint(j.RunsOn) != "ubuntu-latest" {
@@ -185,7 +190,7 @@ func publishViolations(w workflow, workflowText string) map[string][]string {
 			if buildOnlyEnvRE.MatchString(fmt.Sprint(s.Env, s.Run, s.If, s.With)) {
 				out[name] = append(out[name], "reads a build-only variable (OVERLAY_URL, DIST_FROM, SEED_DIST, SEED_LOOPBACK, ZPKG_RECIPES_OVERLAY)")
 			}
-			if strings.Contains(s.Run, "zpkb publish-stage") && publishAt < 0 {
+			if publishCmdRE.MatchString(s.Run) && publishAt < 0 {
 				publishAt = i
 			}
 		}
@@ -276,7 +281,7 @@ func TestEveryPublishJobVerifiesTheDigestOnAHostedRunner(t *testing.T) {
 			t.Errorf("%s: job %s %s", f, job, strings.Join(vs, "; "))
 		}
 	}
-	for _, f := range []string{"build.yml", "sovereign.yml", "darwin.yml"} {
+	for _, f := range []string{"build.yml", "sovereign.yml", "darwin.yml", "windows.yml", "windows-rust.yml"} {
 		w, err := parseWorkflowBytes(files[f])
 		if err != nil {
 			t.Fatal(err)
@@ -285,15 +290,15 @@ func TestEveryPublishJobVerifiesTheDigestOnAHostedRunner(t *testing.T) {
 			publishJobs++
 		}
 	}
-	if publishJobs != 3 {
-		t.Errorf("found %d publish jobs, expected 3 (build.yml, sovereign.yml, darwin.yml)", publishJobs)
+	if publishJobs != 5 {
+		t.Errorf("found %d publish jobs, expected 5 (build, sovereign, darwin, windows, windows-rust)", publishJobs)
 	}
 }
 
 // The workflows without a permissions block hand every job the repository's
 // default token; build.yml and sovereign.yml say read-only at the top.
 func TestTheBuildAndSovereignWorkflowsDefaultToNoToken(t *testing.T) {
-	for _, f := range []string{"build.yml", "sovereign.yml", "darwin.yml"} {
+	for _, f := range []string{"build.yml", "sovereign.yml", "darwin.yml", "windows.yml", "windows-rust.yml"} {
 		w := loadWorkflow(t, filepath.Join(".github", "workflows", f))
 		if canWriteWithToken(w.Permissions, nil) {
 			t.Errorf("%s: no workflow-level permissions block that is read-only", f)
@@ -463,5 +468,132 @@ jobs:
 	}
 	if len(v["ok"]) != 0 {
 		t.Errorf("a job that publishes nothing was flagged: %v", v["ok"])
+	}
+}
+
+// The windows lanes publish with `zpkb publish` and `zpkb catalog --publish`,
+// not `publish-stage`: the gate has to see those too.
+func TestPublishGateSeesZpkbPublishAndTheCatalogue(t *testing.T) {
+	const shapes = `
+jobs:
+  build:
+    runs-on: [self-hosted]
+    steps:
+      - run: zpkb publish --to "$T" --project p --platform windows/x86-64 f.tar.gz
+  lan:
+    runs-on: [self-hosted]
+    steps:
+      - run: zpkb publish --to "$T" --allow-unsigned f.tar.gz
+  catalogue:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          zpkb catalog \
+            --recipe-dir pantry \
+            --publish
+  publish-early:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: zpkb publish --to "$T" f
+      - run: go run ./distdigest --verify "$D"
+  publish-ok:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: go run ./distdigest --verify "$D"
+      - run: zpkb publish --to "$T" f
+      - run: |
+          zpkb catalog \
+            --publish
+  installs-only:
+    runs-on: ubuntu-latest
+    steps:
+      - run: go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.1
+`
+	w, err := parseWorkflowBytes([]byte(shapes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := publishViolations(w, shapes)
+	for _, job := range []string{"build", "catalogue", "publish-early"} {
+		if len(v[job]) == 0 {
+			t.Errorf("job %s was not flagged", job)
+		}
+	}
+	for _, job := range []string{"lan", "publish-ok", "installs-only"} {
+		if len(v[job]) != 0 {
+			t.Errorf("job %s was flagged: %v", job, v[job])
+		}
+	}
+}
+
+// unpinnedActions returns the `uses:` references in a workflow that are not a
+// full 40-hex commit SHA. A tag can be moved to other code after review, and a
+// job that holds a token or a key would run what it now points at.
+func unpinnedActions(text string) []string {
+	var bad []string
+	for _, m := range usesLineRE.FindAllStringSubmatch(text, -1) {
+		ref := m[1]
+		if strings.HasPrefix(ref, "./") { // a local action is this repository's own code
+			continue
+		}
+		if !sha40Use.MatchString(ref + " ") {
+			bad = append(bad, ref)
+		}
+	}
+	return bad
+}
+
+// ⛔ EVERY ACTION IS PINNED TO A COMMIT, with the tag it was taken from kept as
+// a trailing comment, in every workflow (go-zpkg/packages#502). Renovate bumps
+// the SHA and the comment together (helpers:pinGitHubActionDigests).
+func TestEveryActionIsPinnedToACommit(t *testing.T) {
+	files := repoWorkflows(t)
+	if len(files) < 10 {
+		t.Fatalf("read %d workflows, expected the whole directory", len(files))
+	}
+	uses := 0
+	for f, b := range files {
+		uses += len(usesLineRE.FindAllString(string(b), -1))
+		for _, ref := range unpinnedActions(string(b)) {
+			t.Errorf("%s: %s is not pinned to a full commit SHA", f, ref)
+		}
+	}
+	if uses < 50 {
+		t.Errorf("found %d `uses:` lines, expected dozens — the scan stopped reading them", uses)
+	}
+}
+
+// Negative controls: the pin gate has to fail on the shapes it exists for.
+func TestThePinGateFailsOnTheShapesItGuards(t *testing.T) {
+	const text = `
+jobs:
+  j:
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7 # v7
+      - uses: actions/cache@main
+      - uses: actions/upload-artifact@3d3c42e5aac5ba805825da76410c181273ba90b
+      - uses: actions/download-artifact@3d3c42e5aac5ba805825da76410c181273ba90b1a
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
+      -   uses: docker://alpine:3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./local-action
+      - name: pinned, with a trailing comment
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+`
+	want := []string{
+		"actions/checkout@v7",
+		"actions/setup-go@v7",
+		"actions/cache@main",
+		"actions/upload-artifact@3d3c42e5aac5ba805825da76410c181273ba90b",
+		"actions/download-artifact@3d3c42e5aac5ba805825da76410c181273ba90b1a",
+		"bytecodealliance/actions/wasmtime/setup@v1",
+		"docker://alpine:3",
+	}
+	got := unpinnedActions(text)
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("flagged\n  %v\nwant\n  %v", got, want)
 	}
 }
