@@ -127,6 +127,17 @@ func TestMainExitsWithRunsStatus(t *testing.T) {
 	}
 }
 
+func TestACleanRunExitsZeroAndSaysWhatItRead(t *testing.T) {
+	f, d := fixture(t, "", `{"artifacts":[{}]}`)
+	var out, errb bytes.Buffer
+	if code := run([]string{"--failures", f, "--stage", d, "--require-staged"}, &out, &errb); code != 0 || errb.Len() != 0 {
+		t.Fatalf("code=%d err=%q", code, errb.String())
+	}
+	if got := out.String(); got != "0 failure(s) recorded, 1 artifact(s) staged\n" {
+		t.Errorf("out = %q", got)
+	}
+}
+
 func TestUnknownFlagAndArgsAreRefused(t *testing.T) {
 	var out, errb bytes.Buffer
 	if code := run([]string{"--nope"}, &out, &errb); code != 1 {

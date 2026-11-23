@@ -57,10 +57,7 @@ func RootCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := Check(failures, stage, requireStaged)
 			fmt.Fprintln(cmd.OutOrStdout(), v.Summary())
-			if err != nil {
-				return err
-			}
-			return nil
+			return err
 		},
 	}
 	f := cmd.Flags()
