@@ -105,8 +105,23 @@ jobs:
       # not inherited from it: zpkb's wrapper exports MACOSX_DEPLOYMENT_TARGET=11.0
       # on every darwin build, so a newer host still produces macOS 11 artifacts.
       - id: gen
+        env:
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_ARCH: ${{ github.event.inputs.arch }}
         run: |
-          if [ -n "${{ github.event.inputs.recipes }}" ]; then
+          # Dispatch values are data, never script text, and are checked before
+          # they reach a command: arch from a fixed set, recipes word by word
+          # against the project-name pattern.
+          case "$IN_ARCH" in
+            ''|x86-64|aarch64) ;;
+            *) echo "::error::arch must be blank, x86-64 or aarch64"; exit 1 ;;
+          esac
+          for r in $IN_RECIPES; do
+            case "$r" in
+              -*|*[!A-Za-z0-9._/+-]*) echo "::error::recipes entry '$r' is not a project name"; exit 1 ;;
+            esac
+          done
+          if [ -n "$IN_RECIPES" ]; then
             m='{"include":[{"runner":"macos-15","platform":"darwin/aarch64","slug":"darwin-aarch64","chunk":"manual"},{"runner":"macos-15-intel","platform":"darwin/x86-64","slug":"darwin-x86-64","chunk":"manual"}]}'
           else
             total=$(grep -vcE '^[[:space:]]*(#|$)' recipes.txt)
@@ -119,7 +134,7 @@ jobs:
           # `arch` drops one half of the pair. The filter is on the slug, so an
           # unknown value yields an empty matrix rather than silently building
           # both — and the check below turns that into a refusal.
-          ONLY="${{ github.event.inputs.arch }}"
+          ONLY="$IN_ARCH"
           m=$(echo "$m" | jq -c --arg only "$ONLY" \
             '{include: [.include[] | select($only == "" or (.slug | endswith($only)))]}')
           [ "$(echo "$m" | jq '.include | length')" -gt 0 ] || {
@@ -288,6 +303,10 @@ jobs:
           MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_NO_CLOSURE: ${{ github.event.inputs.no_closure }}
+          IN_REBUILD: ${{ github.event.inputs.rebuild }}
+          CHUNK_ID: ${{ matrix.chunk }}
           # Resolve from OUR signed registry and OUR overlay, exactly as the
           # linux lane does. Without these two the darwin artifacts were resolved
           # against upstream's dist and upstream's recipes — a different closure
@@ -306,22 +325,31 @@ jobs:
           # 130-line failure list of 2014-era cargo releases nobody asked for,
           # after two hours of runner time. The artifacts that had to change kept
           # their digests, so the recipes they block stayed blocked.
+          for r in $IN_RECIPES; do
+            case "$r" in
+              -*|*[!A-Za-z0-9._/+-]*) echo "::error::recipes entry '$r' is not a project name"; exit 1 ;;
+            esac
+          done
+          case "$IN_NO_CLOSURE$IN_REBUILD" in
+            *[!A-Za-z0-9]*) echo "::error::no_closure and rebuild must be short alphanumeric switches"; exit 1 ;;
+          esac
           FORCE=""
-          if [ "${{ matrix.chunk }}" = "manual" ]; then
-            RECIPES="${{ github.event.inputs.recipes }}"
+          if [ "$CHUNK_ID" = "manual" ]; then
+            RECIPES="$IN_RECIPES"
             FORCE=1
           else
-            start=$(( ${{ matrix.chunk }} * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
+            case "$CHUNK_ID" in ''|*[!0-9]*) echo "::error::chunk '$CHUNK_ID' is not a number"; exit 1 ;; esac
+            start=$(( CHUNK_ID * CHUNK + 1 )); end=$(( start + CHUNK - 1 ))
             RECIPES="$(grep -vE '^[[:space:]]*(#|$)' recipes.txt | sed -n "${start},${end}p" | tr '\n' ' ')"
           fi
           # shellcheck disable=SC2086  # RECIPES is intentionally word-split to count projects
-          echo "chunk ${{ matrix.chunk }} → $(printf '%s\n' $RECIPES | grep -c .) requested projects${FORCE:+ (FORCE rebuild)}"
+          echo "chunk $CHUNK_ID →$(printf '%s\n' $RECIPES | grep -c .) requested projects${FORCE:+ (FORCE rebuild)}"
           # RECIPES, NO_CLOSURE and PLATFORM are read from the env by `zpkb factory` itself.
-          NO_CLOSURE="${{ github.event.inputs.no_closure }}"
+          NO_CLOSURE="$IN_NO_CLOSURE"
           # REBUILD is NOT derived from FORCE. A manual dispatch always forces,
           # so deriving it would mint a `_N` on every retry of a lane that
           # failed at the publish step. It is asked for explicitly or not at all.
-          REBUILD="${{ github.event.inputs.rebuild }}"
+          REBUILD="$IN_REBUILD"
           export RECIPES NO_CLOSURE FORCE REBUILD
           # --advisories on EVERY lane, not just linux. A darwin artifact with no
           # OpenVEX document beside its SBOM is an artifact whose consumer has to

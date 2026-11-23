@@ -78,8 +78,16 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
       - id: n
+        env:
+          IN_CHUNKS: ${{ inputs.chunks || '14' }}
         run: |
-          echo "chunks=$(go run ./sonamesweep -chunk-list -chunks "${{ inputs.chunks || '14' }}")" >> "$GITHUB_OUTPUT"
+          # A dispatch value is data, never script text, and it must be a number
+          # before it reaches a command.
+          case "$IN_CHUNKS" in
+            ''|*[!0-9]*) echo "::error::chunks must be a number, got '$IN_CHUNKS'"; exit 1 ;;
+          esac
+          [ "${#IN_CHUNKS}" -le 4 ] || { echo "::error::chunks is too long"; exit 1; }
+          echo "chunks=$(go run ./sonamesweep -chunk-list -chunks "$IN_CHUNKS")" >> "$GITHUB_OUTPUT"
 
   sweep:
     needs: plan
@@ -175,13 +183,18 @@ jobs:
       - name: chunk ${{ matrix.chunk }} of ${{ inputs.chunks || '14' }} on ${{ inputs.platform || 'linux/x86-64' }}
         env:
           ZPKG_DIR: ${{ runner.temp }}/zpkg
+          IN_CHUNKS: ${{ inputs.chunks || '14' }}
+          CHUNK: ${{ matrix.chunk }}
         run: |
+          case "$IN_CHUNKS$CHUNK" in
+            ''|*[!0-9]*) echo "::error::chunks and chunk must be numbers, got '$IN_CHUNKS' and '$CHUNK'"; exit 1 ;;
+          esac
           go run ./sonamesweep \
             -catalog "$RUNNER_TEMP/zpkg/catalog/$SLUG.json" \
-            -chunk ${{ matrix.chunk }} \
-            -chunks "${{ inputs.chunks || '14' }}" \
+            -chunk "$CHUNK" \
+            -chunks "$IN_CHUNKS" \
             -baseline "sonames/baseline-$SLUG.txt" \
-            -out "$RUNNER_TEMP/chunk-${{ matrix.chunk }}.txt"
+            -out "$RUNNER_TEMP/chunk-$CHUNK.txt"
 
       # if: always(), because the chunk that FAILS is the one whose findings
       # are worth keeping. Without this the artefact exists only for the
