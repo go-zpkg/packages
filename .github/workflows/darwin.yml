@@ -584,7 +584,7 @@ jobs:
         if: always() && env.PUBLISH_TO != ''
         run: |
           # The version build.yml's publish job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from
