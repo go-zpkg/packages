@@ -177,7 +177,9 @@ func TestTheProductionKeyFollowsSignProdAndNothingElse(t *testing.T) {
 // that runs it is readable by it. The steps that RUN recipes therefore hold no
 // signing key and no registry password; the step after them, which runs none,
 // signs and pushes with `zpkb publish-stage`, in a job on a hosted runner. There
-// is no exception: a mirror_from dispatch is refused (go-zpkg/packages#500).
+// is no exception: a mirror_from dispatch is staged like a build, by
+// `zpkb factory --mirror-from --require-origin --stage-only`, and the hosted
+// publish job signs it (go-zpkg/packages#500).
 func TestNoStepThatRunsRecipesHoldsTheKeyOrTheRegistryPassword(t *testing.T) {
 	ran := 0
 	for _, f := range []string{".github/workflows/build.yml", ".github/workflows/sovereign.yml"} {
@@ -282,5 +284,38 @@ func TestNoShellGlobDecidesWhatIsLoopback(t *testing.T) {
 		if strings.Contains(s.Run, "ZPKG_VERIFY=0") && !strings.Contains(s.Run, `"$SEED_LOOPBACK" = true`) {
 			t.Errorf("step %q turns verification off without SEED_LOOPBACK", s.Name)
 		}
+	}
+}
+
+// go-zpkg/packages#500: a mirror_from dispatch is staged by the build job and
+// signed by the hosted publish job. Nothing refuses it before the build any
+// more, and the step that stages it carries the flags that make it a verified
+// copy, with no key in reach.
+func TestMirrorFromIsStagedWithVerifiedOriginAndNeverRefusedByPreflight(t *testing.T) {
+	staged := 0
+	for _, s := range loadWorkflow(t, ".github/workflows/build.yml").steps() {
+		if strings.Contains(s.Run, "mirror_from is refused") {
+			t.Errorf("step %q still refuses mirror_from", s.Name)
+		}
+		if !strings.Contains(s.Run, "zpkb factory") {
+			continue
+		}
+		staged++
+		for _, want := range []string{"--stage-only", "${MIRROR_FROM:+--mirror-from \"$MIRROR_FROM\"}", "${REQUIRE_ORIGIN:+--require-origin}"} {
+			if !strings.Contains(s.Run, want) {
+				t.Errorf("step %q does not pass %s", s.Name, want)
+			}
+		}
+		if strings.Contains(s.Run, "ZPKG_VERIFY=0") {
+			t.Errorf("step %q disables verification", s.Name)
+		}
+		for _, k := range []string{"SIGNING_KEY", "OCI_PASSWORD"} {
+			if _, ok := s.Env[k]; ok {
+				t.Errorf("step %q holds %s", s.Name, k)
+			}
+		}
+	}
+	if staged != 1 {
+		t.Errorf("found %d build.yml steps running `zpkb factory`, expected 1", staged)
 	}
 }
