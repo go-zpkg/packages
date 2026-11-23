@@ -587,3 +587,89 @@ func mustValidate(t *testing.T, in Inputs) Result {
 	}
 	return r
 }
+
+// ⛔ WHO PUSHES. The self-hosted build job holds no credential, so what it can
+// push is exactly what lives on the pool's own machine or network; everything
+// else is pushed by a fresh GitHub-hosted job that holds the credentials.
+func TestPublishLane(t *testing.T) {
+	for dest, want := range map[string]string{
+		"":                                "none",
+		"oci://127.0.0.1:5000/seed":       "lan",
+		"oci://localhost:5000/seed":       "lan",
+		"oci://[::1]:5000/seed":           "lan",
+		"oci://http://10.46.81.1:5111":    "lan",
+		"oci://http://10.46.81.1:5111/a":  "lan",
+		"oci://ghcr.io/go-zpkg/packages":  "hosted",
+		"oci://ghcr.io/someone/else":      "hosted",
+		"oci://127.evil.example/seed":     "hosted",
+		"oci://http://10.46.81.1:5112/a":  "hosted",
+		"oci://http://10.46.81.10:5111/a": "hosted",
+		"oci://http://10.46.81.1:51111/a": "hosted",
+		"oci://http://10.46.81.1:5111@h":  "hosted",
+	} {
+		if got := PublishLane(dest); got != want {
+			t.Errorf("PublishLane(%q) = %q, want %q", dest, got, want)
+		}
+	}
+}
+
+func TestThePublishLaneIsExported(t *testing.T) {
+	for dest, want := range map[string]string{
+		"oci://ghcr.io/go-zpkg/packages": "hosted",
+		"oci://127.0.0.1:5000/seed":      "lan",
+	} {
+		r, err := Validate(okTo(dest))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := envOf(r)["PUBLISH_LANE"]; got != want {
+			t.Errorf("%s: PUBLISH_LANE=%q, want %q", dest, got, want)
+		}
+	}
+	r, err := Validate(ok())
+	if err != nil || envOf(r)["PUBLISH_LANE"] != "none" {
+		t.Errorf("test_only: %v, lane %q", err, envOf(r)["PUBLISH_LANE"])
+	}
+}
+
+// The build job holds no secret, so it cannot know whether the production key
+// exists: --no-key-check lets it validate, and the hosted jobs, which do hold
+// the key, still refuse.
+func TestNoKeyCheckOnlyRelaxesTheKeyPresenceRefusal(t *testing.T) {
+	in := okTo(prodDest)
+	in.HaveZpkgKey = false
+	refused(t, "no key", in, "needs secrets.ZPKG_SIGNING_KEY")
+	in.NoKeyCheck = true
+	if _, err := Validate(in); err != nil {
+		t.Errorf("--no-key-check still refused: %v", err)
+	}
+	in.ExtraKeys = "k:" + seedKey
+	refused(t, "extra keys with prod", in, "must not widen trust")
+	in = okTo("oci://ghcr.io/go-zpkg/other")
+	in.NoKeyCheck = true
+	refused(t, "look-alike", in, "must be exactly")
+}
+
+func TestTheLaneFlagPrintsTheLane(t *testing.T) {
+	out, _, code := runCmd("--lane", "oci://ghcr.io/go-zpkg/packages")
+	if code != 0 || strings.TrimSpace(out) != "hosted" {
+		t.Errorf("exit %d, %q", code, out)
+	}
+	out, _, code = runCmd("--lane", "")
+	if code != 0 || strings.TrimSpace(out) != "none" {
+		t.Errorf("blank: exit %d, %q", code, out)
+	}
+	if _, _, code = runCmd("--lane", "oci://x\ny"); code != 1 {
+		t.Errorf("a newline in the destination was accepted: exit %d", code)
+	}
+}
+
+func TestTheNoKeyCheckFlagReachesValidation(t *testing.T) {
+	setEnv(t, map[string]string{"IN_OCI_TO": prodDest})
+	if _, _, code := runCmd("--check-only"); code != 1 {
+		t.Errorf("without the flag and without a key: exit %d, want 1", code)
+	}
+	if _, _, code := runCmd("--check-only", "--no-key-check"); code != 0 {
+		t.Errorf("with --no-key-check: exit %d, want 0", code)
+	}
+}

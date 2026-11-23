@@ -116,16 +116,16 @@ func TestTheProductionKeyFollowsSignProdAndNothingElse(t *testing.T) {
 			}
 		}
 	}
-	if seen != 4 {
-		t.Errorf("found %d SIGNING_KEY steps, expected 4 (build for a mirror run, publish-stage, catalogue, sovereign publish-stage)", seen)
+	if seen != 3 {
+		t.Errorf("found %d SIGNING_KEY steps, expected 3 (build publish job: publish-stage and catalogue; sovereign publish job: publish-stage)", seen)
 	}
 }
 
 // A recipe is third-party shell, and anything in the environment of the step
 // that runs it is readable by it. The steps that RUN recipes therefore hold no
 // signing key and no registry password; the step after them, which runs none,
-// signs and pushes with `zpkb publish-stage`. The one exception is a mirror run,
-// which compiles nothing, and its secrets are conditional on mirror_from.
+// signs and pushes with `zpkb publish-stage`, in a job on a hosted runner. There
+// is no exception: a mirror_from dispatch is refused (go-zpkg/packages#500).
 func TestNoStepThatRunsRecipesHoldsTheKeyOrTheRegistryPassword(t *testing.T) {
 	ran := 0
 	for _, f := range []string{".github/workflows/build.yml", ".github/workflows/sovereign.yml"} {
@@ -136,12 +136,8 @@ func TestNoStepThatRunsRecipesHoldsTheKeyOrTheRegistryPassword(t *testing.T) {
 			}
 			ran++
 			for _, k := range []string{"SIGNING_KEY", "OCI_PASSWORD"} {
-				v, ok := s.Env[k]
-				if !ok {
-					continue
-				}
-				if !strings.HasPrefix(strings.TrimSpace(v), "${{ github.event.inputs.mirror_from != ''") {
-					t.Errorf("%s: step %q runs recipes and holds %s unconditionally: %s", f, s.Name, k, v)
+				if v, ok := s.Env[k]; ok {
+					t.Errorf("%s: step %q runs recipes and holds %s: %s", f, s.Name, k, v)
 				}
 			}
 			if strings.Contains(s.Run, "zpkb factory") && !strings.Contains(s.Run, "--stage-only") {
@@ -203,8 +199,8 @@ func TestSecretHoldingLanesInstallTaggedTools(t *testing.T) {
 				n++
 			}
 		}
-		if n != 3 {
-			t.Errorf("%s: %d pinned installs, expected zpkb, zpkx and zpkm", f, n)
+		if n != 4 {
+			t.Errorf("%s: %d pinned installs, expected zpkb, zpkx, zpkm and the publish job's zpkb", f, n)
 		}
 	}
 }

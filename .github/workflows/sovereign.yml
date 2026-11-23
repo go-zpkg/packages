@@ -56,9 +56,11 @@ on:
         required: false
         default: ""
 
-permissions:
-  contents: read
-  packages: write
+# Nothing at the workflow level: every job states what it needs. The job that
+# runs recipe code on the long-lived self-hosted pool gets `contents: read` and
+# no secret; only the publish job, on an ephemeral GitHub-hosted runner, gets
+# `packages: write` (secaudit finding 14).
+permissions: {}
 
 env:
   # Deps from the module proxy, OUR modules straight from GitHub. `GOPROXY=direct`
@@ -73,6 +75,15 @@ jobs:
   sovereign:
     runs-on: ${{ github.event.inputs.arch == 'aarch64' && fromJSON('["self-hosted","incus","arm64"]') || fromJSON('["self-hosted","incus","amd64"]') }}
     timeout-minutes: 330
+    # ⛔ NO SECRET IN THIS JOB, at any level: it runs recipe code on a pool whose
+    # runners keep their home directory between jobs. It stages, uploads the
+    # staged tree and declares its digest; the `publish` job below signs and
+    # pushes. selfhostedsecrets_test.go fails on a `secrets.` reference here.
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+      lane: ${{ steps.digest.outputs.lane }}
     env:
       PLATFORM: linux/${{ github.event.inputs.arch || 'x86-64' }}
     steps:
@@ -97,7 +108,6 @@ jobs:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
           IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
           IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
-          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
         run: |
           set -eu
@@ -166,14 +176,12 @@ jobs:
           esac
           # The production key signs ONE destination, spelled exactly. One
           # that merely names go-zpkg is refused, with either key.
+          # (Whether the key EXISTS is the publish job's to say: this job holds no
+          # secret, so it cannot read one, not even to test it for emptiness.)
           sign_prod=false
           case "$oci_to" in
             oci://ghcr.io/go-zpkg/packages)
-              sign_prod=true
-              if [ "$HAVE_ZPKG_KEY" != true ]; then
-                echo "::error::publishing to $oci_to needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts."
-                exit 1
-              fi ;;
+              sign_prod=true ;;
             *)
               case "${oci_to,,}" in
                 *go-zpkg*) echo "::error::a destination naming go-zpkg must be exactly oci://ghcr.io/go-zpkg/packages, got $oci_to"; exit 1 ;;
@@ -190,7 +198,10 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "publish to $oci_to, read from $dist_from, overlay at $ref"
 
+      # No credential is left in .git/config for the recipe code to find.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
 
@@ -371,29 +382,21 @@ jobs:
             "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \
             ${VERSIONS:+--versions "$VERSIONS"}
 
-      # The only step here that holds the key and the token; it runs no recipe.
-      # `--to` is spelled here and must equal the plan's destination.
-      - name: sign and publish what the build staged
-        env:
-          OCI_USERNAME: ${{ github.actor }}
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # The key follows the destination as the validate step decided it:
-          # SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
-          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
-          # keeps the old key. Written as two guarded halves rather than
-          # `a && X || Y`, which would hand Y (the old key) to go-zpkg
-          # whenever X is empty.
-          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
-          OCI_TO: ${{ env.OCI_TO }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+      # Declares what the build staged: the tree's digest and the publish lane.
+      # The `publish` job refuses unless the tree it downloads has this digest.
+      # No secret is read here.
+      - name: digest the staged tree
+        id: digest
         run: |
+          set -eu
           stage="$RUNNER_TEMP/rootfs/dist"
           [ -f "$stage/publish-plan.json" ] || { echo "::error::the build staged nothing: no publish-plan.json in $stage"; exit 1; }
-          sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage" || true
-          unsigned=
-          [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
-          # shellcheck disable=SC2086  # one flag or nothing
-          zpkb publish-stage "$stage" --to "${OCI_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" $unsigned
+          sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage"
+          digest=$(go run ./distdigest "$stage")
+          lane=$(go run ./inputcheck --lane "$OCI_TO")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "staged tree $digest, publish lane $lane"
 
       - name: upload dist tree
         if: always()
@@ -402,3 +405,72 @@ jobs:
           name: sovereign-dist-${{ github.event.inputs.arch || 'x86-64' }}
           path: ${{ runner.temp }}/rootfs/dist
           if-no-files-found: warn
+
+      # The smoke registry (oci://http://10.46.81.1:5111) is not reachable from a
+      # GitHub-hosted runner, so it keeps a path that needs no secret: this job
+      # pushes UNAUTHENTICATED and UNSIGNED. Nothing signed is produced there.
+      - name: publish to the LAN registry, unsigned and unauthenticated
+        if: steps.digest.outputs.lane == 'lan'
+        run: |
+          zpkb publish-stage "$RUNNER_TEMP/rootfs/dist" --to "${OCI_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" --allow-unsigned
+
+  # ⛔ THE ONLY JOB HERE THAT HOLDS THE KEY AND THE TOKEN. It runs on an ephemeral
+  # GitHub-hosted runner, runs no recipe, and signs only a tree whose digest
+  # equals the one the build job declared. Actions are pinned by SHA.
+  publish:
+    needs: sovereign
+    if: needs.sovereign.outputs.lane == 'hosted'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with: { go-version: '1.27.4' }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: sovereign-dist-${{ github.event.inputs.arch || 'x86-64' }}
+          path: ${{ runner.temp }}/dist
+
+      # The destination and the extra trusted keys are re-validated here, from
+      # the dispatch again and by the same Go program the build workflow uses:
+      # only exactly oci://ghcr.io/go-zpkg/packages gets the go-zpkg key, and a
+      # go-zpkg destination without that key is refused. Nothing the build job
+      # says reaches the signing step except the digest it is checked against.
+      - name: validate the destination and export it
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
+
+      - name: verify the downloaded tree against the build job's digest
+        env:
+          DECLARED: ${{ needs.sovereign.outputs.digest }}
+        run: go run ./distdigest --verify "$DECLARED" "$RUNNER_TEMP/dist"
+
+      - name: build zpkb
+        run: |
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: sign and publish what the build staged
+        env:
+          OCI_USERNAME: ${{ github.actor }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key. Two guarded halves rather than `a && X || Y`,
+          # which would hand Y (the old key) to go-zpkg whenever X is empty.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          set -eu
+          unsigned=
+          [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
+          # shellcheck disable=SC2086  # one flag or nothing
+          zpkb publish-stage "$RUNNER_TEMP/dist" --to "${OCI_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" $unsigned

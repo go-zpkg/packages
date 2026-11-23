@@ -24,7 +24,8 @@ func TestSovereignOverlayRefReachesTheBuildScript(t *testing.T) {
 	if w.dispatchInput(t, "overlay_ref") == nil {
 		t.Fatalf("%s declares no overlay_ref input; this test guards its use", f)
 	}
-	for name, j := range w.Jobs {
+	jobsRunning := 0
+	for _, j := range w.Jobs {
 		exported, cloned, ran := false, false, 0
 		for _, s := range j.Steps {
 			if strings.Contains(s.Run, `echo "OVERLAY_REF=$ref"`) {
@@ -50,9 +51,13 @@ func TestSovereignOverlayRefReachesTheBuildScript(t *testing.T) {
 				t.Errorf("%s: step %q runs sovereign-build.sh with no SOVEREIGN_OVERLAY, so its overlay argument is EMPTY while overlay_ref is set", f, s.Name)
 			}
 		}
-		if ran == 0 {
-			t.Errorf("%s: job %q has no step running builder/sovereign-build.sh", f, name)
+		// The publish job runs no recipe and has no build script step.
+		if ran > 0 {
+			jobsRunning++
 		}
+	}
+	if jobsRunning == 0 {
+		t.Errorf("%s: no job has a step running builder/sovereign-build.sh", f)
 	}
 }
 
@@ -100,13 +105,8 @@ func TestNoOCIVariableReachesTheChroot(t *testing.T) {
 			}
 			ran++
 			for k, v := range s.Env {
-				// OCI_PASSWORD is the mirror lane's, conditional on mirror_from and
-				// removed by `env -u` before the chroot; the test above holds it.
-				if k == "OCI_PASSWORD" && strings.HasPrefix(strings.TrimSpace(v), "${{ github.event.inputs.mirror_from != ''") {
-					continue
-				}
 				if strings.HasPrefix(k, "OCI_") {
-					t.Errorf("%s: step %q runs the chroot build and sets %s", f, s.Name, k)
+					t.Errorf("%s: step %q runs the chroot build and sets %s=%s", f, s.Name, k, v)
 				}
 			}
 		}
@@ -123,25 +123,40 @@ func TestNoOCIVariableReachesTheChroot(t *testing.T) {
 func TestBuildOverlayIsClonedAtOverlayRef(t *testing.T) {
 	const f = ".github/workflows/build.yml"
 	found := 0
-	for _, s := range loadWorkflow(t, f).steps() {
-		if !strings.Contains(s.Run, "go-zpkg/recipes") || !strings.Contains(s.Run, "overlay") {
-			continue
+	// The build job clones once; the publish job clones once more for the
+	// catalogue of a hosted destination, so the count is per job.
+	perJob := map[string]int{}
+	w := loadWorkflow(t, f)
+	for jn, j := range w.Jobs {
+		for _, s := range j.Steps {
+			if !strings.Contains(s.Run, "go-zpkg/recipes") || !strings.Contains(s.Run, "overlay") {
+				continue
+			}
+			perJob[jn]++
+			if strings.Contains(s.Run, "git clone") {
+				t.Errorf("%s: step %q clones the overlay with git clone, which ignores overlay_ref", f, s.Name)
+			}
+			if !strings.Contains(s.Run, "git -C overlay fetch") || !strings.Contains(s.Run, `"$ref"`) {
+				t.Errorf("%s: step %q does not fetch the overlay at \"$ref\"", f, s.Name)
+			}
+			if !strings.Contains(s.Env["IN_OVERLAY_REF"], "github.event.inputs.overlay_ref") {
+				t.Errorf("%s: step %q does not take the ref from the overlay_ref input", f, s.Name)
+			}
+			if !strings.Contains(s.Run, `:-main}`) {
+				t.Errorf("%s: step %q has no main default for an empty overlay_ref", f, s.Name)
+			}
+			found++
 		}
-		if strings.Contains(s.Run, "git clone") {
-			t.Errorf("%s: step %q clones the overlay with git clone, which ignores overlay_ref", f, s.Name)
-		}
-		if !strings.Contains(s.Run, "git -C overlay fetch") || !strings.Contains(s.Run, `"$ref"`) {
-			t.Errorf("%s: step %q does not fetch the overlay at \"$ref\"", f, s.Name)
-		}
-		if !strings.Contains(s.Env["IN_OVERLAY_REF"], "github.event.inputs.overlay_ref") {
-			t.Errorf("%s: step %q does not take the ref from the overlay_ref input", f, s.Name)
-		}
-		if !strings.Contains(s.Run, `:-main}`) {
-			t.Errorf("%s: step %q has no main default for an empty overlay_ref", f, s.Name)
-		}
-		found++
 	}
-	if found != 1 {
-		t.Errorf("%s: found %d overlay clone steps, expected 1", f, found)
+	for jn, n := range perJob {
+		if n > 1 {
+			t.Errorf("%s: job %s has %d overlay clone steps, expected at most 1", f, jn, n)
+		}
+	}
+	if perJob["build"] != 1 {
+		t.Errorf("%s: build job has %d overlay clone steps, expected 1", f, perJob["build"])
+	}
+	if found < 1 {
+		t.Errorf("%s: found no overlay clone step", f)
 	}
 }
