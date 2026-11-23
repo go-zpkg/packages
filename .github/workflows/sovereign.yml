@@ -450,7 +450,9 @@ jobs:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
           HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
-        run: go run ./inputcheck
+        # --publish-env: this job builds nothing, so it is not handed the build's
+        # OVERLAY_URL, DIST_FROM or SEED_* (publish-stage reads none of them).
+        run: go run ./inputcheck --publish-env
 
       - name: verify the downloaded tree against the build job's digest
         env:
