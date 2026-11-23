@@ -114,6 +114,26 @@ func TestAMissingDirectoryIsAnError(t *testing.T) {
 	}
 }
 
+// An unreadable directory reaches the walk callback WITH an entry and an
+// error: the error must be returned, not swallowed.
+func TestAnUnreadableDirectoryIsAnError(t *testing.T) {
+	d := t.TempDir()
+	sub := filepath.Join(d, "a")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sub, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(sub, 0o755)
+	if _, err := os.ReadDir(sub); err == nil {
+		t.Skip("directory permissions are not enforced here")
+	}
+	if _, err := List(d); err == nil {
+		t.Fatal("an unreadable directory was listed as empty")
+	}
+}
+
 func TestAFileIsNotATree(t *testing.T) {
 	d := t.TempDir()
 	write(t, d, "f")
