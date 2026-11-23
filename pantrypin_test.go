@@ -26,6 +26,7 @@ type workflow struct {
 }
 
 type wfStep struct {
+	ID   string            `yaml:"id"`
 	Name string            `yaml:"name"`
 	If   string            `yaml:"if"`
 	Uses string            `yaml:"uses"`

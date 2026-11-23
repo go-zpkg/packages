@@ -98,6 +98,10 @@ on:
         description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
         required: false
         default: ""
+      source_trusted_keys:
+        description: "TRUST FOR THE SOURCE ONLY: public keys believed when a promotion (mirror_from + require_origin) verifies the SEED artifacts it copies and their origin claims: whitespace-separated `name:RW<base64>` entries, at most 8. Passed to the mirror step alone as `--source-trust`. Never exported to the publish job, an install, a test or the catalogue, never recorded as trust in what is promoted, and what clients trust is unchanged. Allowed with a destination naming go-zpkg, which extra_trusted_keys is not. Refused without mirror_from and require_origin."
+        required: false
+        default: ""
   # Continuous population: rebuild recipes.txt daily. skip-if-published means
   # only new/updated (project,version,platform) are actually built.
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
@@ -156,6 +160,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
           IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
@@ -259,6 +264,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
           IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
@@ -469,14 +475,14 @@ jobs:
           # A TAG, not main: this job holds the signing and registry secrets,
           # and a moving branch would run whatever it points at when the job
           # starts. A newer tool is a deliberate bump of this line (go-zpkg/packages#440).
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.3
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.4
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install zpkb
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -557,6 +563,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
           IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
@@ -888,6 +895,12 @@ jobs:
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
           SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
+          # TRUST FOR THE SOURCE ONLY: the validated key list, passed below as
+          # `--source-trust` to the one command that verifies the source. It is
+          # deliberately NOT ZPKG_EXTRA_TRUSTED_KEYS, so no install, test or
+          # catalogue step in this job believes it, and the publish job is never
+          # handed it (it reads --publish-env, which does not carry SOURCE_KEYS).
+          SOURCE_KEYS: ${{ env.SOURCE_KEYS }}
           # The overlay is what zpkb's `--overrides` does for the recipes zpkb READS,
           # but for the recipes PKGX reads while materialising a build's
           # dependency environment. Without it, a dependency whose upstream recipe
@@ -1079,6 +1092,7 @@ jobs:
               ${VERSIONS:+--versions "$VERSIONS"} \
               ${MIRROR_FROM:+--mirror-from "$MIRROR_FROM"} \
               ${REQUIRE_ORIGIN:+--require-origin} \
+              ${SOURCE_KEYS:+--source-trust "$SOURCE_KEYS"} \
             ${SOURCE_MIRROR:+--source-mirror "$SOURCE_MIRROR"}
           fi
 
@@ -1134,6 +1148,7 @@ jobs:
       # a path that needs no secret: this job pushes UNAUTHENTICATED and
       # UNSIGNED. Nothing signed is ever produced on this lane.
       - name: publish to a LAN or loopback registry, unsigned and unauthenticated
+        id: lan_publish
         if: always() && env.PUBLISH_LANE == 'lan' && steps.digest.outputs.digest != ''
         env:
           PLATFORM: ${{ matrix.platform }}
@@ -1203,10 +1218,14 @@ jobs:
       # what this job built, so all 38 chunks of a nightly would push the
       # same bytes. Chunk 0 and a named dispatch each publish it once.
       #
-      # always(), because it describes what the pantry NAMES. A chunk that
-      # failed to build anything has still read a complete pantry, and a
-      # catalogue withheld on a red run is a catalogue that goes stale
-      # exactly when someone is looking for why.
+      # ⛔ ONLY WHEN THIS RUN PUBLISHED SOMETHING, AND NEVER AFTER A FAILED
+      # STEP. This used to be always(), on the reasoning that a catalogue
+      # describes what the pantry NAMES. It pushed an UNSIGNED catalogue of 2057
+      # projects into promo-r2 (run 45147362828) after the build step had failed
+      # and nothing had been published: a registry's catalogue then listed names
+      # that the registry did not carry. `success()` refuses a run in which any
+      # step failed, and the LAN publish step's own outcome refuses a run that
+      # published nothing (no plan staged, or a lane that is not this one).
       #
       # It follows ZPKG_DIST like everything else here, so a seed run writes
       # its catalogue into the seed registry and not into the real one.
@@ -1237,7 +1256,7 @@ jobs:
         # ⛔ THIS COPY IS THE LAN/LOOPBACK LANE ONLY: unsigned, no credential. A
         # catalogue for a hosted destination is signed and pushed by the
         # `publish` job, which holds the key and runs no recipe.
-        if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != '' && env.PUBLISH_LANE == 'lan'
+        if: success() && steps.lan_publish.outcome == 'success' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != '' && env.PUBLISH_LANE == 'lan'
         env:
           PLATFORM: ${{ matrix.platform }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1619,7 +1638,7 @@ jobs:
         if: env.DECLARED_DIGEST != 'none'
         run: |
           # The version the build job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from

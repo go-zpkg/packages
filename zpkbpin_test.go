@@ -98,7 +98,7 @@ var zpkbPinRE = regexp.MustCompile(`github\.com/go-zpkg/zpkb/cmd/zpkb@(v[0-9][^\
 // and each installs zpkb at the same tag as the build job it publishes for.
 //
 // 10 → 14 with windows.yml and windows-rust.yml: the build job's lan lane and
-// the hosted publish job each install zpkb at v0.103.0.
+// the hosted publish job each install zpkb at v0.104.0.
 const zpkbPinsExpected = 14
 
 func TestEveryPinnedFactoryCanRecordABuildIdentity(t *testing.T) {

@@ -136,7 +136,7 @@ jobs:
           # The proxy policy is the workflow-level env:, so it covers this and
           # every other go invocation here, and ./goproxycheck keeps it level.
           # A tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Cross-build chunk ${{ matrix.chunk }} → Windows packages
         env:
@@ -308,7 +308,7 @@ jobs:
         if: always() && env.PUBLISH_TO != ''
         run: |
           # The version build.yml's publish job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is the destination inputcheck validated; nothing in the staged
@@ -377,7 +377,9 @@ jobs:
         if: always() && matrix.chunk == '0' && env.PUBLISH_TO != ''
         run: git clone --depth 1 https://github.com/go-zpkg/recipes overlay
       - name: publish the catalogue
-        if: always() && matrix.chunk == '0' && env.PUBLISH_TO != ''
+        # success(), not always(): a catalogue is published only by a run in which
+        # nothing failed (promo-r2 pushed an unsigned one after a failed build).
+        if: success() && matrix.chunk == '0' && env.PUBLISH_TO != ''
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

@@ -584,7 +584,7 @@ jobs:
         if: always() && env.PUBLISH_TO != ''
         run: |
           # The version build.yml's publish job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from
@@ -620,7 +620,9 @@ jobs:
         if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
         run: git clone --depth 1 https://github.com/go-zpkg/recipes overlay
       - name: publish the catalogue
-        if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        # success(), not always(): a catalogue is published only by a run in which
+        # nothing failed (promo-r2 pushed an unsigned one after a failed build).
+        if: success() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
         env:
           PLATFORM: ${{ matrix.platform }}
           OCI_USERNAME: ${{ github.actor }}

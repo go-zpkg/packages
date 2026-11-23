@@ -462,6 +462,99 @@ func TestExtraTrustedKeys(t *testing.T) {
 	}
 }
 
+// promotion is a production promotion: a go-zpkg destination, a seed source.
+func promotion() Inputs {
+	in := ok()
+	in.OCITo = "oci://ghcr.io/go-zpkg/packages"
+	in.HaveZpkgKey = true
+	in.MirrorFrom = "oci://ghcr.io/go-zpkg/seed"
+	in.RequireOrigin = "1"
+	return in
+}
+
+// ⛔ TRUST FOR THE SOURCE ONLY: the key that signed the seed verifies the source
+// of a production promotion, which extra_trusted_keys cannot do.
+func TestSourceTrustedKeysServeAPromotionAndNothingElse(t *testing.T) {
+	good := "seed-b6:" + seedKey
+	in := promotion()
+	in.SourceKeys = good
+	r, err := Validate(in)
+	if err != nil {
+		t.Fatalf("a production promotion with a source key: %v", err)
+	}
+	var src, extra string
+	for _, p := range r.Env {
+		switch p[0] {
+		case "SOURCE_KEYS":
+			src = p[1]
+		case "EXTRA_KEYS":
+			extra = p[1]
+		}
+	}
+	if src != good {
+		t.Errorf("SOURCE_KEYS = %q", src)
+	}
+	if extra != "" {
+		t.Errorf("a source key became destination trust: EXTRA_KEYS = %q", extra)
+	}
+	// The publish job's variables do not carry it.
+	for _, p := range publishOnly(r.Env) {
+		if p[0] == "SOURCE_KEYS" || strings.Contains(p[1], seedKey) {
+			t.Errorf("the publish job is handed %s", p[0])
+		}
+	}
+	// extra_trusted_keys stays refused for the same destination.
+	in.ExtraKeys = good
+	refused(t, "extra keys with go-zpkg", in, "cannot be combined")
+}
+
+func TestSourceTrustedKeysAreRefusedWhereNoSourceIsVerified(t *testing.T) {
+	good := "seed-b6:" + seedKey
+	for name, mod := range map[string]func(*Inputs){
+		"no mirror_from":    func(i *Inputs) { i.MirrorFrom = ""; i.RequireOrigin = "" },
+		"no require_origin": func(i *Inputs) { i.RequireOrigin = "" },
+		"a plain build":     func(i *Inputs) { *i = ok() },
+	} {
+		in := promotion()
+		mod(&in)
+		in.SourceKeys = good
+		refused(t, name, in, "source_trusted_keys")
+	}
+}
+
+func TestSourceTrustedKeysAreValidatedLikeExtraKeys(t *testing.T) {
+	many := strings.Repeat("k:"+seedKey+" ", 9)
+	for name, v := range map[string]string{
+		"char":     "seed:" + seedKey + ";",
+		"no colon": "seed",
+		"bad name": ":" + seedKey,
+		"short":    "seed:" + seedKey[:55],
+		"many":     many,
+	} {
+		in := promotion()
+		in.SourceKeys = v
+		refused(t, name, in, "source_trusted_keys")
+	}
+	in := promotion()
+	in.SourceKeys = strings.Repeat("k:"+seedKey+" ", 8)
+	if _, err := Validate(in); err != nil {
+		t.Errorf("eight keys refused: %v", err)
+	}
+	in.SourceKeys = "k:" + seedKey + "\n"
+	refused(t, "newline", in, "newline")
+}
+
+func TestTheSourceKeysComeFromTheEnvironmentAndNeverReachAPublishEnv(t *testing.T) {
+	good := "seed-b6:" + seedKey
+	setEnv(t, map[string]string{
+		"IN_OCI_TO": "oci://ghcr.io/go-zpkg/packages", "IN_MIRROR_FROM": "oci://ghcr.io/go-zpkg/seed",
+		"IN_REQUIRE_ORIGIN": "1", "IN_SOURCE_KEYS": good, "HAVE_ZPKG_KEY": "true",
+	})
+	if got := fromEnv().SourceKeys; got != good {
+		t.Errorf("fromEnv read %q", got)
+	}
+}
+
 func TestTheZpkgKeyIsRequiredAndNeverWidenedByExtraKeys(t *testing.T) {
 	in := ok()
 	in.OCITo = "oci://ghcr.io/go-zpkg/packages"
@@ -495,7 +588,7 @@ func TestWriteEnv(t *testing.T) {
 
 func setEnv(t *testing.T, kv map[string]string) {
 	t.Helper()
-	for _, k := range []string{"IN_OCI_TO", "IN_DIST_FROM", "IN_OVERLAY_REF", "IN_SEED_DIST", "IN_MIRROR_FROM", "IN_SOURCE_MIRROR", "IN_GLIBC", "IN_VERSIONS", "IN_EXTRA_KEYS", "IN_REQUIRE_ORIGIN", "IN_LOCK", "IN_RECIPES", "IN_MAX_VERSIONS", "HAVE_ZPKG_KEY", "IN_FORCE", "IN_REBUILD", "IN_NO_CLOSURE", "IN_PIN_TO_DEPENDENTS", "IN_CLEAN_BUILD_ROOT", "IN_BOOTSTRAP", "IN_TEST_ONLY", "IN_SOVEREIGN"} {
+	for _, k := range []string{"IN_OCI_TO", "IN_DIST_FROM", "IN_OVERLAY_REF", "IN_SEED_DIST", "IN_MIRROR_FROM", "IN_SOURCE_MIRROR", "IN_GLIBC", "IN_VERSIONS", "IN_EXTRA_KEYS", "IN_SOURCE_KEYS", "IN_REQUIRE_ORIGIN", "IN_LOCK", "IN_RECIPES", "IN_MAX_VERSIONS", "HAVE_ZPKG_KEY", "IN_FORCE", "IN_REBUILD", "IN_NO_CLOSURE", "IN_PIN_TO_DEPENDENTS", "IN_CLEAN_BUILD_ROOT", "IN_BOOTSTRAP", "IN_TEST_ONLY", "IN_SOVEREIGN"} {
 		t.Setenv(k, "")
 	}
 	for k, v := range kv {
