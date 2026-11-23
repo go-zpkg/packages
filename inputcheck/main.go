@@ -52,6 +52,7 @@ type Inputs struct {
 	Glibc         string
 	Versions      string
 	ExtraKeys     string
+	SourceKeys    string
 	RequireOrigin string
 	Lock          string
 	Recipes       string
@@ -121,6 +122,7 @@ func Validate(in Inputs) (Result, error) {
 		{"oci_to", in.OCITo}, {"dist_from", in.DistFrom}, {"overlay_ref", in.OverlayRef},
 		{"seed_dist", in.SeedDist}, {"mirror_from", in.MirrorFrom}, {"source_mirror", in.SourceMirror},
 		{"glibc", in.Glibc}, {"versions", in.Versions}, {"extra_trusted_keys", in.ExtraKeys},
+		{"source_trusted_keys", in.SourceKeys},
 		{"require_origin", in.RequireOrigin}, {"lock", in.Lock}, {"recipes", in.Recipes},
 		{"max_versions", in.MaxVersions},
 	}
@@ -199,8 +201,20 @@ func Validate(in Inputs) (Result, error) {
 	if in.SeedDist != "" && (in.OCITo != "" || in.DistFrom != "") {
 		return r, errors.New("seed_dist already names the one registry a seed run reads and writes; oci_to and dist_from cannot be combined with it")
 	}
-	if err := checkExtraKeys(in.ExtraKeys); err != nil {
+	if err := checkExtraKeys("extra_trusted_keys", in.ExtraKeys); err != nil {
 		return r, err
+	}
+	// ⛔ TRUST FOR THE SOURCE ONLY. A promotion reads a seed signed with the seed
+	// key, which clients must not trust, and extra_trusted_keys is refused for
+	// go-zpkg because it would widen what the destination trusts. These keys
+	// are read by the mirror step's verification of its SOURCE and by nothing
+	// else: they are not handed to the publish job, an install or a test, and
+	// so only a run that verifies a source has any use for them.
+	if err := checkExtraKeys("source_trusted_keys", in.SourceKeys); err != nil {
+		return r, err
+	}
+	if in.SourceKeys != "" && (in.MirrorFrom == "" || in.RequireOrigin == "") {
+		return r, errors.New("source_trusted_keys is read only when a promotion verifies its source, so it needs mirror_from and require_origin=1")
 	}
 
 	distFrom := in.DistFrom
@@ -270,6 +284,10 @@ func Validate(in Inputs) (Result, error) {
 		// zpkb as ZPKG_EXTRA_TRUSTED_KEYS in their own env, so that the build
 		// step is not given a trust variable the dispatch did not mean for it.
 		{"EXTRA_KEYS", in.ExtraKeys},
+		// Read by the mirror step alone, as `--source-trust`. publishOnly does
+		// not carry it, and no step hands it to ZPKG_*: it is not trust for
+		// anything a client or the post-publish test reads.
+		{"SOURCE_KEYS", in.SourceKeys},
 		// Read by the SIGNING_KEY expressions: ZPKG_SIGNING_KEY signs only
 		// when this is `true`, every other destination gets the other key.
 		{"SIGN_PROD", strconv.FormatBool(prod)},
@@ -369,26 +387,29 @@ func testOnly(in Inputs) bool {
 
 // checkExtraKeys validates `name:RW<base64>` entries separated by whitespace
 // (go-zpkg/artifact trust.go ParseSigners).
-func checkExtraKeys(v string) error {
+//
+// field names the input in the refusal: extra_trusted_keys and
+// source_trusted_keys are the same shape and two different trusts.
+func checkExtraKeys(field, v string) error {
 	for _, r := range v {
 		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || strings.ContainsRune("._:+/ -", r)) {
-			return errors.New("extra_trusted_keys holds a character outside A-Za-z0-9._:+/ - and the space separator")
+			return fmt.Errorf("%s holds a character outside A-Za-z0-9._:+/ - and the space separator", field)
 		}
 	}
 	entries := strings.Fields(v)
 	if len(entries) > maxExtraKeys {
-		return fmt.Errorf("extra_trusted_keys names %d keys, more than %d", len(entries), maxExtraKeys)
+		return fmt.Errorf("%s names %d keys, more than %d", field, len(entries), maxExtraKeys)
 	}
 	for _, e := range entries {
 		name, key, ok := strings.Cut(e, ":")
 		if !ok {
-			return fmt.Errorf("extra_trusted_keys entry '%s' is not name:key", e)
+			return fmt.Errorf("%s entry '%s' is not name:key", field, e)
 		}
 		if !keyNameRe.MatchString(name) {
-			return fmt.Errorf("extra_trusted_keys name '%s' is empty, longer than 64 or outside A-Za-z0-9._-", name)
+			return fmt.Errorf("%s name '%s' is empty, longer than 64 or outside A-Za-z0-9._-", field, name)
 		}
 		if !keyMaterial.MatchString(key) {
-			return fmt.Errorf("extra_trusted_keys key for '%s' is not RW plus 54 base64 characters, 56 in all (a minisign public key)", name)
+			return fmt.Errorf("%s key for '%s' is not RW plus 54 base64 characters, 56 in all (a minisign public key)", field, name)
 		}
 	}
 	return nil
@@ -432,7 +453,7 @@ func fromEnv() Inputs {
 		OCITo: g("IN_OCI_TO"), DistFrom: g("IN_DIST_FROM"), OverlayRef: g("IN_OVERLAY_REF"),
 		SeedDist: g("IN_SEED_DIST"), MirrorFrom: g("IN_MIRROR_FROM"), SourceMirror: g("IN_SOURCE_MIRROR"),
 		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: g("IN_EXTRA_KEYS"),
-		RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
+		SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
 		MaxVersions: g("IN_MAX_VERSIONS"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true",
 		Flags: map[string]string{},
 	}
