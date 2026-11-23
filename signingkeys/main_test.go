@@ -125,6 +125,8 @@ func TestArgumentsAreRefused(t *testing.T) {
 		"no seed":  {"--prod", "x"},
 		"argv":     {"--seed", "x", "--prod", "y", "RWsecret"},
 		"bad flag": {"--nope"},
+		// Both files named: only the flag error can refuse this with 2.
+		"bad flag with files": {"--seed", "x", "--prod", "y", "--nope"},
 	} {
 		if c, _, _ := runIt(args...); c != 2 {
 			t.Errorf("%s: code=%d", name, c)
@@ -159,8 +161,9 @@ func TestReadBoundedAndAppendFile(t *testing.T) {
 	if _, err := readBounded(dir); err == nil || err.Error() != "cannot be read" {
 		t.Errorf("directory: %v", err)
 	}
-	if err := osAppendFile(dir, "x"); err == nil {
-		t.Error("appended to a directory")
+	// The open's own error is returned, not the write's on a nil file.
+	if err := osAppendFile(dir, "x"); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Errorf("append to a directory: %v", err)
 	}
 }
 
