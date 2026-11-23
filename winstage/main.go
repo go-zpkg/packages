@@ -84,7 +84,7 @@ func List(dir string) ([]Package, error) {
 	count := 0
 	// The root is checked first so the walk callback always has an entry.
 	if _, err := os.Lstat(dir); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("staged root: %w", err)
 	}
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

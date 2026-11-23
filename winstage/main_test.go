@@ -109,8 +109,9 @@ func TestTooManyFilesAreRefused(t *testing.T) {
 }
 
 func TestAMissingDirectoryIsAnError(t *testing.T) {
-	if _, err := List(filepath.Join(t.TempDir(), "none")); err == nil {
-		t.Fatal("no error")
+	_, err := List(filepath.Join(t.TempDir(), "none"))
+	if err == nil || !strings.Contains(err.Error(), "staged root") {
+		t.Fatalf("want a staged root error, got %v", err)
 	}
 }
 
