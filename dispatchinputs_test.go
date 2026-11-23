@@ -179,6 +179,17 @@ func TestTheSovereignValidateStepRefusesALookalikeDestination(t *testing.T) {
 			t.Errorf("sovereign.yml validate step lacks %q", want)
 		}
 	}
+	// The smoke destination is an exact arm that leaves SIGN_PROD false and
+	// comes BEFORE the refusal of anything else naming go-zpkg.
+	smoke := strings.Index(run, "oci://ghcr.io/go-zpkg/smoke)")
+	refuse := smoke + strings.Index(run[max(smoke, 0):], "*go-zpkg*)")
+	if smoke < 0 || refuse < 0 || smoke > refuse {
+		t.Fatalf("sovereign.yml validate step: smoke arm at %d, refusal at %d", smoke, refuse)
+	}
+	arm := run[smoke:refuse]
+	if !strings.Contains(arm, "sign_prod=false") || strings.Contains(arm, "sign_prod=true") {
+		t.Errorf("the smoke arm must keep sign_prod=false: %s", arm)
+	}
 }
 
 // Both workflows run with the signing and registry secrets, so the tools they

@@ -182,9 +182,13 @@ jobs:
           case "$oci_to" in
             oci://ghcr.io/go-zpkg/packages)
               sign_prod=true ;;
+            oci://ghcr.io/go-zpkg/smoke)
+              # The one non-production go-zpkg destination: signed with the
+              # non-production key, never the production one.
+              sign_prod=false ;;
             *)
               case "${oci_to,,}" in
-                *go-zpkg*) echo "::error::a destination naming go-zpkg must be exactly oci://ghcr.io/go-zpkg/packages, got $oci_to"; exit 1 ;;
+                *go-zpkg*) echo "::error::a destination naming go-zpkg must be exactly oci://ghcr.io/go-zpkg/packages (or oci://ghcr.io/go-zpkg/smoke), got $oci_to"; exit 1 ;;
               esac ;;
           esac
           {

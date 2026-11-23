@@ -228,8 +228,15 @@ func Validate(in Inputs) (Result, error) {
 	// organisation, another case, a suffix) is refused rather than signed
 	// with either key.
 	prod := r.Effective == prodDest
-	if looksGoZpkg(r.Effective) && !prod {
-		return r, fmt.Errorf("a destination naming go-zpkg must be exactly %s, got %s", prodDest, r.Effective)
+	// One more go-zpkg destination exists, for exercising the hosted publish
+	// job: smokeDest, spelled exactly. It is signed with the non-production
+	// key (SIGN_PROD stays false) and is never a promotion target.
+	smoke := r.Effective == smokeDest
+	if looksGoZpkg(r.Effective) && !prod && !smoke {
+		return r, fmt.Errorf("a destination naming go-zpkg must be exactly %s (or %s), got %s", prodDest, smokeDest, r.Effective)
+	}
+	if smoke && (in.RequireOrigin != "" || in.MirrorFrom != "") {
+		return r, fmt.Errorf("%s is never a promotion target: require_origin and mirror_from are refused for it", smokeDest)
 	}
 	if prod {
 		if !in.HaveZpkgKey && !in.NoKeyCheck {
@@ -330,6 +337,10 @@ func isLoopbackRegistry(dist string) bool {
 
 // prodDest is the one destination the production signing key may sign.
 const prodDest = "oci://ghcr.io/go-zpkg/packages"
+
+// smokeDest is the one non-production destination under go-zpkg, there so the
+// hosted publish job can be exercised without touching production.
+const smokeDest = "oci://ghcr.io/go-zpkg/smoke"
 
 // looksGoZpkg is deliberately the broad match: a destination that merely
 // contains the name must be exactly prodDest, or it is refused.
