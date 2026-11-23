@@ -322,7 +322,15 @@ copying from carries the line first — two mirrors and a glibc rebuild were onc
 spent healing an artifact that never existed — then:
 
     recipes="python.org@~3.12 rust-lang.org libgit2.org@~1.7"
-    mirror_from=<a dist that has them>   max_versions=1   no_closure=1
+    mirror_from=<a dist that has them>   require_origin=1   max_versions=1   no_closure=1
+
+A mirror is a **promotion** that stages and verifies without any secret: the
+build job runs `zpkb factory --mirror-from --require-origin --stage-only`, which
+checks the seed artifact's signature, its signed origin claim and that the bytes
+are the ones the claim names, and signs nothing. The hosted publish job then
+signs what was staged, and only if the staged plan records that verification.
+`require_origin=1` is mandatory with `mirror_from`, and `mirror_from` cannot be
+combined with `seed_dist`, so verification is never switched off.
 
 ⛔ We are no longer compatible with pkgx and do not copy artifacts from its
 dist (#431); the input defaults to blank, which builds.
