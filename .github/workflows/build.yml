@@ -103,9 +103,12 @@ on:
   # schedule:  # cron disabled 2026-08-12 (free runners for targeted jobs; workflow_dispatch kept)
     # - cron: "0 6 * * *"
 
+# Read-only by default. Only the `publish` job below, on an ephemeral
+# GitHub-hosted runner, asks for `packages: write`: a job on the long-lived
+# self-hosted pool runs recipe code and must not hold a token that can write
+# (secaudit finding 14).
 permissions:
   contents: read
-  packages: write
 
 env:
   CHUNK: "50"   # projects per matrix job (chunked so the full pantry fans out)
@@ -118,10 +121,76 @@ env:
   GONOPROXY: github.com/go-zpkg/*
 
 jobs:
+  # ⛔ THE ONLY PLACE BEFORE `publish` THAT READS A SECRET, even to test it for
+  # emptiness, and it runs on an ephemeral GitHub-hosted runner. `setup` and
+  # `build` run on the long-lived self-hosted pool and hold NO secret: they call
+  # inputcheck with --no-key-check, and this job is what refuses a go-zpkg
+  # destination when the signing key is absent. A dispatch that is refused here
+  # takes no self-hosted runner at all.
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Refused, not reinterpreted: `zpkb factory --mirror-from` pushes and signs
+      # by itself (`--stage-only` is refused with it), so that shape would need
+      # the key and the token inside the job that runs on the self-hosted pool.
+      - name: a mirror_from dispatch is not supported yet
+        env:
+          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+        run: |
+          [ -z "$IN_MIRROR_FROM" ] || {
+            echo "::error::mirror_from is refused: the build job holds no secret any more and the factory's --mirror-from publishes by itself. Tracked in go-zpkg/packages#500."
+            exit 1
+          }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with: { go-version: '1.27.4' }
+      - name: dispatch inputs are well formed and consistent
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
+          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
+          IN_SEED_DIST: ${{ github.event.inputs.seed_dist }}
+          IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
+          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+          IN_SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
+          IN_GLIBC: ${{ github.event.inputs.glibc }}
+          IN_VERSIONS: ${{ github.event.inputs.versions }}
+          IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_LOCK: ${{ github.event.inputs.lock }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
+          IN_FORCE: ${{ github.event.inputs.force }}
+          IN_REBUILD: ${{ github.event.inputs.rebuild }}
+          IN_NO_CLOSURE: ${{ github.event.inputs.no_closure }}
+          IN_PIN_TO_DEPENDENTS: ${{ github.event.inputs.pin_to_dependents }}
+          IN_CLEAN_BUILD_ROOT: ${{ github.event.inputs.clean_build_root }}
+          IN_BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
+          IN_TEST_ONLY: ${{ github.event.inputs.test_only }}
+          IN_SOVEREIGN: ${{ github.event.inputs.sovereign }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        # Not --check-only: it also exports PUBLISH_LANE, read just below.
+        run: go run ./inputcheck
+      # Which lane the dispatch publishes through (none, lan or hosted): the
+      # `publish` job is skipped unless it is `hosted`, so a smoke run against
+      # the LAN registry does not start forty empty hosted legs.
+      - name: publish lane
+        id: lane
+        run: echo "lane=${PUBLISH_LANE:?inputcheck exported no lane}" >> "$GITHUB_OUTPUT"
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
+
   # Split recipes.txt into CHUNK-sized slices and emit a matrix over both linux
   # arches × every chunk, so the whole pantry is built best-effort in parallel.
   # A manual `recipes` input bypasses chunking (one job per arch with just those).
   setup:
+    needs: preflight
+    permissions:
+      contents: read
     # The matrix generator has to run somewhere too: when GitHub's pool is the
     # thing that is unavailable, pinning this to ubuntu-latest queues the whole
     # workflow before it has decided anything.
@@ -178,8 +247,11 @@ jobs:
       # one `zpkb factory --to` publishes to, after the blank-oci_to fallback)
       # tested for go-zpkg, extra_trusted_keys checked entry by entry.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
+      # No HAVE_ZPKG_KEY: this job holds no secret. `preflight` read it.
       - name: dispatch inputs are well formed and consistent
         env:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
@@ -203,8 +275,7 @@ jobs:
           IN_BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
           IN_TEST_ONLY: ${{ github.event.inputs.test_only }}
           IN_SOVEREIGN: ${{ github.event.inputs.sovereign }}
-          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
-        run: go run ./inputcheck --check-only
+        run: go run ./inputcheck --check-only --no-key-check
 
       - name: a bootstrap dispatch states its two companions
         env:
@@ -325,8 +396,23 @@ jobs:
           echo "matrix=$m" >> "$GITHUB_OUTPUT"
           echo "$m" | jq '.include | length | "\(.) build jobs"'
 
+  # ⛔ NO SECRET IN THIS JOB, at any level, whichever runner the matrix picks: it
+  # runs recipe code, and the self-hosted pool keeps its home directory between
+  # jobs. It stages (`zpkb factory --stage-only`), uploads the staged tree and
+  # declares its sha256 digest as a job output; the `publish` job signs and
+  # pushes. The one credential left is the workflow's own GITHUB_TOKEN, and with
+  # `contents: read` it can read this public repository and nothing else; zpkb
+  # sends it to api.github.com to stay under the anonymous rate limit.
+  # selfhostedsecrets_test.go fails on anything more.
   build:
     needs: setup
+    permissions:
+      contents: read
+    # One pair of outputs per matrix leg: the name carries the leg, so legs do
+    # not overwrite each other (GitHub's documented pattern for matrix outputs).
+    outputs:
+      digest-${{ matrix.slug }}-${{ matrix.chunk }}: ${{ steps.digest.outputs.digest }}
+      lane-${{ matrix.slug }}-${{ matrix.chunk }}: ${{ steps.digest.outputs.lane }}
     runs-on: ${{ matrix.runner }}
     # ⛔ 360 IS THE DEFAULT, AND IT IS NOT ENOUGH FOR AN EMULATED ARCH.
     # Measured 2026-10-23/24: `nodejs.org 26.12.1` for linux/aarch64 started
@@ -365,7 +451,10 @@ jobs:
           # some recipes' configure looks for `python`
           command -v python >/dev/null || $SUDO ln -sf "$(command -v python3)" /usr/local/bin/python
 
+      # No credential is left in .git/config for recipe code to find.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.4' }
@@ -487,8 +576,9 @@ jobs:
           IN_BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
           IN_TEST_ONLY: ${{ github.event.inputs.test_only }}
           IN_SOVEREIGN: ${{ github.event.inputs.sovereign }}
-          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
-        run: go run ./inputcheck
+        # No HAVE_ZPKG_KEY, hence --no-key-check: the key's presence was read by
+        # `preflight` and is read again by `publish`; this job reads no secret.
+        run: go run ./inputcheck --no-key-check
 
       # Decide ONCE whether this job is sovereign, in shell, and hand the answer
       # to every later step. Expressing one decision as two conditions is how
@@ -784,12 +874,10 @@ jobs:
           # "sign and publish what the build staged" below holds the key and
           # the token and runs no recipe.
           #
-          # ⚠ NOT CLOSED HERE: GITHUB_TOKEN below is the SAME workflow token
-          # as OCI_PASSWORD, with the job's permissions (packages: write), and
-          # zpkb needs it for version lookups. The registry credential is
-          # therefore still readable by a recipe; only SIGNING_KEY is out of its
-          # reach. Closing that takes a lookup token that cannot write, which a
-          # job cannot split from its own token. Filed as a follow-up.
+          # GITHUB_TOKEN below is the workflow token with this job's
+          # permissions, `contents: read`: it cannot write to the registry or to
+          # the repository, so a recipe that reads it learns nothing it could
+          # not fetch anonymously, only at a higher rate limit.
           # zpkb resolves a project's versions from api.github.com, and sends
           # `Authorization: Bearer $GITHUB_TOKEN` when it has one. Without it
           # the calls are ANONYMOUS — 60 requests an hour against a workflow
@@ -804,12 +892,6 @@ jobs:
           # way. The token the job already holds for the registry raises the
           # ceiling to 5000/hour; it just was never handed to the build.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # EXCEPT a MIRROR run, which compiles nothing and so runs no recipe:
-          # `--stage-only` is refused with `--mirror-from`, so that one
-          # shape keeps publishing from here, with the same key rule as the
-          # publish step below (SIGN_PROD, two guarded halves, never `a && X || Y`).
-          OCI_PASSWORD: ${{ github.event.inputs.mirror_from != '' && secrets.GITHUB_TOKEN || '' }}
-          SIGNING_KEY: ${{ github.event.inputs.mirror_from != '' && ((env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '') || '' }}
           GLIBC: ${{ github.event.inputs.glibc }}
           MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
           REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
@@ -975,11 +1057,10 @@ jobs:
             # Validated ONCE before the first build — a record that does not
             # parse stops a publish, and the fortieth artifact of a chunk is six
             # hours into the run.
-            # --stage-only unless this is a mirror run (see the env above).
-            stage_flag=--stage-only
-            [ -z "$MIRROR_FROM" ] || stage_flag=
-            # shellcheck disable=SC2086  # one flag or nothing
-            zpkb factory $stage_flag \
+            # Always --stage-only: this job holds no key and no token that can
+            # push. A mirror_from dispatch is refused by `preflight`
+            # (go-zpkg/packages#500), so MIRROR_FROM is empty here.
+            zpkb factory --stage-only \
               --recipe-dir pantry \
               --overrides overrides \
               --overlay overlay \
@@ -994,57 +1075,53 @@ jobs:
             ${SOURCE_MIRROR:+--source-mirror "$SOURCE_MIRROR"}
           fi
 
-      # The ONLY step of the build that holds the signing key and the registry
-      # token, and it runs no recipe: `zpkb publish-stage` reads the plan the
-      # build step wrote, re-checks every file against its recorded digest and
-      # size and every tag against its spec, then signs and pushes exactly what
-      # `zpkb factory --to` would have (go-zpkg/zpkb publish-stage; secaudit
-      # finding 2). `always()` so what a partly failed build staged is still
-      # published, as it was when the factory pushed each artifact itself; a
-      # build that wrote no plan has nothing to publish and says so. A mirror
-      # run publishes from the build step, which runs no recipe either.
-      #
-      # `--to` is spelled here and must equal the plan's: the plan is input
-      # from the side that ran recipes, so it does not choose the destination.
-      - name: sign and publish what the build staged
-        if: always() && github.event.inputs.mirror_from == ''
-        env:
-          PLATFORM: ${{ matrix.platform }}
-          OCI_USERNAME: ${{ github.actor }}
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # The key follows the EFFECTIVE destination, as `inputcheck` decided
-          # it: SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
-          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
-          # keeps the old key, and one that merely names go-zpkg was refused
-          # before the build step. Two guarded halves, not
-          # `a && X || Y`, which would hand go-zpkg the old key when X is empty.
-          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+      # Declares what the build staged, for the `publish` job: the publish lane
+      # (inputcheck decided it from the destination) and, when a plan was
+      # written, the sha256 digest of the staged tree. `publish` refuses unless
+      # the tree it downloads has exactly this digest. `always()` so what a
+      # partly failed build staged is still published; a build that wrote no plan
+      # has nothing to publish and declares no digest.
+      - name: digest what the build staged
+        id: digest
+        if: always()
         run: |
-          if [ "$SOVEREIGN_ON" = 1 ]; then
+          set -eu
+          echo "lane=${PUBLISH_LANE:-}" >> "$GITHUB_OUTPUT"
+          if [ "${SOVEREIGN_ON:-}" = 1 ]; then
             stage="$RUNNER_TEMP/rootfs/dist"
-            to="$PUBLISH_TO"
           else
             stage=dist
-            to="$PUBLISH_TO"
           fi
           if [ ! -f "$stage/publish-plan.json" ]; then
             echo "nothing staged: no publish-plan.json in $stage"
             exit 0
           fi
-          # PUBLISH_TO is decided by inputcheck (oci_to or seed_dist; go-pkgx
-          # refused); it is blank only for test_only, which stages nothing.
-          if [ -z "$to" ]; then
-            echo "::error::publishing requires an explicit destination; there is none"
-            exit 1
-          fi
-          # The chroot's root wrote these; the key-holding process must read them.
-          sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage" || true
-          # A seed run has no key and says so; --allow-unsigned is only for that.
-          unsigned=
-          [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
-          # shellcheck disable=SC2086  # one flag or nothing
-          zpkb publish-stage "$stage" --to "$to" --advisories "$PWD/advisories" $unsigned
+          # The chroot's root wrote these; the digest and the upload must read them.
+          sudo chmod -R a+rX "$stage" 2>/dev/null || chmod -R a+rX "$stage"
+          digest=$(go run ./distdigest "$stage")
+          echo "STAGE_DIR=$stage" >> "$GITHUB_ENV"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "staged tree $digest (lane ${PUBLISH_LANE:-none})"
+
+      - name: upload the staged tree for publishing
+        if: always() && steps.digest.outputs.digest != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: publish-${{ matrix.slug }}-${{ matrix.chunk }}
+          path: ${{ env.STAGE_DIR }}
+          if-no-files-found: error
+
+      # The smoke registry (oci://http://10.46.81.1:5111) and a loopback seed
+      # registry are not reachable from a GitHub-hosted runner, so those two keep
+      # a path that needs no secret: this job pushes UNAUTHENTICATED and
+      # UNSIGNED. Nothing signed is ever produced on this lane.
+      - name: publish to a LAN or loopback registry, unsigned and unauthenticated
+        if: always() && env.PUBLISH_LANE == 'lan' && steps.digest.outputs.digest != ''
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          zpkb publish-stage "$STAGE_DIR" --to "${PUBLISH_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" --allow-unsigned
 
       # A NAMED dispatch that built nothing is a failed dispatch.
       #
@@ -1124,14 +1201,14 @@ jobs:
       - name: publish the catalogue
         # A test_only run has no destination (PUBLISH_TO is blank) and publishes
         # no catalogue either: it never falls back to the registry it read.
-        if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        #
+        # ⛔ THIS COPY IS THE LAN/LOOPBACK LANE ONLY: unsigned, no credential. A
+        # catalogue for a hosted destination is signed and pushed by the
+        # `publish` job, which holds the key and runs no recipe.
+        if: always() && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != '' && env.PUBLISH_LANE == 'lan'
         env:
           PLATFORM: ${{ matrix.platform }}
-          OCI_USERNAME: ${{ github.actor }}
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Same destination rule as the build step above.
-          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # zpkb catalog --publish pushes to $ZPKG_DIST: an oci_to run must
           # catalogue where it published, not where it read.
           ZPKG_DIST: ${{ env.PUBLISH_TO }}
@@ -1351,19 +1428,10 @@ jobs:
           } >> seed-provenance.txt
           cat seed-provenance.txt
 
-      # A file a build wrote and a later step uploads is NOT masked the way the
-      # job log is: whatever a recipe printed into failures-detail.txt would go
-      # out verbatim. This step holds the secrets only to find them, rewrites
-      # the files that are uploaded, and removes one it cannot rewrite.
-      - name: keep secrets out of the uploaded records
-        if: always()
-        env:
-          SIGNING_KEY_ZPKG: ${{ secrets.ZPKG_SIGNING_KEY }}
-          SIGNING_KEY_SEED: ${{ secrets.ARTIFACT_SIGNING_KEY }}
-          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          go run ./scrubsecrets --env SIGNING_KEY_ZPKG,SIGNING_KEY_SEED,OCI_PASSWORD \
-            failures.txt failures-detail.txt tests.txt seed-provenance.txt
+      # (The step that scrubbed the signing key and the registry token out of the
+      # uploaded records is gone with them: this job holds neither, so there is
+      # nothing to find. The read-only GITHUB_TOKEN is masked in the log like any
+      # other and expires with the job.)
 
       - name: upload seed provenance
         if: always()
@@ -1415,3 +1483,163 @@ jobs:
           name: tests-${{ matrix.slug }}-${{ matrix.chunk }}
           path: tests.txt
           if-no-files-found: ignore
+
+  # ⛔ THE ONLY JOB HERE THAT HOLDS THE SIGNING KEY AND A TOKEN THAT CAN WRITE,
+  # and it runs no recipe. One leg per build leg, on an ephemeral GitHub-hosted
+  # runner: it downloads the tree the build leg staged, REFUSES unless that
+  # tree's sha256 digest equals the one the build leg declared as its job
+  # output, then `zpkb publish-stage` re-checks every file against the plan and
+  # signs and pushes exactly what `zpkb factory --to` would have. Actions are
+  # pinned by SHA here, since this is the job a compromised action would own.
+  #
+  # `always()`: what a partly failed build staged is still published. A leg
+  # whose build declared no lane never started its steps and is skipped.
+  # A destination the hosted runner cannot reach (the smoke registry, a
+  # loopback seed registry) is the `lan` lane, published from the build job
+  # itself without a credential, and is skipped here.
+  publish:
+    needs: [preflight, setup, build]
+    # `matrix` is not available in a job-level `if`: the per-leg condition is
+    # LEG_LANE, tested by every step below.
+    if: always() && needs.setup.result == 'success' && needs.preflight.outputs.lane == 'hosted'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    env:
+      LEG_LANE: ${{ needs.build.outputs[format('lane-{0}-{1}', matrix.slug, matrix.chunk)] }}
+      DECLARED_DIGEST: ${{ needs.build.outputs[format('digest-{0}-{1}', matrix.slug, matrix.chunk)] }}
+    steps:
+      - if: env.LEG_LANE == 'hosted'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - if: env.LEG_LANE == 'hosted'
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with: { go-version: '1.27.4' }
+
+      # The same validation the build job ran, from the same inputs, so the two
+      # cannot disagree; it also settles PUBLISH_TO and SIGN_PROD for this job.
+      # Here the key's presence IS read: a go-zpkg destination without it fails.
+      - name: validate the dispatch inputs and export them
+        if: env.LEG_LANE == 'hosted'
+        env:
+          IN_OCI_TO: ${{ github.event.inputs.oci_to }}
+          IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
+          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
+          IN_SEED_DIST: ${{ github.event.inputs.seed_dist }}
+          IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
+          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+          IN_SOURCE_MIRROR: ${{ github.event.inputs.source_mirror }}
+          IN_GLIBC: ${{ github.event.inputs.glibc }}
+          IN_VERSIONS: ${{ github.event.inputs.versions }}
+          IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_LOCK: ${{ github.event.inputs.lock }}
+          IN_RECIPES: ${{ github.event.inputs.recipes }}
+          IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
+          IN_FORCE: ${{ github.event.inputs.force }}
+          IN_REBUILD: ${{ github.event.inputs.rebuild }}
+          IN_NO_CLOSURE: ${{ github.event.inputs.no_closure }}
+          IN_PIN_TO_DEPENDENTS: ${{ github.event.inputs.pin_to_dependents }}
+          IN_CLEAN_BUILD_ROOT: ${{ github.event.inputs.clean_build_root }}
+          IN_BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
+          IN_TEST_ONLY: ${{ github.event.inputs.test_only }}
+          IN_SOVEREIGN: ${{ github.event.inputs.sovereign }}
+          HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
+        run: go run ./inputcheck
+
+      - name: download the staged tree
+        if: env.LEG_LANE == 'hosted' && env.DECLARED_DIGEST != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: publish-${{ matrix.slug }}-${{ matrix.chunk }}
+          path: ${{ runner.temp }}/stage
+
+      # An empty or malformed declaration is a refusal, never "nothing to compare".
+      - name: verify the downloaded tree against the build job's digest
+        if: env.LEG_LANE == 'hosted' && env.DECLARED_DIGEST != ''
+        run: go run ./distdigest --verify "$DECLARED_DIGEST" "$RUNNER_TEMP/stage"
+
+      - name: install zpkb
+        if: env.LEG_LANE == 'hosted'
+        run: |
+          # The version the build job installs; a tag, never a moving branch.
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # `--to` is spelled here and must equal the plan's: the plan is input from
+      # the side that ran recipes, so it does not choose the destination.
+      - name: sign and publish what the build staged
+        if: env.LEG_LANE == 'hosted' && env.DECLARED_DIGEST != ''
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          OCI_USERNAME: ${{ github.actor }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # The key follows the EFFECTIVE destination, as `inputcheck` decided
+          # it: SIGN_PROD is `true` only for exactly oci://ghcr.io/go-zpkg/packages,
+          # which gets ZPKG_SIGNING_KEY or nothing; every other destination
+          # keeps the old key. Two guarded halves, not `a && X || Y`, which
+          # would hand go-zpkg the old key when X is empty.
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          set -eu
+          [ -n "$PUBLISH_TO" ] || { echo "::error::publishing requires an explicit destination; there is none"; exit 1; }
+          unsigned=
+          [ -n "$SIGNING_KEY" ] || unsigned=--allow-unsigned
+          # shellcheck disable=SC2086  # one flag or nothing
+          zpkb publish-stage "$RUNNER_TEMP/stage" --to "$PUBLISH_TO" --advisories "$PWD/advisories" $unsigned
+
+      # The catalogue of a hosted destination: derived from the pantry (data,
+      # no recipe runs), signed like any other artifact. One leg per platform.
+      - name: clone pantry at the recorded commit
+        if: env.LEG_LANE == 'hosted' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        env:
+          PANTRY_REF: ${{ github.event.inputs.pantry_ref }}
+        run: |
+          set -eu
+          ref=${PANTRY_REF:?pantry_ref is empty}
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::pantry_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
+          esac
+          git init -q pantry
+          git -C pantry fetch -q --depth 1 https://github.com/pkgxdev/pantry "$ref"
+          git -C pantry checkout -q FETCH_HEAD
+      - name: clone the pantry overlay
+        if: env.LEG_LANE == 'hosted' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        env:
+          IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
+        run: |
+          set -eu
+          ref="${IN_OVERLAY_REF:-main}"
+          case "$ref" in
+            -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::refusing overlay_ref" >&2; exit 1 ;;
+          esac
+          git init -q overlay
+          git -C overlay fetch -q --depth 1 https://github.com/go-zpkg/recipes "$ref"
+          git -C overlay checkout -q FETCH_HEAD
+      - name: publish the catalogue
+        if: env.LEG_LANE == 'hosted' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          OCI_USERNAME: ${{ github.actor }}
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          # zpkb catalog --publish pushes to $ZPKG_DIST: catalogue where it published.
+          ZPKG_DIST: ${{ env.PUBLISH_TO }}
+          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          set -eu
+          zpkb catalog \
+            --recipe-dir pantry \
+            --overlay overlay \
+            --overrides overrides \
+            --versions \
+            --platform "$PLATFORM" \
+            --publish

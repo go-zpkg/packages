@@ -58,6 +58,11 @@ type Inputs struct {
 	MaxVersions   string
 	Flags         map[string]string // blank-or-short switches: force, rebuild, ...
 	HaveZpkgKey   bool
+	// NoKeyCheck skips the "the production key must exist" refusal. The build
+	// job runs on a self-hosted runner and holds NO secret, so it cannot know;
+	// the preflight and publish jobs, which run on GitHub-hosted runners and do
+	// hold it, make that check.
+	NoKeyCheck bool
 }
 
 const (
@@ -227,7 +232,7 @@ func Validate(in Inputs) (Result, error) {
 		return r, fmt.Errorf("a destination naming go-zpkg must be exactly %s, got %s", prodDest, r.Effective)
 	}
 	if prod {
-		if !in.HaveZpkgKey {
+		if !in.HaveZpkgKey && !in.NoKeyCheck {
 			return r, fmt.Errorf("publishing to %s needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts", r.Effective)
 		}
 		if in.ExtraKeys != "" {
@@ -253,8 +258,36 @@ func Validate(in Inputs) (Result, error) {
 		// Signature verification may be off only for a throwaway registry on
 		// loopback; see isLoopbackRegistry for what counts.
 		{"SEED_LOOPBACK", strconv.FormatBool(in.SeedDist != "" && isLoopbackRegistry(in.SeedDist))},
+		// Where the staged output is pushed from: see PublishLane.
+		{"PUBLISH_LANE", PublishLane(r.Effective)},
 	}
 	return r, nil
+}
+
+// lanRegistry is the private smoke registry on the pool's own network. A
+// GitHub-hosted runner cannot reach it, and it asks for no credentials.
+const lanRegistry = "oci://http://10.46.81.1:5111"
+
+// PublishLane says which job pushes what a build staged:
+//
+//	"none"   nothing is published (test_only)
+//	"lan"    the destination is on the pool's own machine or network (loopback,
+//	         or the private smoke registry). The self-hosted build job pushes it,
+//	         UNAUTHENTICATED and UNSIGNED, because it holds no credential and
+//	         a hosted runner could not reach it.
+//	"hosted" everything else. A fresh GitHub-hosted runner signs and pushes,
+//	         holding the registry token and the signing key.
+//
+// The classification is exact, never a prefix or glob match of a host name.
+func PublishLane(dest string) string {
+	switch {
+	case dest == "":
+		return "none"
+	case isLoopbackRegistry(dest), dest == lanRegistry, strings.HasPrefix(dest, lanRegistry+"/"):
+		return "lan"
+	default:
+		return "hosted"
+	}
 }
 
 // isLoopbackRegistry reports whether an `oci://host[:port]/repo` names the
@@ -377,14 +410,24 @@ func fromEnv() Inputs {
 // RootCmd builds the command; tests drive it with SetArgs, SetOut and SetErr.
 func RootCmd() *cobra.Command {
 	var envFile string
-	var checkOnly bool
+	var checkOnly, noKeyCheck bool
+	var lane string
 	cmd := &cobra.Command{
-		Use:          "inputcheck [--check-only] [--github-env FILE]",
+		Use:          "inputcheck [--check-only] [--no-key-check] [--github-env FILE] | --lane DEST",
 		Short:        "validate the dispatch inputs read from IN_* and export them to $GITHUB_ENV",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			res, err := Validate(fromEnv())
+			if cmd.Flags().Changed("lane") {
+				if lane != "" && (!registryRe.MatchString(lane) || strings.ContainsAny(lane, "\n\r")) {
+					return badChars("lane destination", lane, "an oci:// registry made of A-Za-z0-9./:_@-")
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), PublishLane(lane))
+				return nil
+			}
+			in := fromEnv()
+			in.NoKeyCheck = noKeyCheck
+			res, err := Validate(in)
 			if err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "::error::%v\n", err)
 				return err
@@ -401,5 +444,7 @@ func RootCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&envFile, "github-env", os.Getenv("GITHUB_ENV"), "file the validated variables are appended to")
 	cmd.Flags().BoolVar(&checkOnly, "check-only", false, "validate and write nothing")
+	cmd.Flags().BoolVar(&noKeyCheck, "no-key-check", false, "do not refuse a go-zpkg destination for want of HAVE_ZPKG_KEY (the self-hosted build job holds no secret; a hosted job checks it)")
+	cmd.Flags().StringVar(&lane, "lane", "", "print the publish lane (none, lan or hosted) of an oci:// destination and exit")
 	return cmd
 }
