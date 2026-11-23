@@ -340,6 +340,46 @@ func TestTheEffectiveDestinationDecidesTheGoZpkgRule(t *testing.T) {
 	}
 }
 
+// oci://ghcr.io/go-zpkg/smoke is the one non-production destination under
+// go-zpkg: exact match, the non-production key, never a promotion target.
+func TestTheSmokeDestinationIsExactAndNeverSignedWithTheProductionKey(t *testing.T) {
+	in := ok()
+	in.OCITo = smokeDest
+	in.HaveZpkgKey = true
+	r, err := Validate(in)
+	if err != nil || r.Effective != smokeDest || envOf(r)["SIGN_PROD"] != "false" {
+		t.Errorf("smoke: %v %q SIGN_PROD=%q", err, r.Effective, envOf(r)["SIGN_PROD"])
+	}
+	in.HaveZpkgKey = false
+	if _, err := Validate(in); err != nil {
+		t.Errorf("smoke needs no production key: %v", err)
+	}
+	in = ok()
+	in.OCITo = prodDest
+	in.HaveZpkgKey = true
+	if r, err := Validate(in); err != nil || envOf(r)["SIGN_PROD"] != "true" {
+		t.Errorf("packages: %v SIGN_PROD=%q", err, envOf(r)["SIGN_PROD"])
+	}
+	for _, dest := range []string{
+		"oci://ghcr.io/go-zpkg/smoke2", "oci://ghcr.io/go-zpkg/smoke/x", "oci://evil/go-zpkg/smoke",
+		"oci://ghcr.io/go-zpkg/smoke/", "oci://ghcr.io/Go-ZPKG/smoke", "oci://ghcr.io/go-zpkg/Smoke",
+	} {
+		for _, key := range []bool{false, true} {
+			in := ok()
+			in.OCITo = dest
+			in.HaveZpkgKey = key
+			refused(t, dest, in, "must be exactly")
+		}
+	}
+	in = ok()
+	in.OCITo = smokeDest
+	in.MirrorFrom = "oci://ghcr.io/go-zpkg/seed"
+	in.RequireOrigin = "1"
+	refused(t, "smoke promotion", in, "never a promotion target")
+	in.RequireOrigin = ""
+	refused(t, "smoke mirror", in, "never a promotion target")
+}
+
 func TestExtraTrustedKeys(t *testing.T) {
 	good := "seed:" + seedKey
 	if len(seedKey) != 56 {
