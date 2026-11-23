@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,5 +139,70 @@ func TestMainExitsWithTheRunStatus(t *testing.T) {
 	main()
 	if got != 1 {
 		t.Errorf("exit %d, want 1", got)
+	}
+}
+
+func TestAMissingDirectoryAndAFileAreRefused(t *testing.T) {
+	d := tree(t, map[string]string{"a": "x"})
+	for _, p := range []string{filepath.Join(d, "nope"), filepath.Join(d, "a")} {
+		if g, err := TreeDigest(p); err == nil {
+			t.Errorf("%s gave a digest %s", p, g)
+		}
+	}
+}
+
+func TestHashFileReportsThePermissionErrorItself(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	p := filepath.Join(tree(t, map[string]string{"a": "x"}), "a")
+	if err := os.Chmod(p, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(p, 0o644) })
+	if _, _, err := hashFile(p); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("hashFile error = %v, want a permission error", err)
+	}
+}
+
+func TestAnUnreadableFileRefusesTheDigest(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	d := tree(t, map[string]string{"a": "x", "b": "y"})
+	p := filepath.Join(d, "b")
+	if err := os.Chmod(p, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(p, 0o644) })
+	if g, err := TreeDigest(d); err == nil {
+		t.Fatalf("an unreadable file gave a digest %s", g)
+	}
+}
+
+func TestAnUnreadableDirectoryRefusesTheDigest(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	d := tree(t, map[string]string{"a": "x", "sub/b": "y"})
+	p := filepath.Join(d, "sub")
+	if err := os.Chmod(p, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(p, 0o755) })
+	if g, err := TreeDigest(d); err == nil {
+		t.Fatalf("an unreadable directory gave a digest %s", g)
+	}
+}
+
+func TestATreeBeyondTheFileBoundIsRefusedAndOneAtTheBoundIsNot(t *testing.T) {
+	old := maxFiles
+	maxFiles = 2
+	t.Cleanup(func() { maxFiles = old })
+	if _, err := TreeDigest(tree(t, map[string]string{"a": "1", "b": "2"})); err != nil {
+		t.Fatalf("a tree exactly at the bound was refused: %v", err)
+	}
+	if _, err := TreeDigest(tree(t, map[string]string{"a": "1", "b": "2", "c": "3"})); err == nil {
+		t.Fatal("a tree over the bound was digested")
 	}
 }

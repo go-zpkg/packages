@@ -19,7 +19,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,7 +35,21 @@ var osExit = os.Exit
 
 // maxFiles bounds the walk: a staged tree holds a few thousand files, and a
 // tree of millions is not a dist.
-const maxFiles = 1_000_000
+// A variable only so a test can lower it.
+var maxFiles = 1_000_000
+
+// hashFile returns the size and sha256 of one file. A read error comes back
+// with the partial sum, which the caller discards with the error.
+func hashFile(p string) (int64, []byte, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, f)
+	return n, h.Sum(nil), err
+}
 
 var digestRe = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
@@ -55,16 +68,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 // TreeDigest returns "sha256:<hex>" for the tree rooted at dir.
 func TreeDigest(dir string) (string, error) {
-	st, err := os.Lstat(dir)
-	if err != nil {
-		return "", err
-	}
-	if !st.IsDir() {
-		return "", fmt.Errorf("%s is not a directory", dir)
+	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
+		return "", fmt.Errorf("%s is not a readable directory (%v)", dir, err)
 	}
 	type entry struct{ rel, line string }
 	var entries []entry
-	err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -77,21 +86,14 @@ func TreeDigest(dir string) (string, error) {
 		if len(entries) >= maxFiles {
 			return fmt.Errorf("more than %d files", maxFiles)
 		}
-		rel, err := filepath.Rel(dir, p)
-		if err != nil {
-			return err
-		}
+		// WalkDir only yields paths under dir, so Rel cannot fail.
+		rel, _ := filepath.Rel(dir, p)
 		rel = filepath.ToSlash(rel)
-		f, err := os.Open(p)
+		n, sum, err := hashFile(p)
 		if err != nil {
 			return err
 		}
-		h := sha256.New()
-		n, cerr := io.Copy(h, f)
-		if err := errors.Join(cerr, f.Close()); err != nil {
-			return err
-		}
-		entries = append(entries, entry{rel, rel + "\x00" + strconv.FormatInt(n, 10) + "\x00" + hex.EncodeToString(h.Sum(nil)) + "\n"})
+		entries = append(entries, entry{rel, rel + "\x00" + strconv.FormatInt(n, 10) + "\x00" + hex.EncodeToString(sum) + "\n"})
 		return nil
 	})
 	if err != nil {
