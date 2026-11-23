@@ -3,6 +3,7 @@ module github.com/go-zpkg/packages
 go 1.27.4
 
 require (
+	github.com/go-attest/sign v0.3.0
 	github.com/go-zpkg/artifact v0.92.4
 	github.com/go-zpkg/zpkb v0.104.0
 	github.com/hashicorp/hcl/v2 v2.25.0
@@ -22,7 +23,6 @@ require (
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/go-attest/sign v0.3.0 // indirect
 	github.com/go-compressions/xz v0.3.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.2 // indirect

@@ -1,0 +1,59 @@
+# Which PUBLIC keys do our two signing secrets hold?
+#
+# ⛔ WHY IT EXISTS: A GITHUB SECRET CANNOT BE READ BACK. The seed key
+# (ARTIFACT_SIGNING_KEY) signs the sovereign seed registry and is, by design,
+# not in the default trust set, so a production promotion has to be handed its
+# public line as `source_trusted_keys`. That line was published nowhere
+# (promo-r2, run 45147362828). A secret key embeds its public half and key id,
+# so the job derives both and writes them to the job summary. It also checks
+# that ZPKG_SIGNING_KEY is the key clients trust (artifact.SigningPublicKey) and
+# fails if it is not.
+#
+# It publishes nothing and pushes nothing.
+#
+# How the secrets are held, because this job handles two of them:
+#   - each is in the environment of ONE step, which writes it to a 0600 file in
+#     RUNNER_TEMP and nothing else; no other step, no job- or workflow-level env;
+#   - the tool reads the files, so no secret is ever an argv value;
+#   - the files are deleted by a step that runs even if an earlier one failed;
+#   - the tool prints only the public half and fixed error phrases.
+name: signing public keys
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOPROXY: https://proxy.golang.org,direct
+  GONOPROXY: github.com/go-zpkg/*
+
+jobs:
+  keys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with: { go-version: '1.27.4' }
+      - name: stage the secret keys in private files
+        env:
+          SEED: ${{ secrets.ARTIFACT_SIGNING_KEY }}
+          PROD: ${{ secrets.ZPKG_SIGNING_KEY }}
+        run: |
+          set -eu
+          umask 077
+          mkdir "$RUNNER_TEMP/signing-keys"
+          printf '%s\n' "$SEED" > "$RUNNER_TEMP/signing-keys/seed"
+          printf '%s\n' "$PROD" > "$RUNNER_TEMP/signing-keys/prod"
+      - name: derive the public keys
+        run: |
+          set -eu
+          go run ./signingkeys \
+            --seed "$RUNNER_TEMP/signing-keys/seed" \
+            --prod "$RUNNER_TEMP/signing-keys/prod" \
+            --summary "$GITHUB_STEP_SUMMARY"
+      - name: delete the secret key files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/signing-keys"
