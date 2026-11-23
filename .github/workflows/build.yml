@@ -476,7 +476,7 @@ jobs:
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.102.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -925,6 +925,14 @@ jobs:
           # to zpkb as a FILE rather than expanded here: zpkb reads it, and a
           # second expansion in shell would be a second answer to the same
           # question. See `zpkb factory --lock`.
+          # Named = the dispatcher said what to build: a lock, recipes, or a
+          # mirror_from promotion. Only the nightly's numeric chunks are
+          # best-effort. zpkb reads STRICT from the environment (zpkb#544).
+          NAMED_DISPATCH=0
+          if [ -n "$IN_LOCK" ] || [ "$MATRIX_CHUNK" = "manual" ] || [ -n "$MIRROR_FROM" ] || [ -n "$REQUIRE_ORIGIN" ]; then
+            NAMED_DISPATCH=1
+            export STRICT=1
+          fi
           if [ -n "$IN_LOCK" ]; then
             LOCK="$IN_LOCK"
             [ -r "$LOCK" ] || { echo "::error::no lock at $LOCK in this repository"; exit 1; }
@@ -1019,7 +1027,13 @@ jobs:
             # A chunk is best-effort: the tally and the failure artifacts are
             # the result, and a recipe that genuinely does not build must not
             # paint the whole lot red. The proof job keeps the strict posture.
-            export SOVEREIGN_STRICT=0
+            # A dispatch that NAMES what it wants (recipes, a lock, mirror_from)
+            # is the opposite: any failure fails the job (promo-r1).
+            if [ "$NAMED_DISPATCH" = 1 ]; then
+              export SOVEREIGN_STRICT=1
+            else
+              export SOVEREIGN_STRICT=0
+            fi
             SOVEREIGN_OVERLAY="$PWD/overlay" \
             SOVEREIGN_ADVISORIES="$PWD/advisories" \
             builder/sovereign-build.sh \
@@ -1149,19 +1163,33 @@ jobs:
       # and a second error under it only competes with the first. Both the
       # sovereign path (SOVEREIGN_STRICT=0 for a chunk) and `zpkb factory`
       # exit 0 on a recipe failure, which is exactly the case this catches.
+      #
+      # REVISED after promo-r1 (run 45140545009): `0 built, 0 skipped, 1 failed`
+      # and `stage plan: 0 artifact(s)` ended GREEN, because
+      #  - this step counted FILES in dist, and publish-plan.json is one, so
+      #    "built" was never 0;
+      #  - it ran for `recipes` only, not for a lock or a mirror_from; and
+      #  - the sovereign path stages in $RUNNER_TEMP/rootfs/dist, not dist.
+      # Now ANY failure fails a named dispatch (recipes, lock, mirror_from or
+      # require_origin), and a promotion that stages no artifact fails too.
+      # The nightly's chunks (blank recipes) keep their best-effort posture:
+      # none of this runs for them. The decision is `namedcheck`, a Go program
+      # with a test, not shell.
       - name: a named dispatch that built nothing
-        if: github.event.inputs.recipes != ''
+        if: github.event.inputs.recipes != '' || github.event.inputs.lock != '' || github.event.inputs.mirror_from != '' || github.event.inputs.require_origin != ''
+        env:
+          IN_MIRROR_FROM: ${{ github.event.inputs.mirror_from }}
+          IN_REQUIRE_ORIGIN: ${{ github.event.inputs.require_origin }}
         run: |
-          built=0
-          [ -d dist ] && built=$(find dist -type f | wc -l | tr -d ' ')
-          failed=0
-          [ -s failures.txt ] && failed=$(grep -cvE '^[[:space:]]*$' failures.txt)
-          echo "$built file(s) in dist, $failed failure(s)"
-          if [ "$built" -eq 0 ] && [ "$failed" -gt 0 ]; then
-            echo "::error::this dispatch named its recipes, published nothing and recorded $failed failure(s) — see failures-detail.txt"
-            cat failures.txt
-            exit 1
+          set -eu
+          if [ "${SOVEREIGN_ON:-}" = 1 ]; then
+            stage="$RUNNER_TEMP/rootfs/dist"
+          else
+            stage=dist
           fi
+          promo=
+          if [ -n "$IN_MIRROR_FROM" ] || [ -n "$IN_REQUIRE_ORIGIN" ]; then promo=--require-staged; fi
+          go run ./namedcheck --failures failures.txt --stage "$stage" $promo
 
       # The CATALOGUE: what `pkgs ls` and <TAB> read.
       #
@@ -1591,7 +1619,7 @@ jobs:
         if: env.DECLARED_DIGEST != 'none'
         run: |
           # The version the build job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.102.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.103.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from

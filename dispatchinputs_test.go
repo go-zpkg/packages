@@ -319,3 +319,61 @@ func TestMirrorFromIsStagedWithVerifiedOriginAndNeverRefusedByPreflight(t *testi
 		t.Errorf("found %d build.yml steps running `zpkb factory`, expected 1", staged)
 	}
 }
+
+// ⛔ promo-r1 (run 45140545009) ended green on `0 built, 0 skipped, 1 failed`
+// and `stage plan: 0 artifact(s)`. The step that should have caught it counted
+// FILES in dist (the plan is one), ran for `recipes` only, and looked in dist
+// while the sovereign path stages elsewhere. It is now `namedcheck`, for every
+// way of naming what to build, and never for the nightly's chunks.
+func TestANamedDispatchFailsOnAnyFailureOrAnEmptyPromotion(t *testing.T) {
+	var found bool
+	for _, s := range loadWorkflow(t, ".github/workflows/build.yml").steps() {
+		if s.Name != "a named dispatch that built nothing" {
+			continue
+		}
+		found = true
+		for _, in := range []string{"recipes", "lock", "mirror_from", "require_origin"} {
+			if !strings.Contains(s.If, "github.event.inputs."+in+" != ''") {
+				t.Errorf("the named-dispatch step does not run for %s: if = %q", in, s.If)
+			}
+		}
+		if strings.Contains(s.If, "inputs.recipes == ''") || strings.Contains(s.If, "matrix") {
+			t.Errorf("the step must not be conditioned on the chunk: %q", s.If)
+		}
+		for _, want := range []string{"go run ./namedcheck", "--failures failures.txt", "--require-staged", "$RUNNER_TEMP/rootfs/dist"} {
+			if !strings.Contains(s.Run, want) {
+				t.Errorf("the named-dispatch step lacks %q", want)
+			}
+		}
+		if strings.Contains(s.Run, "find dist") || strings.Contains(s.Run, "grep -c") {
+			t.Errorf("the verdict is shell again (counting files / grep): %s", s.Run)
+		}
+	}
+	if !found {
+		t.Fatal("no step named `a named dispatch that built nothing`")
+	}
+}
+
+// The build step makes a named dispatch strict (zpkb reads STRICT; the
+// sovereign script reads SOVEREIGN_STRICT) and leaves the nightly's chunks
+// best-effort: SOVEREIGN_STRICT=0 survives only on the chunk branch.
+func TestOnlyChunksAreBestEffort(t *testing.T) {
+	n := 0
+	for _, s := range loadWorkflow(t, ".github/workflows/build.yml").steps() {
+		if !strings.Contains(s.Run, "export SOVEREIGN_STRICT=0") {
+			continue
+		}
+		n++
+		for _, want := range []string{"NAMED_DISPATCH=1", "export STRICT=1", "export SOVEREIGN_STRICT=1", `[ -n "$MIRROR_FROM" ]`, `"$MATRIX_CHUNK" = "manual"`, `[ -n "$IN_LOCK" ]`} {
+			if !strings.Contains(s.Run, want) {
+				t.Errorf("step %q lacks %q", s.Name, want)
+			}
+		}
+		if strings.Index(s.Run, "export SOVEREIGN_STRICT=0") < strings.Index(s.Run, `if [ "$NAMED_DISPATCH" = 1 ]`) {
+			t.Errorf("SOVEREIGN_STRICT=0 is exported before the named-dispatch test")
+		}
+	}
+	if n != 1 {
+		t.Errorf("found %d steps exporting SOVEREIGN_STRICT=0, want 1", n)
+	}
+}
