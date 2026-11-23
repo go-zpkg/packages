@@ -506,6 +506,26 @@ func TestTheCommandWritesTheValidatedEnvironment(t *testing.T) {
 	}
 }
 
+func TestPublishEnvExportsOnlyWhatAPublishJobReads(t *testing.T) {
+	setEnv(t, map[string]string{"IN_OCI_TO": "oci://ghcr.io/go-zpkg/smoke", "IN_OVERLAY_REF": "abc123", "IN_EXTRA_KEYS": ""})
+	p := filepath.Join(t.TempDir(), "env")
+	if _, errb, code := runCmd("--publish-env", "--no-key-check", "--github-env", p); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	b, _ := os.ReadFile(p)
+	got := string(b)
+	for _, want := range []string{"PUBLISH_TO=oci://ghcr.io/go-zpkg/smoke\n", "SIGN_PROD=false\n", "PUBLISH_LANE=hosted\n", "EXTRA_KEYS=\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+	for _, bad := range []string{"OVERLAY_URL", "DIST_FROM", "SEED_DIST", "SEED_LOOPBACK", "OCI_TO"} {
+		if strings.Contains(got, bad+"=") {
+			t.Errorf("%s exported to a publish job: %q", bad, got)
+		}
+	}
+}
+
 func TestCheckOnlyWritesNothing(t *testing.T) {
 	setEnv(t, map[string]string{"IN_OCI_TO": "oci://127.0.0.1:5000/seed"})
 	p := filepath.Join(t.TempDir(), "env")

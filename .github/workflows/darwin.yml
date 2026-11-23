@@ -564,7 +564,9 @@ jobs:
         env:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
           HAVE_ZPKG_KEY: ${{ secrets.ZPKG_SIGNING_KEY != '' }}
-        run: go run ./inputcheck
+        # --publish-env: this job builds nothing, so it is not handed the build's
+        # OVERLAY_URL, DIST_FROM or SEED_* (publish-stage reads none of them).
+        run: go run ./inputcheck --publish-env
 
       - name: download the staged tree
         if: env.DECLARED_DIGEST != 'none' && env.DECLARED_DIGEST != ''

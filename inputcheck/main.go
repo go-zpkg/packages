@@ -402,6 +402,19 @@ func writeEnv(path string, pairs [][2]string) error {
 	return errors.Join(werr, f.Close())
 }
 
+// publishOnly keeps the variables a publish job reads: where it pushes, which
+// extra keys it trusts, which signing key applies and which lane it is on.
+func publishOnly(env [][2]string) [][2]string {
+	var out [][2]string
+	for _, p := range env {
+		switch p[0] {
+		case "PUBLISH_TO", "EXTRA_KEYS", "SIGN_PROD", "PUBLISH_LANE":
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func fromEnv() Inputs {
 	g := os.Getenv
 	in := Inputs{
@@ -421,7 +434,7 @@ func fromEnv() Inputs {
 // RootCmd builds the command; tests drive it with SetArgs, SetOut and SetErr.
 func RootCmd() *cobra.Command {
 	var envFile string
-	var checkOnly, noKeyCheck bool
+	var checkOnly, noKeyCheck, publishEnv bool
 	var lane string
 	cmd := &cobra.Command{
 		Use:          "inputcheck [--check-only] [--no-key-check] [--github-env FILE] | --lane DEST",
@@ -450,9 +463,14 @@ func RootCmd() *cobra.Command {
 			if envFile == "" {
 				return errors.New("no --github-env and $GITHUB_ENV is empty")
 			}
-			return writeEnv(envFile, res.Env)
+			env := res.Env
+			if publishEnv {
+				env = publishOnly(env)
+			}
+			return writeEnv(envFile, env)
 		},
 	}
+	cmd.Flags().BoolVar(&publishEnv, "publish-env", false, "export only what a publish job reads (PUBLISH_TO, EXTRA_KEYS, SIGN_PROD, PUBLISH_LANE): a job that builds nothing is not handed OVERLAY_URL, DIST_FROM or SEED_*")
 	cmd.Flags().StringVar(&envFile, "github-env", os.Getenv("GITHUB_ENV"), "file the validated variables are appended to")
 	cmd.Flags().BoolVar(&checkOnly, "check-only", false, "validate and write nothing")
 	cmd.Flags().BoolVar(&noKeyCheck, "no-key-check", false, "do not refuse a go-zpkg destination for want of HAVE_ZPKG_KEY (the self-hosted build job holds no secret; a hosted job checks it)")

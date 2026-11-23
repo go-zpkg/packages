@@ -40,6 +40,8 @@ var (
 	secretRefRE = regexp.MustCompile(`\bsecrets(\.[A-Za-z0-9_-]+|\[|\))`)
 	tokenRefRE  = regexp.MustCompile(`secrets\.GITHUB_TOKEN|github\.token`)
 	sha40Use    = regexp.MustCompile(`@[0-9a-f]{40}(\s|$)`)
+	// Variables only a job that builds reads; the publish jobs must not.
+	buildOnlyEnvRE = regexp.MustCompile(`\b(OVERLAY_URL|DIST_FROM|SEED_DIST|SEED_LOOPBACK|ZPKG_RECIPES_OVERLAY)\b`)
 )
 
 func parseWorkflowBytes(b []byte) (workflow, error) {
@@ -174,6 +176,14 @@ func publishViolations(w workflow, workflowText string) map[string][]string {
 			// declaration may fall back to `none` itself.
 			if strings.Contains(s.Run, "--declared") && (strings.Contains(s.Run, "=none") || strings.Contains(s.Run, "else") || strings.Contains(s.Run, "||")) {
 				out[name] = append(out[name], "reads the declaration with a fallback: a missing one must fail, not skip")
+			}
+			// A publish job builds nothing: it exports only what publishing
+			// reads, and no step names a build-only variable.
+			if strings.Contains(s.Run, "./inputcheck") && !strings.Contains(s.Run, "--publish-env") {
+				out[name] = append(out[name], "runs inputcheck without --publish-env, so it is handed the build's OVERLAY_URL, DIST_FROM and SEED_*")
+			}
+			if buildOnlyEnvRE.MatchString(fmt.Sprint(s.Env, s.Run, s.If, s.With)) {
+				out[name] = append(out[name], "reads a build-only variable (OVERLAY_URL, DIST_FROM, SEED_DIST, SEED_LOOPBACK, ZPKG_RECIPES_OVERLAY)")
 			}
 			if strings.Contains(s.Run, "zpkb publish-stage") && publishAt < 0 {
 				publishAt = i
@@ -409,6 +419,20 @@ jobs:
     steps:
       - run: d=$(go run ./distdigest --declared f)
       - run: go run ./distdigest --verify "$D"
+  publish-buildenv:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: go run ./inputcheck
+      - run: go run ./distdigest --verify "$D"
+  publish-overlay:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: go run ./inputcheck --publish-env
+        env:
+          ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
+      - run: go run ./distdigest --verify "$D"
   ok:
     needs: build
     runs-on: ubuntu-latest
@@ -424,7 +448,7 @@ jobs:
 		t.Fatal(err)
 	}
 	v = publishViolations(w, noVerify)
-	for _, job := range []string{"publish", "publish-late", "publish-tag", "publish-selfhosted", "sneaky", "publish-fallback", "publish-orfallback"} {
+	for _, job := range []string{"publish", "publish-late", "publish-tag", "publish-selfhosted", "sneaky", "publish-fallback", "publish-orfallback", "publish-buildenv", "publish-overlay"} {
 		if len(v[job]) == 0 {
 			t.Errorf("job %s was not flagged", job)
 		}
