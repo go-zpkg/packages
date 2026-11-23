@@ -408,11 +408,8 @@ jobs:
     needs: setup
     permissions:
       contents: read
-    # One pair of outputs per matrix leg: the name carries the leg, so legs do
-    # not overwrite each other (GitHub's documented pattern for matrix outputs).
-    outputs:
-      digest-${{ matrix.slug }}-${{ matrix.chunk }}: ${{ steps.digest.outputs.digest }}
-      lane-${{ matrix.slug }}-${{ matrix.chunk }}: ${{ steps.digest.outputs.lane }}
+    # No job outputs: GitHub refuses a per-leg output key built from the matrix.
+    # Each leg declares its digest in a `declare-<slug>-<chunk>` artifact instead.
     runs-on: ${{ matrix.runner }}
     # ⛔ 360 IS THE DEFAULT, AND IT IS NOT ENOUGH FOR AN EMULATED ARCH.
     # Measured 2026-10-23/24: `nodejs.org 26.12.1` for linux/aarch64 started
@@ -1087,6 +1084,8 @@ jobs:
         run: |
           set -eu
           echo "lane=${PUBLISH_LANE:-}" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/declare"
+          echo none > "$RUNNER_TEMP/declare/digest.txt"
           if [ "${SOVEREIGN_ON:-}" = 1 ]; then
             stage="$RUNNER_TEMP/rootfs/dist"
           else
@@ -1101,7 +1100,16 @@ jobs:
           digest=$(go run ./distdigest "$stage")
           echo "STAGE_DIR=$stage" >> "$GITHUB_ENV"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "$digest" > "$RUNNER_TEMP/declare/digest.txt"
           echo "staged tree $digest (lane ${PUBLISH_LANE:-none})"
+
+      - name: declare the digest for the publish job
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: declare-${{ matrix.slug }}-${{ matrix.chunk }}
+          path: ${{ runner.temp }}/declare/digest.txt
+          if-no-files-found: ignore
 
       - name: upload the staged tree for publishing
         if: always() && steps.digest.outputs.digest != ''
@@ -1500,7 +1508,7 @@ jobs:
   publish:
     needs: [preflight, setup, build]
     # `matrix` is not available in a job-level `if`: the per-leg condition is
-    # LEG_LANE, tested by every step below.
+    # DECLARED_DIGEST != 'none', tested by the steps below.
     if: always() && needs.setup.result == 'success' && needs.preflight.outputs.lane == 'hosted'
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -1511,23 +1519,40 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
-    env:
-      LEG_LANE: ${{ needs.build.outputs[format('lane-{0}-{1}', matrix.slug, matrix.chunk)] }}
-      DECLARED_DIGEST: ${{ needs.build.outputs[format('digest-{0}-{1}', matrix.slug, matrix.chunk)] }}
     steps:
-      - if: env.LEG_LANE == 'hosted'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - if: env.LEG_LANE == 'hosted'
-        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
+
+      # The build leg's declaration. A leg that never started has none, which
+      # reads as `none`: nothing to publish.
+      - name: download the build job's declaration
+        id: declared
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: declare-${{ matrix.slug }}-${{ matrix.chunk }}
+          path: ${{ runner.temp }}/declare
+
+      # The file is the self-hosted job's: distdigest accepts `none` or one
+      # sha256 line and nothing else, so what reaches the environment is a value.
+      - name: read the declared digest
+        run: |
+          set -eu
+          if [ -f "$RUNNER_TEMP/declare/digest.txt" ]; then
+            d=$(go run ./distdigest --declared "$RUNNER_TEMP/declare/digest.txt")
+          else
+            d=none
+          fi
+          echo "DECLARED_DIGEST=$d" >> "$GITHUB_ENV"
 
       # The same validation the build job ran, from the same inputs, so the two
       # cannot disagree; it also settles PUBLISH_TO and SIGN_PROD for this job.
       # Here the key's presence IS read: a go-zpkg destination without it fails.
       - name: validate the dispatch inputs and export them
-        if: env.LEG_LANE == 'hosted'
+        if: env.DECLARED_DIGEST != 'none'
         env:
           IN_OCI_TO: ${{ github.event.inputs.oci_to }}
           IN_DIST_FROM: ${{ github.event.inputs.dist_from }}
@@ -1554,7 +1579,7 @@ jobs:
         run: go run ./inputcheck
 
       - name: download the staged tree
-        if: env.LEG_LANE == 'hosted' && env.DECLARED_DIGEST != ''
+        if: env.DECLARED_DIGEST != 'none'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: publish-${{ matrix.slug }}-${{ matrix.chunk }}
@@ -1562,11 +1587,11 @@ jobs:
 
       # An empty or malformed declaration is a refusal, never "nothing to compare".
       - name: verify the downloaded tree against the build job's digest
-        if: env.LEG_LANE == 'hosted' && env.DECLARED_DIGEST != ''
+        if: env.DECLARED_DIGEST != 'none'
         run: go run ./distdigest --verify "$DECLARED_DIGEST" "$RUNNER_TEMP/stage"
 
       - name: install zpkb
-        if: env.LEG_LANE == 'hosted'
+        if: env.DECLARED_DIGEST != 'none'
         run: |
           # The version the build job installs; a tag, never a moving branch.
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.0
@@ -1575,7 +1600,7 @@ jobs:
       # `--to` is spelled here and must equal the plan's: the plan is input from
       # the side that ran recipes, so it does not choose the destination.
       - name: sign and publish what the build staged
-        if: env.LEG_LANE == 'hosted' && env.DECLARED_DIGEST != ''
+        if: env.DECLARED_DIGEST != 'none'
         env:
           PLATFORM: ${{ matrix.platform }}
           OCI_USERNAME: ${{ github.actor }}
@@ -1598,7 +1623,7 @@ jobs:
       # The catalogue of a hosted destination: derived from the pantry (data,
       # no recipe runs), signed like any other artifact. One leg per platform.
       - name: clone pantry at the recorded commit
-        if: env.LEG_LANE == 'hosted' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        if: env.DECLARED_DIGEST != 'none' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
         env:
           PANTRY_REF: ${{ github.event.inputs.pantry_ref }}
         run: |
@@ -1611,7 +1636,7 @@ jobs:
           git -C pantry fetch -q --depth 1 https://github.com/pkgxdev/pantry "$ref"
           git -C pantry checkout -q FETCH_HEAD
       - name: clone the pantry overlay
-        if: env.LEG_LANE == 'hosted' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        if: env.DECLARED_DIGEST != 'none' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
         env:
           IN_OVERLAY_REF: ${{ github.event.inputs.overlay_ref }}
         run: |
@@ -1624,7 +1649,7 @@ jobs:
           git -C overlay fetch -q --depth 1 https://github.com/go-zpkg/recipes "$ref"
           git -C overlay checkout -q FETCH_HEAD
       - name: publish the catalogue
-        if: env.LEG_LANE == 'hosted' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
+        if: env.DECLARED_DIGEST != 'none' && (matrix.chunk == '0' || matrix.chunk == 'manual') && env.PUBLISH_TO != ''
         env:
           PLATFORM: ${{ matrix.platform }}
           OCI_USERNAME: ${{ github.actor }}

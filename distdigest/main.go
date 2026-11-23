@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -27,6 +28,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -52,6 +54,27 @@ func hashFile(p string) (int64, []byte, error) {
 }
 
 var digestRe = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// declaredRe is all a declaration file may hold: a digest, or `none` for a
+// build that staged nothing, and one optional newline. The file comes from the
+// job that ran recipes, and its value is written to the publish job's
+// environment, so it is a value to validate, never to copy: a second line
+// would be a second variable.
+var declaredRe = regexp.MustCompile(`^(none|sha256:[0-9a-f]{64})\n?$`)
+
+// ReadDeclared returns the declaration in the file at p.
+func ReadDeclared(p string) (string, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	b, _ := io.ReadAll(io.LimitReader(f, 256))
+	if !declaredRe.Match(b) {
+		return "", fmt.Errorf("%s is not `none` or sha256:<64 hex digits> on one line", p)
+	}
+	return strings.TrimSuffix(string(b), "\n"), nil
+}
 
 func main() { osExit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
@@ -109,13 +132,30 @@ func TreeDigest(dir string) (string, error) {
 
 // RootCmd builds the command; tests drive it with SetArgs, SetOut and SetErr.
 func RootCmd() *cobra.Command {
-	var verify string
+	var verify, declared string
 	cmd := &cobra.Command{
-		Use:          "distdigest [--verify sha256:<hex>] DIR",
+		Use:          "distdigest [--verify sha256:<hex>] DIR | distdigest --declared FILE",
 		Short:        "print or verify the sha256 digest of a staged dist tree",
 		SilenceUsage: true,
-		Args:         cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("declared") {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("declared") {
+				if cmd.Flags().Changed("verify") {
+					return errors.New("--declared reads one file and takes no --verify")
+				}
+				v, err := ReadDeclared(declared)
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "::error::%v\n", err)
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), v)
+				return nil
+			}
 			if cmd.Flags().Changed("verify") && !digestRe.MatchString(verify) {
 				err := fmt.Errorf("--verify %q is not sha256:<64 hex digits>: the build job declared no digest, so there is nothing to verify against", verify)
 				fmt.Fprintf(cmd.ErrOrStderr(), "::error::%v\n", err)
@@ -136,5 +176,6 @@ func RootCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&verify, "verify", "", "refuse unless the tree's digest equals this value")
+	cmd.Flags().StringVar(&declared, "declared", "", "print the digest (or `none`) the build job declared in this file, refusing anything else")
 	return cmd
 }

@@ -116,6 +116,51 @@ func TestVerifyAcceptsTheDeclaredDigestAndRefusesEverythingElse(t *testing.T) {
 	}
 }
 
+// The declaration file is the build job's, and what it holds goes into the
+// publish job's environment: a second line would be a second variable.
+func TestDeclaredPrintsADigestOrNoneAndRefusesAnythingElse(t *testing.T) {
+	good := "sha256:" + strings.Repeat("ab", 32)
+	write := func(content string) string {
+		p := filepath.Join(t.TempDir(), "digest.txt")
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	for _, ok := range []string{good, good + "\n", "none", "none\n"} {
+		out, errb, code := runCmd("--declared", write(ok))
+		if code != 0 || out != strings.TrimSuffix(ok, "\n")+"\n" {
+			t.Errorf("%q: exit %d, %q, %q", ok, code, out, errb)
+		}
+	}
+	bad := []string{"", "\n", "None", "none\n\n", good + "\nSIGNING_KEY=x", "none\nSIGNING_KEY=x\n",
+		"sha256:" + strings.Repeat("ab", 31), good + good, strings.Repeat("x", 4096), " none"}
+	for _, b := range bad {
+		if out, _, code := runCmd("--declared", write(b)); code != 1 || out != "" {
+			t.Errorf("%q: exit %d, printed %q", b, code, out)
+		}
+	}
+	if _, _, code := runCmd("--declared", filepath.Join(t.TempDir(), "missing")); code != 1 {
+		t.Errorf("a missing declaration: exit %d", code)
+	}
+	d := tree(t, map[string]string{"a": "1"})
+	if _, _, code := runCmd("--declared", write("none"), d); code != 1 {
+		t.Errorf("--declared with a DIR: exit %d", code)
+	}
+	if _, _, code := runCmd("--declared", write("none"), "--verify", good); code != 1 {
+		t.Errorf("--declared with --verify: exit %d", code)
+	}
+	if _, _, code := runCmd(d, d); code != 1 {
+		t.Errorf("two directories: exit %d", code)
+	}
+}
+
+func TestReadDeclaredReportsAMissingFileItself(t *testing.T) {
+	if _, err := ReadDeclared(filepath.Join(t.TempDir(), "missing")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ReadDeclared error = %v, want a not-exist error", err)
+	}
+}
+
 func TestPrintWithoutVerify(t *testing.T) {
 	d := tree(t, map[string]string{"a": "1"})
 	out, _, code := runCmd(d)
