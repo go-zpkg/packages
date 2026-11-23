@@ -48,7 +48,9 @@ var installPinRE = regexp.MustCompile(`go install "?([A-Za-z0-9][A-Za-z0-9._/-]*
 // 12: build.yml (zpkx, zpkb, zpkm, and zpkb again in its publish job),
 // sovereign.yml (zpkb, zpkx, zpkm, and zpkb again in its publish job),
 // wasip1-c.yml (zpkb), windows-c.yml (zpkb), ci.yml (vulngate, actionlint).
-const installPinsExpected = 13
+// 13 → 17 with windows.yml and windows-rust.yml (zpkb in the build job's lan
+// lane and again in the hosted publish job, each).
+const installPinsExpected = 17
 
 type installPin struct {
 	file    string
