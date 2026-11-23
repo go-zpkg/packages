@@ -166,6 +166,12 @@ func publishViolations(w workflow, workflowText string) map[string][]string {
 			if strings.Contains(s.Run, "distdigest") && strings.Contains(s.Run, "--verify") && verifyAt < 0 {
 				verifyAt = i
 			}
+			// A missing declaration must fail the leg: only an explicit
+			// `none` from the build leg may skip, so no step that reads the
+			// declaration may fall back to `none` itself.
+			if strings.Contains(s.Run, "--declared") && (strings.Contains(s.Run, "=none") || strings.Contains(s.Run, "else") || strings.Contains(s.Run, "||")) {
+				out[name] = append(out[name], "reads the declaration with a fallback: a missing one must fail, not skip")
+			}
 			if strings.Contains(s.Run, "zpkb publish-stage") && publishAt < 0 {
 				publishAt = i
 			}
@@ -360,6 +366,25 @@ jobs:
     runs-on: [self-hosted]
     steps:
       - run: go run ./distdigest --verify "$D"
+  publish-fallback:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ -f f ]; then d=$(go run ./distdigest --declared f); else d=none; fi
+      - run: go run ./distdigest --verify "$D"
+  publish-orfallback:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: d=$(go run ./distdigest --declared f || echo none)
+      - run: go run ./distdigest --verify "$D"
+  publish-strict:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: d=$(go run ./distdigest --declared f)
+      - run: go run ./distdigest --verify "$D"
   ok:
     needs: build
     runs-on: ubuntu-latest
@@ -375,10 +400,18 @@ jobs:
 		t.Fatal(err)
 	}
 	v = publishViolations(w, noVerify)
-	for _, job := range []string{"publish", "publish-late", "publish-tag", "publish-selfhosted", "sneaky"} {
+	for _, job := range []string{"publish", "publish-late", "publish-tag", "publish-selfhosted", "sneaky", "publish-fallback", "publish-orfallback"} {
 		if len(v[job]) == 0 {
 			t.Errorf("job %s was not flagged", job)
 		}
+	}
+	for _, v := range v["publish-fallback"] {
+		if !strings.Contains(v, "fallback") {
+			t.Errorf("the fallback was flagged for another reason: %s", v)
+		}
+	}
+	if len(v["publish-strict"]) != 0 {
+		t.Errorf("a strict declaration read was flagged: %v", v["publish-strict"])
 	}
 	if len(v["ok"]) != 0 {
 		t.Errorf("a job that publishes nothing was flagged: %v", v["ok"])

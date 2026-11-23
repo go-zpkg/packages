@@ -1526,8 +1526,8 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with: { go-version: '1.27.4' }
 
-      # The build leg's declaration. A leg that never started has none, which
-      # reads as `none`: nothing to publish.
+      # The build leg's declaration. A missing one is a failure, never a skip:
+      # only an explicit `none`, written by a leg that staged nothing, skips.
       - name: download the build job's declaration
         id: declared
         continue-on-error: true
@@ -1541,12 +1541,11 @@ jobs:
       - name: read the declared digest
         run: |
           set -eu
-          if [ -f "$RUNNER_TEMP/declare/digest.txt" ]; then
-            d=$(go run ./distdigest --declared "$RUNNER_TEMP/declare/digest.txt")
-          else
-            d=none
-          fi
+          d=$(go run ./distdigest --declared "$RUNNER_TEMP/declare/digest.txt")
           echo "DECLARED_DIGEST=$d" >> "$GITHUB_ENV"
+          if [ "$d" = none ]; then
+            echo "the build leg declared none: nothing staged, publishing skipped"
+          fi
 
       # The same validation the build job ran, from the same inputs, so the two
       # cannot disagree; it also settles PUBLISH_TO and SIGN_PROD for this job.
