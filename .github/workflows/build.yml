@@ -395,7 +395,7 @@ jobs:
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.100.4
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.101.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
