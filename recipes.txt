@@ -427,6 +427,7 @@ flywaydb.org
 fmt.dev
 fna-xna.github.io
 fnox.jdx.dev
+forgejo.org
 fossies.org/libelf
 freedesktop.org/XKeyboardConfig
 freedesktop.org/appstream
