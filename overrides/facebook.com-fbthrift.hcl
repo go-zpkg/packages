@@ -98,6 +98,14 @@ EOT
       {
         "run" = "sed -i -E -e \"s:{{pkgx.prefix}}:\\$\\{_IMPORT_PREFIX\\}/../../..:g\" -e '/^  INTERFACE_INCLUDE_DIRECTORIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/include|/v\\1/include|g' -e '/^  INTERFACE_LINK_LIBRARIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/lib|/v\\1/lib|g' FBThriftTargets.cmake"
         "working-directory" = "$${{prefix}}/lib/cmake/fbthrift"
+        "if" = "<2026.11.23"
+      },
+      # 2026.11.23 moved the exported targets (pkgxdev/pantry 5e1c146, closes
+      # pantry#15181): the same rewrite, on the new file.
+      {
+        "run" = "sed -i -E -e \"s:{{pkgx.prefix}}:\\$\\{_IMPORT_PREFIX\\}/../../..:g\" -e '/^  INTERFACE_INCLUDE_DIRECTORIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/include|/v\\1/include|g' -e '/^  INTERFACE_LINK_LIBRARIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/lib|/v\\1/lib|g' thrift-targets.cmake"
+        "working-directory" = "$${{prefix}}/lib/cmake/thrift"
+        "if" = ">=2026.11.23"
       },
     ]
     expect = [
@@ -174,6 +182,14 @@ EOT
       {
         "run" = "sed -i -E -e \"s:{{pkgx.prefix}}:\\$\\{_IMPORT_PREFIX\\}/../../..:g\" -e '/^  INTERFACE_INCLUDE_DIRECTORIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/include|/v\\1/include|g' -e '/^  INTERFACE_LINK_LIBRARIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/lib|/v\\1/lib|g' FBThriftTargets.cmake"
         "working-directory" = "$${{prefix}}/lib/cmake/fbthrift"
+        "if" = "<2026.11.23"
+      },
+      # 2026.11.23 moved the exported targets (pkgxdev/pantry 5e1c146, closes
+      # pantry#15181): the same rewrite, on the new file.
+      {
+        "run" = "sed -i -E -e \"s:{{pkgx.prefix}}:\\$\\{_IMPORT_PREFIX\\}/../../..:g\" -e '/^  INTERFACE_INCLUDE_DIRECTORIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/include|/v\\1/include|g' -e '/^  INTERFACE_LINK_LIBRARIES/ s|/v([0-9]+)(\\.[0-9]+)*[a-z]?/lib|/v\\1/lib|g' thrift-targets.cmake"
+        "working-directory" = "$${{prefix}}/lib/cmake/thrift"
+        "if" = ">=2026.11.23"
       },
     ]
   },
