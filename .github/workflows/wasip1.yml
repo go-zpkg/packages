@@ -158,7 +158,8 @@ jobs:
           printf 'a = 1\n' > t.toml
           printf 'a   = 1\n' > t.hcl
           printf 'hello wrold\n' > t.txt
-          wasmtime run --dir=/ --env PWD="$PWD" "$RUNNER_TEMP/$MATRIX_BIN.wasm" $MATRIX_SMOKE
+          read -r -a smoke_args <<< "$MATRIX_SMOKE"
+          wasmtime run --dir=/ --env PWD="$PWD" "$RUNNER_TEMP/$MATRIX_BIN.wasm" "${smoke_args[@]}"
       - name: publish ${{ matrix.slug }} to ghcr (wasip1/wasm)
         env:
           OCI_USERNAME: ${{ github.actor }}
