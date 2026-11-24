@@ -86,6 +86,8 @@ jobs:
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: stage the sovereign rootfs
+        env:
+          MATRIX_PLATFORM: ${{ matrix.platform }}
         run: |
           sudo rm -rf "$RUNNER_TEMP/rootfs"
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
@@ -96,18 +98,21 @@ jobs:
           # sovereign.yml for the control).
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
-            --platform "${{ matrix.platform }}" \
+            --platform "$MATRIX_PLATFORM" \
             --toolchain builder/toolchain.txt \
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
             --container
       - name: build ${{ matrix.slug }} ${{ matrix.version }} for windows/x86-64, in the rootfs
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
           chmod +x builder/sovereign-zpkb.sh
           builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/windows/recipes" "$PWD/advisories" \
             /usr/local/bin/zpkb --platform windows/x86-64 build --libc=zpkx \
-            --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
-            --dist /dist "${{ matrix.slug }}"
+            --recipe "/recipes/$MATRIX_SLUG/package.hcl" --version "$MATRIX_VERSION" \
+            --dist /dist "$MATRIX_SLUG"
       # WHAT RAN, FROM WHERE — the same negative claim the wasm lane makes: a
       # name that prints nothing is a tool that is NOT in the rootfs.
       #
@@ -145,6 +150,8 @@ jobs:
       # the one distinction this step exists to make — so it is a Go tool with
       # tests, it opens the archives, and it prints its denominator.
       - name: the artefact is a PE, not an ELF
+        env:
+          MATRIX_BIN: ${{ matrix.bin }}
         run: |
           go run ./pecheck -dir "$RUNNER_TEMP/rootfs/dist" \
-            -member "bin/${{ matrix.bin }}" -arch x86-64
+            -member "bin/$MATRIX_BIN" -arch x86-64

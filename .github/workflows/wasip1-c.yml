@@ -51,15 +51,17 @@ jobs:
       max-parallel: 4
       matrix:
         include:
-          # bin: the module under <prefix>/bin; smoke: its arguments under wasmtime
-          # (run in an empty directory holding t.txt); stdin: the file it reads.
+          # bin: the module under <prefix>/bin; smoke: its arguments under wasmtime,
+          # separated by `|` (never parsed as shell), `@PWD@` standing for the
+          # working directory (run in an empty directory holding t.txt); stdin:
+          # the file it reads.
           # minigzip with no argument compresses stdin to stdout. The lua smoke
           # raises and catches an error: lua throws with longjmp, which here is
           # the wasm exception-handling instructions (wasi-sdk SetjmpLongjmp.md),
           # so it proves the engine runs them, not just that the module starts.
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: zlib.net, version: "1.3.2", bin: minigzip, smoke: "", stdin: t.txt }
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: lua.org, version: "5.4.9", bin: lua, smoke: '-e "assert(not pcall(error, 1)); assert(_VERSION == [[Lua 5.4]])"', stdin: /dev/null }
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: sqlite.org, version: "3.53.4", bin: sqlite3, smoke: ':memory: "select sqlite_version();"', stdin: /dev/null }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: lua.org, version: "5.4.9", bin: lua, smoke: '-e|assert(not pcall(error, 1)); assert(_VERSION == [[Lua 5.4]])', stdin: /dev/null }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: sqlite.org, version: "3.53.4", bin: sqlite3, smoke: ':memory:|select sqlite_version();', stdin: /dev/null }
           # the C++ pilot: libc++ from libcxx.llvm.org/wasi; reads j.json (JSON).
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: github.com/simdjson/simdjson, version: "5.0.5", bin: simdjson-minify, smoke: "", stdin: j.json }
           # Compressors, regex, XML and JSON tools (C). Each smoke is one wasmtime
@@ -69,35 +71,35 @@ jobs:
           # which a stdin->stdout compress would not: lz4 -d once trapped on the stack.
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: sourceware.org/bzip2, version: "1.0.8", bin: bzip2, smoke: "-9", stdin: t.txt }
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: facebook.com/zstd, version: "1.5.7", bin: zstd, smoke: "-c", stdin: t.txt }
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: lz4.org, version: "1.10.0", bin: lz4, smoke: '-b1 -i1 "$PWD/t.txt"', stdin: /dev/null }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: lz4.org, version: "1.10.0", bin: lz4, smoke: '-b1|-i1|@PWD@/t.txt', stdin: /dev/null }
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: github.com/google/brotli, version: "1.2.1", bin: brotli, smoke: "", stdin: t.txt }
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: pcre.org/v2, version: "10.49", bin: pcre2grep, smoke: '"[0-9]+"', stdin: t.txt }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: pcre.org/v2, version: "10.49", bin: pcre2grep, smoke: "[0-9]+", stdin: t.txt }
           - { runner: ubuntu-latest, platform: linux/x86-64, slug: libexpat.github.io, version: "2.9.0", bin: xmlwf, smoke: "", stdin: x.xml }
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: stedolan.github.io/jq, version: "1.8.2", bin: jq, smoke: '-e ".a[1] == 2"', stdin: j.json }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: stedolan.github.io/jq, version: "1.8.2", bin: jq, smoke: '-e|.a[1] == 2', stdin: j.json }
           # mujs throws with setjmp/longjmp (exception-handling instructions, as lua);
           # m.js catches a TypeError, so it proves the engine runs them.
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: github.com/ccxvii/mujs, version: "1.3.7", bin: mujs, smoke: '"$PWD/m.js"', stdin: /dev/null }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: github.com/ccxvii/mujs, version: "1.3.7", bin: mujs, smoke: '@PWD@/m.js', stdin: /dev/null }
           # fftw plans a transform rather than merely starting: `--version` would
           # prove the module loads and nothing else, and a planner that cannot
           # allocate or measure is exactly what a wasm port gets wrong. cof16 is
           # a 16-point complex forward transform — small enough that ESTIMATE
           # planning is instant, large enough to exercise a codelet.
-          - { runner: ubuntu-latest, platform: linux/x86-64, slug: fftw.org, version: "3.3.11", bin: fftw-wisdom, smoke: '-o /dev/null cof16', stdin: /dev/null }
+          - { runner: ubuntu-latest, platform: linux/x86-64, slug: fftw.org, version: "3.3.11", bin: fftw-wisdom, smoke: '-o|/dev/null|cof16', stdin: /dev/null }
           # linux/aarch64: the same rootfs, staged for aarch64 on GitHub's native
           # arm runner. The toolchain artifacts (compiler-rt, wasi-libc, libcxx) are
           # published for linux/aarch64 hosts too; the wasm they produce is the same.
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: zlib.net, version: "1.3.2", bin: minigzip, smoke: "", stdin: t.txt }
-          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: lua.org, version: "5.4.9", bin: lua, smoke: '-e "assert(not pcall(error, 1)); assert(_VERSION == [[Lua 5.4]])"', stdin: /dev/null }
-          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: sqlite.org, version: "3.53.4", bin: sqlite3, smoke: ':memory: "select sqlite_version();"', stdin: /dev/null }
+          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: lua.org, version: "5.4.9", bin: lua, smoke: '-e|assert(not pcall(error, 1)); assert(_VERSION == [[Lua 5.4]])', stdin: /dev/null }
+          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: sqlite.org, version: "3.53.4", bin: sqlite3, smoke: ':memory:|select sqlite_version();', stdin: /dev/null }
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: github.com/simdjson/simdjson, version: "5.0.5", bin: simdjson-minify, smoke: "", stdin: j.json }
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: sourceware.org/bzip2, version: "1.0.8", bin: bzip2, smoke: "-9", stdin: t.txt }
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: facebook.com/zstd, version: "1.5.7", bin: zstd, smoke: "-c", stdin: t.txt }
-          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: lz4.org, version: "1.10.0", bin: lz4, smoke: '-b1 -i1 "$PWD/t.txt"', stdin: /dev/null }
+          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: lz4.org, version: "1.10.0", bin: lz4, smoke: '-b1|-i1|@PWD@/t.txt', stdin: /dev/null }
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: github.com/google/brotli, version: "1.2.1", bin: brotli, smoke: "", stdin: t.txt }
-          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: pcre.org/v2, version: "10.49", bin: pcre2grep, smoke: '"[0-9]+"', stdin: t.txt }
+          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: pcre.org/v2, version: "10.49", bin: pcre2grep, smoke: "[0-9]+", stdin: t.txt }
           - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: libexpat.github.io, version: "2.9.0", bin: xmlwf, smoke: "", stdin: x.xml }
-          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: stedolan.github.io/jq, version: "1.8.2", bin: jq, smoke: '-e ".a[1] == 2"', stdin: j.json }
-          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: github.com/ccxvii/mujs, version: "1.3.7", bin: mujs, smoke: '"$PWD/m.js"', stdin: /dev/null }
+          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: stedolan.github.io/jq, version: "1.8.2", bin: jq, smoke: '-e|.a[1] == 2', stdin: j.json }
+          - { runner: ubuntu-24.04-arm, platform: linux/aarch64, slug: github.com/ccxvii/mujs, version: "1.3.7", bin: mujs, smoke: '@PWD@/m.js', stdin: /dev/null }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
@@ -156,6 +158,8 @@ jobs:
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: stage the sovereign rootfs
+        env:
+          MATRIX_PLATFORM: ${{ matrix.platform }}
         run: |
           sudo rm -rf "$RUNNER_TEMP/rootfs"
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
@@ -166,7 +170,7 @@ jobs:
           # sovereign.yml for the control).
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
-            --platform "${{ matrix.platform }}" \
+            --platform "$MATRIX_PLATFORM" \
             --toolchain builder/toolchain.txt \
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
@@ -178,12 +182,15 @@ jobs:
           ls "$RUNNER_TEMP/rootfs"
           ls "$RUNNER_TEMP/rootfs/etc"
       - name: build ${{ matrix.slug }} ${{ matrix.version }} for wasip1/wasm, in the rootfs
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
           chmod +x builder/sovereign-zpkb.sh
           builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
             /usr/local/bin/zpkb --platform wasip1/wasm build --libc=zpkx \
-            --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
-            --dist /dist "${{ matrix.slug }}"
+            --recipe "/recipes/$MATRIX_SLUG/package.hcl" --version "$MATRIX_VERSION" \
+            --dist /dist "$MATRIX_SLUG"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,
       # in the same chroot, through the same pkgx environment the build had.
       # Anything under /zpkg came from an artifact in the rootfs; /bin and /usr are
@@ -194,15 +201,26 @@ jobs:
           builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
             /bin/sh -c 'command -v sh make install cp clang clang++ wasm-ld llvm-ar llvm-ranlib cc gcc; echo "PATH=$PATH"'
       - name: smoke under wasmtime
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_SMOKE: ${{ matrix.smoke }}
+          MATRIX_STDIN: ${{ matrix.stdin }}
         run: |
           mkdir smoke && cd smoke
           printf 'hello wasip1\n' > t.txt
           printf '{ "a" : [1, 2 ] }\n' > j.json
           printf '<a x="1"><b>hi</b></a>\n' > x.xml
           printf 'var o={a:[1,2,3]}; print(JSON.stringify(o), o.a.map(function(x){return x*2}).join(","));\ntry { null.x } catch (e) { print("caught", e.name) }\nprint(/a(b+)c/.exec("xabbbc")[1]);\n' > m.js
-          mod="$RUNNER_TEMP/rootfs/zpkg/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
+          mod="$RUNNER_TEMP/rootfs/zpkg/$MATRIX_SLUG/v$MATRIX_VERSION/bin/$MATRIX_BIN.wasm"
           ls -l "$mod"
-          wasmtime run --dir=/ --env PWD="$PWD" "$mod" ${{ matrix.smoke }} < ${{ matrix.stdin }} > /dev/null
+          # The matrix `smoke` value is DATA, not shell: arguments separated by
+          # `|`, with `@PWD@` standing for the working directory. Nothing in it
+          # is ever parsed as shell.
+          IFS='|' read -r -a smoke_args <<< "$MATRIX_SMOKE"
+          for i in "${!smoke_args[@]}"; do smoke_args[i]="${smoke_args[i]//@PWD@/$PWD}"; done
+          wasmtime run --dir=/ --env PWD="$PWD" "$mod" "${smoke_args[@]}" < "$MATRIX_STDIN" > /dev/null
 
       # ⛔ THE SAME MODULE, BUILT ON TWO HOSTS, IS A FREE REPRODUCIBILITY TEST —
       # and until 2026-11-01 nobody looked at it. `platform:` in this matrix is
@@ -216,9 +234,14 @@ jobs:
       # non-reproducible build, and go-zpkg/packages#393 is what one looks like
       # when nobody is watching.
       - name: the module's digest, for comparison with the other host
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_PLATFORM: ${{ matrix.platform }}
         run: |
-          mod="$RUNNER_TEMP/rootfs/zpkg/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
-          echo "digest ${{ matrix.slug }} ${{ matrix.version }} built on ${{ matrix.platform }}:"
+          mod="$RUNNER_TEMP/rootfs/zpkg/$MATRIX_SLUG/v$MATRIX_VERSION/bin/$MATRIX_BIN.wasm"
+          echo "digest $MATRIX_SLUG $MATRIX_VERSION built on $MATRIX_PLATFORM:"
           sha256sum "$mod"
 
       # ⛔ ONE TAG, ONE PUBLISHER. go-zpkg/packages#393: both host jobs ran this
@@ -243,6 +266,8 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
           SIGN_ARGS=()
           if [ -n "${SIGNING_KEY:-}" ]; then
@@ -262,7 +287,7 @@ jobs:
           # fixing them. actionlint SC2215 is the gate; it caught this one too.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
             builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-              /usr/local/bin/zpkb publish --to "$PUBLISH_TO" --project "${{ matrix.slug }}" \
-              --version "${{ matrix.version }}" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
+              /usr/local/bin/zpkb publish --to "$PUBLISH_TO" --project "$MATRIX_SLUG" \
+              --version "$MATRIX_VERSION" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
               --advisories /advisories \
-              "/dist/${{ matrix.slug }}/wasip1/wasm/v${{ matrix.version }}.tar.zst"
+              "/dist/$MATRIX_SLUG/wasip1/wasm/v$MATRIX_VERSION.tar.zst"
