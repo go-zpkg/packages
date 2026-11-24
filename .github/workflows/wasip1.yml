@@ -59,7 +59,7 @@ env:
   # v0.98.0 linked go-zpkg/artifact v0.91.0, whose signing key matches the
   # ZPKG_SIGNING_KEY every destination is signed with (packages#479); v0.102.0 (now v0.105.0)
   # links go-zpkg/artifact v0.92.3.
-  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.105.0
+  BK: github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
 
 jobs:
   build:
