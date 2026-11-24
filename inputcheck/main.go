@@ -144,6 +144,9 @@ func Validate(in Inputs) (Result, error) {
 		if !registryRe.MatchString(f.v) {
 			return r, badChars(f.name, f.v, "made of A-Za-z0-9./:_@-")
 		}
+		if !hasRepositoryPath(f.v) {
+			return r, fmt.Errorf("'%s' names a registry host and no repository (%s); spell it oci://host/repo, for example oci://http://10.46.81.1:5111/<org>/packages", f.v, f.name)
+		}
 	}
 	if in.SeedDist != "" {
 		if !strings.HasPrefix(in.SeedDist, "oci://") {
@@ -151,6 +154,9 @@ func Validate(in Inputs) (Result, error) {
 		}
 		if !seedRe.MatchString(in.SeedDist) {
 			return r, badChars("seed_dist", in.SeedDist, "made of A-Za-z0-9./:_@[]-")
+		}
+		if !hasRepositoryPath(in.SeedDist) {
+			return r, fmt.Errorf("'%s' names a registry host and no repository (seed_dist); spell it oci://host/repo", in.SeedDist)
 		}
 	}
 	if in.SourceMirror != "" && !registryRe.MatchString(in.SourceMirror) {
@@ -298,6 +304,19 @@ func Validate(in Inputs) (Result, error) {
 		{"PUBLISH_LANE", PublishLane(r.Effective)},
 	}
 	return r, nil
+}
+
+// hasRepositoryPath reports whether `oci://[http(s)://]host[:port]/repo` names
+// a repository after the host. zpkb publish-stage refuses a destination that
+// does not ("oci ref ... has no repository path"), and it does so per artifact
+// after the whole build: a LAN dispatch with oci_to=oci://http://10.46.81.1:5111
+// compiled for an hour and published 0 of 15 (go-zpkg/packages run
+// 45415651745). The refusal belongs at the dispatch.
+func hasRepositoryPath(dest string) bool {
+	h := strings.TrimPrefix(dest, "oci://")
+	h = strings.TrimPrefix(strings.TrimPrefix(h, "http://"), "https://")
+	_, repo, found := strings.Cut(h, "/")
+	return found && strings.Trim(repo, "/") != ""
 }
 
 // lanRegistry is the private smoke registry on the pool's own network. A
