@@ -125,14 +125,19 @@ jobs:
           go install "$BK"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: clone ${{ matrix.slug }} v${{ matrix.version }}
-        run: git clone --depth 1 --branch "v${{ matrix.version }}" "https://github.com/${{ matrix.repo }}" src
+        env:
+          MATRIX_VERSION: ${{ matrix.version }}
+          MATRIX_REPO: ${{ matrix.repo }}
+        run: git clone --depth 1 --branch "v$MATRIX_VERSION" "https://github.com/$MATRIX_REPO" src
       - name: build wasip1/wasm
         working-directory: src
         env:
           GOOS: wasip1
           GOARCH: wasm
           CGO_ENABLED: "0"
-        run: go build -trimpath -o "$RUNNER_TEMP/${{ matrix.bin }}.wasm" "${{ matrix.pkg }}"
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_PKG: ${{ matrix.pkg }}
+        run: go build -trimpath -o "$RUNNER_TEMP/$MATRIX_BIN.wasm" "$MATRIX_PKG"
       - name: smoke under wasmtime
         # The filesystem is granted explicitly (WASI has none ambient) and PWD
         # tells Go's wasip1 runtime which preopen the working directory is in,
@@ -142,6 +147,9 @@ jobs:
         # with NO `--`: wasmtime 50
         # hands a `--` to the guest as argv[1] (shfmt then tried to lstat
         # "--version"), whatever $GOROOT/lib/wasm/go_wasip1_wasm_exec does.
+        env:
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_SMOKE: ${{ matrix.smoke }}
         run: |
           mkdir smoke && cd smoke
           printf '# Title\n\nbody\n' > t.md
@@ -150,16 +158,21 @@ jobs:
           printf 'a = 1\n' > t.toml
           printf 'a   = 1\n' > t.hcl
           printf 'hello wrold\n' > t.txt
-          wasmtime run --dir=/ --env PWD="$PWD" "$RUNNER_TEMP/${{ matrix.bin }}.wasm" ${{ matrix.smoke }}
+          wasmtime run --dir=/ --env PWD="$PWD" "$RUNNER_TEMP/$MATRIX_BIN.wasm" $MATRIX_SMOKE
       - name: publish ${{ matrix.slug }} to ghcr (wasip1/wasm)
         env:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_REPO: ${{ matrix.repo }}
+          MATRIX_PKG: ${{ matrix.pkg }}
         run: |
-          slug="${{ matrix.slug }}"; ver="${{ matrix.version }}"
+          slug="$MATRIX_SLUG"; ver="$MATRIX_VERSION"
           stage="stage/$slug/v$ver/bin"; mkdir -p "$stage"
-          cp "$RUNNER_TEMP/${{ matrix.bin }}.wasm" "$stage/${{ matrix.bin }}.wasm"
+          cp "$RUNNER_TEMP/$MATRIX_BIN.wasm" "$stage/$MATRIX_BIN.wasm"
           mkdir -p out
           tar -czf "out/v$ver.tar.gz" -C stage "$slug/v$ver"
           SIGN_ARGS=()
@@ -190,9 +203,9 @@ jobs:
           #   - the module, tag, package and build flags, as the recipe.
           GOVER="$(go env GOVERSION)"
           cat > "$RUNNER_TEMP/build.txt" <<EOF
-          module=github.com/${{ matrix.repo }}
+          module=github.com/$MATRIX_REPO
           tag=v$ver
-          package=${{ matrix.pkg }}
+          package=$MATRIX_PKG
           goos=wasip1
           goarch=wasm
           cgo=0

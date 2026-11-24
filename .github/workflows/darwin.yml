@@ -201,9 +201,11 @@ jobs:
       # place that recorded the difference — improving the reproducibility
       # metric by deleting its evidence. go-zpkg/zpkb#400.
       - name: the toolchain this run built with
+        env:
+          RUNNER_IMAGE: ${{ matrix.runner }}
         run: |
           set -eu
-          echo "runner image  ${{ matrix.runner }}"
+          echo "runner image  $RUNNER_IMAGE"
           xcodebuild -version 2>/dev/null || echo "xcodebuild: unavailable"
           echo "SDK path      $(xcrun --show-sdk-path)"
           echo "SDK version   $(xcrun --show-sdk-version)"

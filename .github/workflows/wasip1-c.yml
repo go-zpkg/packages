@@ -156,6 +156,8 @@ jobs:
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: stage the sovereign rootfs
+        env:
+          MATRIX_PLATFORM: ${{ matrix.platform }}
         run: |
           sudo rm -rf "$RUNNER_TEMP/rootfs"
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
@@ -166,7 +168,7 @@ jobs:
           # sovereign.yml for the control).
           zpkb builder \
             --out "$RUNNER_TEMP/rootfs" \
-            --platform "${{ matrix.platform }}" \
+            --platform "$MATRIX_PLATFORM" \
             --toolchain builder/toolchain.txt \
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
@@ -178,12 +180,15 @@ jobs:
           ls "$RUNNER_TEMP/rootfs"
           ls "$RUNNER_TEMP/rootfs/etc"
       - name: build ${{ matrix.slug }} ${{ matrix.version }} for wasip1/wasm, in the rootfs
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
           chmod +x builder/sovereign-zpkb.sh
           builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
             /usr/local/bin/zpkb --platform wasip1/wasm build --libc=zpkx \
-            --recipe "/recipes/${{ matrix.slug }}/package.hcl" --version "${{ matrix.version }}" \
-            --dist /dist "${{ matrix.slug }}"
+            --recipe "/recipes/$MATRIX_SLUG/package.hcl" --version "$MATRIX_VERSION" \
+            --dist /dist "$MATRIX_SLUG"
       # WHAT RAN, FROM WHERE: the program resolved for every tool a build uses,
       # in the same chroot, through the same pkgx environment the build had.
       # Anything under /zpkg came from an artifact in the rootfs; /bin and /usr are
@@ -194,15 +199,25 @@ jobs:
           builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
             /bin/sh -c 'command -v sh make install cp clang clang++ wasm-ld llvm-ar llvm-ranlib cc gcc; echo "PATH=$PATH"'
       - name: smoke under wasmtime
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_SMOKE: ${{ matrix.smoke }}
+          MATRIX_STDIN: ${{ matrix.stdin }}
         run: |
           mkdir smoke && cd smoke
           printf 'hello wasip1\n' > t.txt
           printf '{ "a" : [1, 2 ] }\n' > j.json
           printf '<a x="1"><b>hi</b></a>\n' > x.xml
           printf 'var o={a:[1,2,3]}; print(JSON.stringify(o), o.a.map(function(x){return x*2}).join(","));\ntry { null.x } catch (e) { print("caught", e.name) }\nprint(/a(b+)c/.exec("xabbbc")[1]);\n' > m.js
-          mod="$RUNNER_TEMP/rootfs/zpkg/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
+          mod="$RUNNER_TEMP/rootfs/zpkg/$MATRIX_SLUG/v$MATRIX_VERSION/bin/$MATRIX_BIN.wasm"
           ls -l "$mod"
-          wasmtime run --dir=/ --env PWD="$PWD" "$mod" ${{ matrix.smoke }} < ${{ matrix.stdin }} > /dev/null
+          # The matrix `smoke` value is shell text with its own quoting (and
+          # "$PWD"), which the inline expansion used to hand to the shell; eval
+          # re-parses it the same way, now from an env var.
+          eval "set -- $MATRIX_SMOKE"
+          wasmtime run --dir=/ --env PWD="$PWD" "$mod" "$@" < "$MATRIX_STDIN" > /dev/null
 
       # ⛔ THE SAME MODULE, BUILT ON TWO HOSTS, IS A FREE REPRODUCIBILITY TEST —
       # and until 2026-11-01 nobody looked at it. `platform:` in this matrix is
@@ -216,9 +231,14 @@ jobs:
       # non-reproducible build, and go-zpkg/packages#393 is what one looks like
       # when nobody is watching.
       - name: the module's digest, for comparison with the other host
+        env:
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          MATRIX_BIN: ${{ matrix.bin }}
+          MATRIX_PLATFORM: ${{ matrix.platform }}
         run: |
-          mod="$RUNNER_TEMP/rootfs/zpkg/${{ matrix.slug }}/v${{ matrix.version }}/bin/${{ matrix.bin }}.wasm"
-          echo "digest ${{ matrix.slug }} ${{ matrix.version }} built on ${{ matrix.platform }}:"
+          mod="$RUNNER_TEMP/rootfs/zpkg/$MATRIX_SLUG/v$MATRIX_VERSION/bin/$MATRIX_BIN.wasm"
+          echo "digest $MATRIX_SLUG $MATRIX_VERSION built on $MATRIX_PLATFORM:"
           sha256sum "$mod"
 
       # ⛔ ONE TAG, ONE PUBLISHER. go-zpkg/packages#393: both host jobs ran this
@@ -243,6 +263,8 @@ jobs:
           OCI_USERNAME: ${{ github.actor }}
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
+          MATRIX_SLUG: ${{ matrix.slug }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
           SIGN_ARGS=()
           if [ -n "${SIGNING_KEY:-}" ]; then
@@ -262,7 +284,7 @@ jobs:
           # fixing them. actionlint SC2215 is the gate; it caught this one too.
           SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}" \
             builder/sovereign-zpkb.sh "$RUNNER_TEMP/rootfs" "$PWD/wasip1/recipes" "$PWD/advisories" \
-              /usr/local/bin/zpkb publish --to "$PUBLISH_TO" --project "${{ matrix.slug }}" \
-              --version "${{ matrix.version }}" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
+              /usr/local/bin/zpkb publish --to "$PUBLISH_TO" --project "$MATRIX_SLUG" \
+              --version "$MATRIX_VERSION" --platform wasip1/wasm "${SIGN_ARGS[@]}" \
               --advisories /advisories \
-              "/dist/${{ matrix.slug }}/wasip1/wasm/v${{ matrix.version }}.tar.zst"
+              "/dist/$MATRIX_SLUG/wasip1/wasm/v$MATRIX_VERSION.tar.zst"
