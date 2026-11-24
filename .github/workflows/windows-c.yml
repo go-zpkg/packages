@@ -26,7 +26,7 @@ permissions: { contents: read, packages: write }
 env:
   GOPROXY: https://proxy.golang.org,direct
   GONOPROXY: github.com/go-zpkg/*
-  ZPKG_DIST: oci://ghcr.io/go-pkgx/packages
+  ZPKG_DIST: oci://ghcr.io/go-zpkg/packages
   ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
 
 jobs:

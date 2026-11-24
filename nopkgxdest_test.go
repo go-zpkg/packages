@@ -23,6 +23,34 @@ var publishers = []string{
 // with --publish.
 var publishes = regexp.MustCompile(`zpkb publish |zpkb publish-stage|--publish\b|zpkb factory`)
 
+// ZPKG_DIST is what dependencies are resolved from, and go-pkgx is refused
+// there too (the artifact client refuses it, so a workflow that assigned it
+// would fail late, after the build started).
+func TestNoWorkflowAssignsGoPkgxAsTheDistToRead(t *testing.T) {
+	files, _ := filepath.Glob(".github/workflows/*.yml")
+	assign := regexp.MustCompile(`ZPKG_DIST[:=]`)
+	n := 0
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, l := range strings.Split(string(b), "\n") {
+			s := strings.TrimSpace(l)
+			if strings.HasPrefix(s, "#") || !assign.MatchString(s) {
+				continue
+			}
+			n++
+			if strings.Contains(strings.ToLower(s), "go-pkgx") {
+				t.Errorf("%s:%d: ZPKG_DIST names go-pkgx: %s", f, i+1, s)
+			}
+		}
+	}
+	if n < 4 {
+		t.Errorf("only %d ZPKG_DIST assignments read: the scan is blind", n)
+	}
+}
+
 func TestEveryPublishingWorkflowIsListed(t *testing.T) {
 	files, err := filepath.Glob(".github/workflows/*.yml")
 	if err != nil || len(files) < 10 {

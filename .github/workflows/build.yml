@@ -83,7 +83,7 @@ on:
         required: false
         default: ""
       dist_from:
-        description: "registry the toolchain and dependencies are READ from, `oci://host/repo`. Blank = oci://ghcr.io/go-pkgx/packages. Not with seed_dist, which already names one registry for both."
+        description: "registry the toolchain and dependencies are READ from, `oci://host/repo`. Blank = oci://ghcr.io/go-zpkg/packages; go-pkgx is refused. When oci_to is set, the run reads its own staging registry (oci_to) first and this one second, so a dependent of an artifact staged earlier in the run resolves it. Not with seed_dist, which already names one registry for both."
         required: false
         default: ""
       overlay_ref:
@@ -674,7 +674,10 @@ jobs:
             fi
             exit 0
           fi
-          echo "ZPKG_DIST=$DIST_FROM" >> "$GITHUB_ENV"
+          # DIST_LIST is composed by `inputcheck`: the run's own staging registry
+          # (oci_to) first, so dependents of an in-run artifact resolve it, then
+          # the go-zpkg registry (dist_from). go-pkgx is refused there.
+          echo "ZPKG_DIST=$DIST_LIST" >> "$GITHUB_ENV"
           if curl -fsS -m 3 http://10.46.81.1:5111/v2/ >/dev/null 2>&1; then
             echo "pull-through cache answers — artifacts will be pulled through it"
             echo "ZPKG_CACHE=oci://http://10.46.81.1:5111/go-zpkg/packages" >> "$GITHUB_ENV"

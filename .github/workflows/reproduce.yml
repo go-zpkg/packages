@@ -98,7 +98,7 @@ jobs:
 
       - name: point at the pull-through cache if it answers
         run: |
-          echo "ZPKG_DIST=oci://ghcr.io/go-pkgx/packages" >> "$GITHUB_ENV"
+          echo "ZPKG_DIST=oci://ghcr.io/go-zpkg/packages" >> "$GITHUB_ENV"
           if curl -fsS -m 3 http://10.46.81.1:5111/v2/ >/dev/null 2>&1; then
             echo "ZPKG_CACHE=oci://http://10.46.81.1:5111/go-zpkg/packages" >> "$GITHUB_ENV"
           fi

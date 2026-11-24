@@ -45,7 +45,7 @@ var (
 	tokenRefRE  = regexp.MustCompile(`secrets\.GITHUB_TOKEN|github\.token`)
 	sha40Use    = regexp.MustCompile(`@[0-9a-f]{40}(\s|$)`)
 	// Variables only a job that builds reads; the publish jobs must not.
-	buildOnlyEnvRE = regexp.MustCompile(`\b(OVERLAY_URL|DIST_FROM|SEED_DIST|SEED_LOOPBACK|ZPKG_RECIPES_OVERLAY)\b`)
+	buildOnlyEnvRE = regexp.MustCompile(`\b(OVERLAY_URL|DIST_FROM|SEED_DIST|SEED_LOOPBACK|DIST_LIST|ZPKG_RECIPES_OVERLAY)\b`)
 )
 
 func parseWorkflowBytes(b []byte) (workflow, error) {

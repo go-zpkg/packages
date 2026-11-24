@@ -40,7 +40,7 @@ on:
         description: "registry to PUBLISH to, `oci://host/repo`. REQUIRED: publishing requires an explicit destination; blank is refused, there is no default, and go-pkgx is refused as one. A destination naming go-zpkg is signed ONLY with secrets.ZPKG_SIGNING_KEY and the job fails when that secret is empty; the old key never signs there (go-zpkg/packages#440)."
         required: true
       dist_from:
-        description: "registry the toolchain and dependencies are READ from, `oci://host/repo`. Blank = oci://ghcr.io/go-pkgx/packages. Generation 1 of a two-stage bootstrap sets it to generation 0's throwaway registry."
+        description: "registry the toolchain and dependencies are READ from, `oci://host/repo`. Blank = oci://ghcr.io/go-zpkg/packages; go-pkgx is refused. Generation 1 of a two-stage bootstrap sets it to generation 0's throwaway registry."
         required: false
         default: ""
       overlay_ref:
@@ -160,7 +160,10 @@ jobs:
           case "${oci_to,,}" in
             *go-pkgx*) echo "::error::publishing requires an explicit destination; go-pkgx is refused as one, got $oci_to"; exit 1 ;;
           esac
-          dist_from=${IN_DIST_FROM:-oci://ghcr.io/go-pkgx/packages}
+          dist_from=${IN_DIST_FROM:-oci://ghcr.io/go-zpkg/packages}
+          case "${dist_from,,}" in
+            *go-pkgx*) echo "::error::dist_from: go-pkgx is refused; dependencies resolve from go-zpkg and the run's own staging registry only, got $dist_from"; exit 1 ;;
+          esac
           ref=${IN_OVERLAY_REF:-main}
           for v in "$oci_to" "$dist_from"; do
             case "$v" in

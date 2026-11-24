@@ -325,7 +325,7 @@ jobs:
           # against upstream's dist and upstream's recipes — a different closure
           # from the one we publish, and the reason a recipe corrected in the
           # overlay (openssl ^1.1 → ^3) still failed here.
-          ZPKG_DIST: oci://ghcr.io/go-pkgx/packages
+          ZPKG_DIST: oci://ghcr.io/go-zpkg/packages
           ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           # FORCE on a manual dispatch, exactly as build.yml does. Without it a

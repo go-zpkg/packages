@@ -67,8 +67,21 @@ type Inputs struct {
 }
 
 const (
-	defaultDist = "oci://ghcr.io/go-pkgx/packages"
+	defaultDist = "oci://ghcr.io/go-zpkg/packages"
 )
+
+// distList composes the ORDERED value a run reads dependencies from
+// (ZPKG_DIST): the run's own staging registry first, when it has one (oci_to),
+// then the registry the published artifacts are read from. A dependent of an
+// artifact staged earlier in the same run can only resolve it if the staging
+// registry is consulted, and the go-zpkg registry still answers for everything
+// already published. Blank oci_to, or oci_to equal to dist_from, is one source.
+func distList(ociTo, distFrom string) string {
+	if ociTo == "" || ociTo == distFrom {
+		return distFrom
+	}
+	return ociTo + " " + distFrom
+}
 
 var (
 	registryRe   = regexp.MustCompile(`^oci://[A-Za-z0-9./:_@-]+$`)
@@ -147,6 +160,11 @@ func Validate(in Inputs) (Result, error) {
 		if !hasRepositoryPath(f.v) {
 			return r, fmt.Errorf("'%s' names a registry host and no repository (%s); spell it oci://host/repo, for example oci://http://10.46.81.1:5111/<org>/packages", f.v, f.name)
 		}
+	}
+	// go-pkgx is closed in both directions: nothing is published there, and no
+	// dependency is resolved from it.
+	if looksGoPkgx(in.DistFrom) {
+		return r, fmt.Errorf("dist_from %s: go-pkgx is refused; we no longer publish there and dependencies resolve from go-zpkg (%s) and the run's own staging registry only", in.DistFrom, defaultDist)
 	}
 	if in.SeedDist != "" {
 		if !strings.HasPrefix(in.SeedDist, "oci://") {
@@ -284,6 +302,9 @@ func Validate(in Inputs) (Result, error) {
 		// never a fallback of their own.
 		{"PUBLISH_TO", r.Effective},
 		{"DIST_FROM", distFrom},
+		// The ORDERED ZPKG_DIST of a non-seed run: the run's staging registry
+		// (oci_to) then distFrom. See distList.
+		{"DIST_LIST", distList(in.OCITo, distFrom)},
 		{"OVERLAY_URL", "https://raw.githubusercontent.com/go-zpkg/recipes/" + ref + "/projects"},
 		{"SEED_DIST", in.SeedDist},
 		// Validated public keys. Steps that install or verify hand them to
