@@ -59,6 +59,35 @@ func TestABlankDestinationIsRefusedUnlessTestOnly(t *testing.T) {
 	}
 }
 
+// zpkb publish-stage refuses `oci://http://10.46.81.1:5111` ("has no repository
+// path") once per artifact, after the build: run 45415651745 compiled for an
+// hour and published 0 of 15. The dispatch refuses it before anything starts.
+func TestARegistryWithoutARepositoryIsRefused(t *testing.T) {
+	const want = "names a registry host and no repository"
+	for _, dest := range []string{
+		"oci://http://10.46.81.1:5111",
+		"oci://http://10.46.81.1:5111/",
+		"oci://127.0.0.1:5000",
+		"oci://ghcr.io",
+	} {
+		refused(t, "oci_to "+dest, okTo(dest), want)
+		in := ok()
+		in.SeedDist = dest
+		refused(t, "seed_dist "+dest, in, want)
+		in = okTo("oci://127.0.0.1:5000/seed")
+		in.DistFrom = dest
+		refused(t, "dist_from "+dest, in, want)
+	}
+	for _, dest := range []string{
+		"oci://http://10.46.81.1:5111/s6clevis-lan/packages",
+		"oci://127.0.0.1:5000/seed",
+	} {
+		if _, err := Validate(okTo(dest)); err != nil {
+			t.Errorf("%s refused: %v", dest, err)
+		}
+	}
+}
+
 func TestGoPkgxIsRefusedAsADestination(t *testing.T) {
 	const want = "publishing requires an explicit destination; go-pkgx is refused as one"
 	for name, dest := range map[string]string{
