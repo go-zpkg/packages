@@ -426,11 +426,18 @@ dispatched, so the site can lag the registry).
 
 Point the go-zpkg tools at the registry and verify against the trust set:
 
-    ZPKG_DIST=oci://ghcr.io/go-pkgx/packages ZPKG_VERIFY=1 zpkm install lz4.org
+    ZPKG_DIST=oci://ghcr.io/go-zpkg/packages ZPKG_VERIFY=1 zpkm install lz4.org
+
+`ZPKG_DIST` is an ordered list (whitespace or commas): the first source that has
+a package wins, and each source is verified on its own. A factory build reads
+`<oci_to> oci://ghcr.io/go-zpkg/packages`, so a dependency published earlier in
+the run resolves from the staging namespace and the rest from go-zpkg. A
+`go-pkgx` source is refused everywhere, by the client, by `inputcheck` and by
+`sovereign.yml`: nothing is published there any more.
 
 or pull a package directly:
 
-    docker pull ghcr.io/go-pkgx/packages/lz4.org:1.10.0
+    docker pull ghcr.io/go-zpkg/packages/lz4.org:1.10.0
 
 ## What CI watches between builds
 
@@ -763,7 +770,7 @@ Like `build.yml`, every one of these triggers on `workflow_dispatch` alone (no
 scale. Consume the Windows packages from either channel:
 
     ZPKG_DIST=https://go-zpkg.github.io/packages zpkx syft.exe --version
-    ZPKG_DIST=oci://ghcr.io/go-pkgx/packages     zpkx syft.exe --version
+    ZPKG_DIST=oci://ghcr.io/go-zpkg/packages     zpkx syft.exe --version
 
 ## wasip1/wasm
 

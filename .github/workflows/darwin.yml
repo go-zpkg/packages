@@ -325,7 +325,7 @@ jobs:
           # against upstream's dist and upstream's recipes — a different closure
           # from the one we publish, and the reason a recipe corrected in the
           # overlay (openssl ^1.1 → ^3) still failed here.
-          ZPKG_DIST: oci://ghcr.io/go-pkgx/packages
+          ZPKG_DIST: oci://ghcr.io/go-zpkg/packages
           ZPKG_RECIPES_OVERLAY: https://raw.githubusercontent.com/go-zpkg/recipes/main/projects
         run: |
           # FORCE on a manual dispatch, exactly as build.yml does. Without it a
@@ -586,7 +586,7 @@ jobs:
         if: always() && env.PUBLISH_TO != ''
         run: |
           # The version build.yml's publish job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.104.2
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.105.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from

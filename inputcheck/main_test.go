@@ -105,12 +105,47 @@ func TestGoPkgxIsRefusedAsADestination(t *testing.T) {
 		in.SeedDist = dest
 		refused(t, "seed_dist "+name, in, want)
 	}
-	// Reading from go-pkgx stays allowed.
-	in := okTo("oci://127.0.0.1:5000/seed")
-	in.DistFrom = "oci://ghcr.io/go-pkgx/packages"
-	r, err := Validate(in)
-	if err != nil || envOf(r)["DIST_FROM"] != "oci://ghcr.io/go-pkgx/packages" {
-		t.Errorf("dist_from go-pkgx refused: %v", err)
+	// Reading from go-pkgx is refused too (2026-11-24): dependencies resolve
+	// from go-zpkg and the run's own staging registry, nothing else.
+	for _, from := range []string{"oci://ghcr.io/go-pkgx/packages", "oci://ghcr.io/Go-PKGX/packages", "oci://example.org/go-pkgx/x"} {
+		in := okTo("oci://127.0.0.1:5000/seed")
+		in.DistFrom = from
+		refused(t, "dist_from "+from, in, "dist_from "+from+": go-pkgx is refused")
+	}
+}
+
+func TestDependenciesAreReadFromTheStagingRegistryThenGoZpkg(t *testing.T) {
+	const stage = "oci://http://10.46.81.1:5111/s6clevis-lan/packages"
+	const zpkg = "oci://ghcr.io/go-zpkg/packages"
+	if defaultDist != zpkg {
+		t.Fatalf("defaultDist = %q", defaultDist)
+	}
+	// oci_to set, dist_from blank: staging first, go-zpkg second.
+	r, err := Validate(okTo(stage))
+	if got := envOf(r)["DIST_LIST"]; err != nil || got != stage+" "+zpkg {
+		t.Errorf("DIST_LIST = %q (%v), want %q", got, err, stage+" "+zpkg)
+	}
+	// An explicit dist_from takes the second place.
+	in := okTo(stage)
+	in.DistFrom = "oci://127.0.0.1:5000/other"
+	r, err = Validate(in)
+	if got := envOf(r)["DIST_LIST"]; err != nil || got != stage+" oci://127.0.0.1:5000/other" {
+		t.Errorf("explicit dist_from: DIST_LIST = %q (%v)", got, err)
+	}
+	// oci_to equal to the source is ONE source, not the same one twice.
+	r, err = Validate(okTo(zpkg))
+	if got := envOf(r)["DIST_LIST"]; err != nil || got != zpkg {
+		t.Errorf("oci_to == dist_from: DIST_LIST = %q (%v)", got, err)
+	}
+	// test_only publishes nothing and has no staging registry.
+	r, err = Validate(ok())
+	if got := envOf(r)["DIST_LIST"]; err != nil || got != zpkg {
+		t.Errorf("test_only: DIST_LIST = %q (%v)", got, err)
+	}
+	for _, p := range r.Env {
+		if strings.Contains(strings.ToLower(p[1]), "go-pkgx") {
+			t.Errorf("%s = %q names go-pkgx", p[0], p[1])
+		}
 	}
 }
 
@@ -657,7 +692,7 @@ func TestPublishEnvExportsOnlyWhatAPublishJobReads(t *testing.T) {
 			t.Errorf("missing %q in %q", want, got)
 		}
 	}
-	for _, bad := range []string{"OVERLAY_URL", "DIST_FROM", "SEED_DIST", "SEED_LOOPBACK", "OCI_TO"} {
+	for _, bad := range []string{"OVERLAY_URL", "DIST_FROM", "SEED_DIST", "SEED_LOOPBACK", "OCI_TO", "DIST_LIST"} {
 		if strings.Contains(got, bad+"=") {
 			t.Errorf("%s exported to a publish job: %q", bad, got)
 		}
