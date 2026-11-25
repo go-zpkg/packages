@@ -120,7 +120,13 @@ func TestASecretInsideAGitWorkTreeIsRefused(t *testing.T) {
 
 func TestAGenerationFailureLeavesNothingAndNamesNoKey(t *testing.T) {
 	old := generate
-	generate = func() (*sign.Keypair, error) { return nil, errors.New("entropy: SECRETDETAIL") }
+	// A usable key AND an error: ignoring the error must be seen by what the
+	// run leaves behind, not by a nil dereference.
+	real, gerr := sign.Generate()
+	if gerr != nil {
+		t.Fatal(gerr)
+	}
+	generate = func() (*sign.Keypair, error) { return real, errors.New("entropy: SECRETDETAIL") }
 	t.Cleanup(func() { generate = old })
 	p := filepath.Join(t.TempDir(), "k")
 	c, _, e := runIt("--secret", p, "--name", "x")
