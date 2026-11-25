@@ -47,6 +47,13 @@ var nameRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 // generate is a seam for the tests.
 var generate = sign.Generate
 
+// openFile and absPath are seams for the tests: a write that fails and a
+// working directory that cannot be read are not reachable otherwise.
+var (
+	openFile = os.OpenFile
+	absPath  = filepath.Abs
+)
+
 // RootCmd builds the command.
 func RootCmd() *cobra.Command {
 	var secret, name, summary string
@@ -71,7 +78,7 @@ func RootCmd() *cobra.Command {
 			}
 			// O_EXCL: an existing file is a key of another run (or a symlink
 			// planted to redirect the secret), never one to overwrite.
-			f, err := os.OpenFile(secret, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			f, err := openFile(secret, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 			if err != nil {
 				return fmt.Errorf("cannot create %s: %v", secret, err)
 			}
@@ -84,7 +91,7 @@ func RootCmd() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "ephemeral signing key %q (id %X) — public half, for extra_trusted_keys or source_trusted_keys:\n%s\n", name, kp.ID, entry)
 			if summary != "" {
 				s := "### Ephemeral LAN signing key\n\nThe artifacts this run published are signed with this key, and no other key vouches for them. Public half:\n\n```\n" + entry + "\n```\n"
-				f, err := os.OpenFile(summary, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
+				f, err := openFile(summary, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
 				if err != nil {
 					return fmt.Errorf("cannot open the summary: %v", err)
 				}
@@ -105,16 +112,22 @@ func RootCmd() *cobra.Command {
 // refuseInRepository refuses a secret path inside a git work tree: a secret
 // written there is one `git add .` from a commit.
 func refuseInRepository(path string) error {
-	abs, err := filepath.Abs(path)
+	abs, err := absPath(path)
 	if err != nil {
 		return err
 	}
-	for d := filepath.Dir(abs); ; d = filepath.Dir(d) {
+	// Every ancestor of the file, from its directory up to the root: a range
+	// over the path's own components, so it ends by construction.
+	sep := string(filepath.Separator)
+	parts := strings.Split(filepath.Dir(abs), sep)
+	for i := len(parts); i > 0; i-- {
+		d := strings.Join(parts[:i], sep)
+		if d == "" {
+			d = sep
+		}
 		if _, err := os.Stat(filepath.Join(d, ".git")); err == nil {
 			return fmt.Errorf("%s is inside a git work tree (%s): a secret key is never written there", path, d)
 		}
-		if d == filepath.Dir(d) || strings.TrimSpace(d) == "" {
-			return nil
-		}
 	}
+	return nil
 }

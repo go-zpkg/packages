@@ -92,6 +92,9 @@ func TestArgumentsAreRefused(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+	if _, _, e := runIt("--name", "x"); !strings.Contains(e, "--secret is required") {
+		t.Errorf("no secret: %q", e)
+	}
 	if _, err := os.Stat(filepath.Join(d, "k1")); err == nil {
 		t.Error("a refused run left a key file")
 	}
@@ -132,8 +135,64 @@ func TestAGenerationFailureLeavesNothingAndNamesNoKey(t *testing.T) {
 func TestAnUnwritableSummaryFails(t *testing.T) {
 	d := t.TempDir()
 	c, _, e := runIt("--secret", filepath.Join(d, "k"), "--name", "x", "--summary", filepath.Join(d, "no", "such", "s.md"))
-	if c == 0 || !strings.Contains(e, "summary") {
+	if c == 0 || !strings.Contains(e, "cannot open the summary") {
 		t.Fatalf("code=%d err=%q", c, e)
+	}
+}
+
+// closedFile is what a disk that refuses the write looks like.
+func closedFile(t *testing.T) *os.File {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	return f
+}
+
+func TestARefusedSecretWriteIsAnErrorAndLeavesNoFile(t *testing.T) {
+	old := openFile
+	openFile = func(string, int, os.FileMode) (*os.File, error) { return closedFile(t), nil }
+	t.Cleanup(func() { openFile = old })
+	p := filepath.Join(t.TempDir(), "k")
+	c, out, e := runIt("--secret", p, "--name", "x")
+	if c == 0 || !strings.Contains(e, "cannot write") {
+		t.Fatalf("code=%d err=%q", c, e)
+	}
+	if out != "" {
+		t.Errorf("a public key was printed for a secret that was not written: %q", out)
+	}
+}
+
+func TestARefusedSummaryWriteIsAnError(t *testing.T) {
+	d := t.TempDir()
+	sum := filepath.Join(d, "s.md")
+	old := openFile
+	openFile = func(p string, flag int, m os.FileMode) (*os.File, error) {
+		if p == sum {
+			return closedFile(t), nil
+		}
+		return old(p, flag, m)
+	}
+	t.Cleanup(func() { openFile = old })
+	c, _, e := runIt("--secret", filepath.Join(d, "k"), "--name", "x", "--summary", sum)
+	if c == 0 || !strings.Contains(e, "cannot write the summary") {
+		t.Fatalf("code=%d err=%q", c, e)
+	}
+}
+
+func TestAnUnreadableWorkingDirectoryRefusesTheSecret(t *testing.T) {
+	old := absPath
+	absPath = func(string) (string, error) { return "", errors.New("no working directory") }
+	t.Cleanup(func() { absPath = old })
+	p := filepath.Join(t.TempDir(), "k")
+	c, _, e := runIt("--secret", p, "--name", "x")
+	if c == 0 || !strings.Contains(e, "no working directory") {
+		t.Fatalf("code=%d err=%q", c, e)
+	}
+	if _, err := os.Stat(p); err == nil {
+		t.Error("a secret was written where its location could not be judged")
 	}
 }
 
