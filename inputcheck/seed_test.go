@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const lanDest = "oci://http://10.46.81.1:5111/seed/pass1"
 
@@ -114,6 +117,39 @@ func TestExtraTrustedKeysNeedALanDestination(t *testing.T) {
 	in.ExtraKeys = key
 	if _, err := Validate(in); err != nil {
 		t.Errorf("a LAN destination was refused: %v", err)
+	}
+}
+
+// The ledger digest a second pass compares installed bytes against is a
+// canonical sha256, belongs only to a pass that has extra keys, and reaches the
+// environment under the name the pass-2 step reads.
+func TestPass1LedgerDigestIsValidatedAndExported(t *testing.T) {
+	const key = "lan-1-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	good := "sha256:" + strings.Repeat("ab", 32)
+	for _, bad := range []string{"abc", strings.Repeat("ab", 32), "sha256:" + strings.Repeat("AB", 32), "sha256:" + strings.Repeat("ab", 31), good + "x", "xsha256:" + strings.Repeat("ab", 32)} {
+		in := okTo(lanDest)
+		in.DistFrom = lanDest
+		in.ExtraKeys = key
+		in.Pass1Ledger = bad
+		refused(t, "ledger "+bad, in, "pass1_ledger_sha256 must be sha256:")
+	}
+	in := okTo(lanDest)
+	in.Pass1Ledger = good
+	refused(t, "ledger without keys", in, "needs extra_trusted_keys")
+	in.DistFrom = lanDest
+	in.ExtraKeys = key
+	r, err := Validate(in)
+	if err != nil {
+		t.Fatalf("a canonical digest was refused: %v", err)
+	}
+	got := ""
+	for _, p := range r.Env {
+		if p[0] == "PASS1_LEDGER_SHA256" {
+			got = p[1]
+		}
+	}
+	if got != good {
+		t.Errorf("PASS1_LEDGER_SHA256 = %q, want %q", got, good)
 	}
 }
 

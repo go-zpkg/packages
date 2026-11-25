@@ -312,7 +312,7 @@ func TestPassTwoChecksEveryStagedArtifactIsSeedBuilt(t *testing.T) {
 			continue
 		}
 		found++
-		for _, want := range []string{`--dist "$DIST_FROM"`, `--root "$RUNNER_TEMP/rootfs/zpkg"`} {
+		for _, want := range []string{`--dist "$DIST_FROM"`, `--root "$RUNNER_TEMP/rootfs/zpkg"`, `--seed-ledger-sha256 "$LEDGER_SHA256"`, `[ -z "$LEDGER_SHA256" ]`} {
 			if !strings.Contains(s.Run, want) {
 				t.Errorf("step %q lacks %s", s.Name, want)
 			}
@@ -322,6 +322,9 @@ func TestPassTwoChecksEveryStagedArtifactIsSeedBuilt(t *testing.T) {
 		}
 		if s.Env["ZPKG_TRUSTED_KEYS"] == "" {
 			t.Errorf("step %q has no trusted keys in reach", s.Name)
+		}
+		if s.Env["LEDGER_SHA256"] != "${{ env.PASS1_LEDGER_SHA256 }}" {
+			t.Errorf("step %q does not read the validated PASS1_LEDGER_SHA256: %q", s.Name, s.Env["LEDGER_SHA256"])
 		}
 	}
 	if found != 1 {

@@ -369,6 +369,9 @@ for nothing else**:
 2. **Pass 2** rebuilds the same set with `dist_from` = the pass-1 registry and
    `extra_trusted_keys` = pass 1's ephemeral key. go-pkgx is not reachable:
    `dist_from` refuses it and nothing in a pass-2 run is told it exists.
+   It also takes `pass1_ledger_sha256`, the digest of pass 1's seed ledger
+   (required with `extra_trusted_keys`): the pass-2 check compares the bytes it
+   installed with what pass 1's signed provenance recorded, not just the names.
 3. Only **pass 2's** outputs are promoted (`mirror_from`, `require_origin=1`,
    `source_trusted_keys`). `zpkb` refuses to promote an artifact whose claim
    names a seed.

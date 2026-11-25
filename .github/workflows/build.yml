@@ -98,6 +98,10 @@ on:
         description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
         required: false
         default: ""
+      pass1_ledger_sha256:
+        description: "the digest (sha256:<64 lowercase hex>) of the seed ledger the pass-1 run recorded, printed by its seed pass. Required whenever extra_trusted_keys is set: the second pass compares the bytes it installed against what the first pass's signed provenance says it built from, and a pass 2 without the digest fails before verifying anything. Blank otherwise."
+        required: false
+        default: ""
       source_trusted_keys:
         description: "TRUST FOR THE SOURCE ONLY: public keys believed when a promotion (mirror_from + require_origin) verifies the SEED artifacts it copies and their origin claims: whitespace-separated `name:RW<base64>` entries, at most 8. Passed to the mirror step alone as `--source-trust`. Never exported to the publish job, an install, a test or the catalogue, never recorded as trust in what is promoted, and what clients trust is unchanged. Allowed with a destination naming go-zpkg, which extra_trusted_keys is not. Refused without mirror_from and require_origin."
         required: false
@@ -160,6 +164,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
@@ -264,6 +269,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
@@ -567,6 +573,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
@@ -781,10 +788,19 @@ jobs:
         env:
           MATRIX_PLATFORM: ${{ matrix.platform }}
           ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          LEDGER_SHA256: ${{ env.PASS1_LEDGER_SHA256 }}
         run: |
+          # The digest is what turns "the installed names look right" into
+          # "the installed bytes are the ones pass 1 recorded". Without it
+          # there is nothing to compare, so the pass stops here.
+          if [ -z "$LEDGER_SHA256" ]; then
+            echo "::error::pass1_ledger_sha256 is required when extra_trusted_keys is set"
+            exit 1
+          fi
           zpkb origin --seeded \
             --dist "$DIST_FROM" \
             --platform "$MATRIX_PLATFORM" \
+            --seed-ledger-sha256 "$LEDGER_SHA256" \
             --root "$RUNNER_TEMP/rootfs/zpkg"
 
       # What the machine HAS, in a step of its own.
@@ -1669,6 +1685,7 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
+          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
           IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}

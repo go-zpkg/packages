@@ -44,16 +44,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 // Inputs is every dispatch input the workflows hand to a shell or write to the
 // environment. A field that was not dispatched is "".
 type Inputs struct {
-	OCITo         string
-	DistFrom      string
-	OverlayRef    string
-	SeedDist      string
-	MirrorFrom    string
-	SourceMirror  string
-	Glibc         string
-	Versions      string
-	ExtraKeys     string
-	SourceKeys    string
+	OCITo        string
+	DistFrom     string
+	OverlayRef   string
+	SeedDist     string
+	MirrorFrom   string
+	SourceMirror string
+	Glibc        string
+	Versions     string
+	ExtraKeys    string
+	SourceKeys   string
+	// Pass1Ledger is the digest (sha256:<64 hex>) of the seed ledger the
+	// pass-1 run recorded. A pass that consumes pass 1's output compares what
+	// it installed against it.
+	Pass1Ledger   string
 	RequireOrigin string
 	Lock          string
 	Recipes       string
@@ -244,6 +248,12 @@ func Validate(in Inputs) (Result, error) {
 	if err := checkExtraKeys("source_trusted_keys", in.SourceKeys); err != nil {
 		return r, err
 	}
+	if in.Pass1Ledger != "" && !ledgerDigestRe.MatchString(in.Pass1Ledger) {
+		return r, errors.New("pass1_ledger_sha256 must be sha256: followed by 64 lowercase hex characters")
+	}
+	if in.Pass1Ledger != "" && in.ExtraKeys == "" {
+		return r, errors.New("pass1_ledger_sha256 names the ledger of the pass whose output this run consumes, so it needs extra_trusted_keys")
+	}
 	if in.SourceKeys != "" && (in.MirrorFrom == "" || in.RequireOrigin == "") {
 		return r, errors.New("source_trusted_keys is read only when a promotion verifies its source, so it needs mirror_from and require_origin=1")
 	}
@@ -358,6 +368,8 @@ func Validate(in Inputs) (Result, error) {
 		// not carry it, and no step hands it to ZPKG_*: it is not trust for
 		// anything a client or the post-publish test reads.
 		{"SOURCE_KEYS", in.SourceKeys},
+		// Read by the pass-2 verification alone, as `--seed-ledger-sha256`.
+		{"PASS1_LEDGER_SHA256", in.Pass1Ledger},
 		// Read by the SIGNING_KEY expressions: ZPKG_SIGNING_KEY signs only
 		// when this is `true`, every other destination gets the other key.
 		{"SIGN_PROD", strconv.FormatBool(prod)},
@@ -562,6 +574,9 @@ func checkExtraKeys(field, v string) error {
 	return nil
 }
 
+// ledgerDigestRe is the canonical form of a seed-ledger digest.
+var ledgerDigestRe = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
 // pass1Label is the only label an extra key may carry: `lan-<run id>-<attempt>`,
 // the name seedkey is given by the run that minted the key (build.yml,
 // LAN_KEY_NAME). The label is what ties a pasted key to the run that filled the
@@ -660,7 +675,7 @@ func fromEnv() Inputs {
 		OCITo: g("IN_OCI_TO"), DistFrom: g("IN_DIST_FROM"), OverlayRef: g("IN_OVERLAY_REF"),
 		SeedDist: g("IN_SEED_DIST"), MirrorFrom: g("IN_MIRROR_FROM"), SourceMirror: g("IN_SOURCE_MIRROR"),
 		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: g("IN_EXTRA_KEYS"),
-		SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
+		Pass1Ledger: g("IN_PASS1_LEDGER_SHA256"), SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
 		MaxVersions: g("IN_MAX_VERSIONS"), RunID: g("GITHUB_RUN_ID"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true", Verify: g("ZPKG_VERIFY"),
 		Flags: map[string]string{},
 	}
