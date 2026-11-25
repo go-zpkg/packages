@@ -287,6 +287,12 @@ func Validate(in Inputs) (Result, error) {
 	if in.MirrorFrom != "" && in.SeedDist != "" {
 		return r, errors.New("mirror_from cannot be combined with seed_dist: a seed run may read its registry unverified, and a mirror must be verified")
 	}
+	seed := in.Flags["bootstrap"] == bootstrapSeed
+	if seed {
+		if err := checkSeedPass(in, r.Effective); err != nil {
+			return r, err
+		}
+	}
 	if prod {
 		if !in.HaveZpkgKey && !in.NoKeyCheck {
 			return r, fmt.Errorf("publishing to %s needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts", r.Effective)
@@ -323,8 +329,69 @@ func Validate(in Inputs) (Result, error) {
 		{"SEED_LOOPBACK", strconv.FormatBool(in.SeedDist != "" && isLoopbackRegistry(in.SeedDist))},
 		// Where the staged output is pushed from: see PublishLane.
 		{"PUBLISH_LANE", PublishLane(r.Effective)},
+		// The registry a SEED pass takes its build environment from: the one
+		// constant above, never an input. Blank for every other run.
+		{"SEED_FROM", seedFrom(seed)},
+		// What `zpkb factory --bootstrap` is told: the host-tools bootstrap
+		// only. `seed` is a different thing, and handing it to that flag would
+		// build a seed pass from the runner's own tools.
+		{"BOOTSTRAP_HOST", bootstrapHost(in.Flags["bootstrap"])},
 	}
 	return r, nil
+}
+
+// bootstrapSeed is the value of the `bootstrap` input that asks for a SEED
+// PASS: the toolchain's build environment is taken from go-pkgx, each package
+// verified, and the outputs name that seed and are never promoted. The
+// dispatch has 25 inputs, GitHub's ceiling, so this is a value of one that
+// exists, and the source it reads is a constant rather than an input — a
+// configurable seed registry is a configurable trust anchor.
+const bootstrapSeed = "seed"
+
+// seedSource is the registry a seed pass reads its build environment from.
+const seedSource = "oci://ghcr.io/go-pkgx/packages"
+
+func seedFrom(seed bool) string {
+	if seed {
+		return seedSource
+	}
+	return ""
+}
+
+func bootstrapHost(v string) string {
+	if v == bootstrapSeed {
+		return ""
+	}
+	return v
+}
+
+// checkSeedPass is every refusal that belongs to bootstrap=seed.
+//
+// ⛔ A SEED PASS NEVER REACHES A HOSTED DESTINATION. Its artifacts were built in
+// an environment somebody else's registry supplied; the build records that and
+// promotion refuses it. Only a LAN destination is a place such an output may
+// go, and it goes there signed with the run's own ephemeral key.
+func checkSeedPass(in Inputs, effective string) error {
+	if PublishLane(effective) != "lan" {
+		return fmt.Errorf("bootstrap=seed publishes only to the LAN or a loopback registry, got '%s': a seed-built artifact is never published to a hosted registry, and a promotion is made from a rebuild of our own outputs", effective)
+	}
+	switch {
+	case in.MirrorFrom != "":
+		return errors.New("bootstrap=seed builds and mirror_from copies: one run does not do both")
+	case in.SeedDist != "":
+		return errors.New("bootstrap=seed cannot be combined with seed_dist, which is a different way of reading a throwaway registry")
+	case in.RequireOrigin != "" || in.SourceKeys != "":
+		return errors.New("bootstrap=seed is not a promotion: require_origin and source_trusted_keys are refused")
+	case testOnly(in):
+		return errors.New("bootstrap=seed builds, test_only publishes nothing: pick one")
+	}
+	if v := in.Flags["sovereign"]; v == "0" || v == "false" {
+		return errors.New("bootstrap=seed builds inside the rootfs staged from the seed: sovereign=0 would build with the runner's distribution instead")
+	}
+	if in.MaxVersions == "" {
+		return errors.New("bootstrap=seed with max_versions blank means every version of every project. Pass max_versions=1, or state a number")
+	}
+	return nil
 }
 
 // hasRepositoryPath reports whether `oci://[http(s)://]host[:port]/repo` names

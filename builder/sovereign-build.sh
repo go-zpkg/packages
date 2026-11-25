@@ -57,6 +57,28 @@ log="${SOVEREIGN_LOG:-${RUNNER_TEMP:-/tmp}/zpkb.log}"
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 
+# A SEED PASS. $SOVEREIGN_SEED_FROM is the registry the build environment is
+# taken from (build.yml sets it for bootstrap=seed and for nothing else), and
+# $SOVEREIGN_SEED_LEDGER the ledger `zpkb builder` wrote while staging this
+# rootfs from it. Both or neither: a seed with no ledger would build artifacts
+# that do not say what they were built with, and a ledger with no seed is a
+# claim about nothing.
+#
+# The ledger is copied INTO the rootfs (/seed-ledger.json, not /dist, which is
+# the staged tree the publish step digests): zpkx inside the chroot appends
+# what it installs from the seed, and the factory reads the whole of it into the
+# stage plan, where `zpkb publish-stage` signs it into every artifact's
+# provenance. Passed as POSITIONALS to the inner script, not as environment, so
+# the preserve-env list below stays the list of what the factory reads.
+seed_from="${SOVEREIGN_SEED_FROM:-}"
+seed_ledger=""
+if [ -n "$seed_from" ] || [ -n "${SOVEREIGN_SEED_LEDGER:-}" ]; then
+  [ -n "$seed_from" ] || { echo "::error::SOVEREIGN_SEED_LEDGER is set and no seed is: refusing to build a ledger of nothing"; exit 1; }
+  [ -s "${SOVEREIGN_SEED_LEDGER:-}" ] || { echo "::error::seed ${seed_from} is in force and the ledger '${SOVEREIGN_SEED_LEDGER:-}' is missing or empty: the artifacts would not name what they were built with"; exit 1; }
+  $SUDO cp "$SOVEREIGN_SEED_LEDGER" "$root/seed-ledger.json"
+  seed_ledger=/seed-ledger.json
+fi
+
 # ZPKG_VERIFY travels with ZPKG_DIST, and the two are one decision.
 #
 # A seed registry is a throwaway on loopback and its artifacts are unsigned, so
@@ -139,7 +161,7 @@ PRESERVE=""
 $SUDO $PRESERVE \
   env -u SIGNING_KEY -u OCI_PASSWORD \
   unshare --mount --pid --fork "$(command -v bash)" -euxc '
-    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; shift 5
+    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; seedfrom="$6"; seedledger="$7"; shift 7
     for d in null zero full random urandom tty; do
       [ -e "$r/dev/$d" ] || : > "$r/dev/$d"
       mount --bind "/dev/$d" "$r/dev/$d"
@@ -157,12 +179,17 @@ $SUDO $PRESERVE \
       mount --bind "$advisories" "$r/advisories"
       ad=(--advisories /advisories)
     fi
-    exec chroot "$r" /usr/local/bin/zpkx \
+    sd=(); sf=()
+    if [ -n "$seedfrom" ]; then
+      sd=(--seed-from "$seedfrom" --seed-ledger "$seedledger")
+      sf=(--seed-ledger "$seedledger")
+    fi
+    exec chroot "$r" /usr/local/bin/zpkx "${sd[@]}" \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
-      -- /usr/local/bin/zpkb factory --stage-only \
+      -- /usr/local/bin/zpkb factory --stage-only "${sf[@]}" \
            --recipe-dir /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
            --to "${PUBLISH_TO:?publishing requires an explicit destination}" --artifacts /dist "$@"
-  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
+  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$seed_from" "$seed_ledger" "$@" 2>&1 | tee "$log"
 
 # This script PUBLISHES NOTHING. It staged artifacts and a publish-plan.json under
 # $root/dist; the caller signs and pushes them in a LATER step that holds the
