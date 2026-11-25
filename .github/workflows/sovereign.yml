@@ -293,7 +293,7 @@ jobs:
       - name: stage the sovereign rootfs
         env:
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           # ⛔⛔ `command -v pkgx` WOULD NOW FIND SOMEBODY ELSE'S PROGRAM.
           # Ours is `zpkx` since the rename, and `pkgx` is upstream's — a
@@ -351,7 +351,7 @@ jobs:
           ZPKG_DIR: /zpkg
           HOME: /root
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
           # Our aarch64 pool is emulated by construction — the host is amd64 —
           # and qemu-user fakes uname AND /proc/cpuinfo, so nothing inside the
           # container can tell. The workflow knows, so it says.
@@ -476,7 +476,7 @@ jobs:
           # keeps the old key. Two guarded halves rather than `a && X || Y`,
           # which would hand Y (the old key) to go-zpkg whenever X is empty.
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           unsigned=

@@ -86,11 +86,14 @@ fi
 # that still trusted the production key would accept what that key signed).
 # A seed pass takes no extra key at all (inputcheck refuses it): the seed is
 # verified against the compiled-in keys alone.
+# The workflow hands the key in ZPKG_TRUSTED_KEYS, which REPLACES the default
+# set. The ADDITIVE ZPKG_EXTRA_TRUSTED_KEYS is refused outright: a pass that
+# trusts the default set plus a key is a pass that accepts what the default
+# keys sign, and a seed pass is verified against the compiled-in keys alone.
 if [ -n "${ZPKG_EXTRA_TRUSTED_KEYS:-}" ]; then
-  [ -z "$seed_from" ] || { echo "::error::a seed pass is verified against the compiled-in keys only, and ZPKG_EXTRA_TRUSTED_KEYS is set"; exit 1; }
-  export ZPKG_TRUSTED_KEYS="$ZPKG_EXTRA_TRUSTED_KEYS"
-  unset ZPKG_EXTRA_TRUSTED_KEYS
+  echo "::error::ZPKG_EXTRA_TRUSTED_KEYS is set: trust is exclusive (ZPKG_TRUSTED_KEYS), never additive"; exit 1
 fi
+[ -z "$seed_from" ] || [ -z "${ZPKG_TRUSTED_KEYS:-}" ] || { echo "::error::a seed pass is verified against the compiled-in keys only, and ZPKG_TRUSTED_KEYS is set"; exit 1; }
 
 # ZPKG_VERIFY travels with ZPKG_DIST, and the two are one decision.
 #
@@ -126,6 +129,35 @@ if [ -n "${LOCK:-}" ]; then
   LOCK=/lock.hcl
   export LOCK
 fi
+
+# A SECOND PASS HAS NO NETWORK BUT THE REGISTRY IT READS. A pass that trusts a
+# pass-1 key (ZPKG_TRUSTED_KEYS non-empty) runs recipe code that a pass-1 build
+# produced the tools for; it must not be able to reach anything else. It gets a
+# NEW network namespace (unshare --net) with a loopback and nothing more, and
+# $SOVEREIGN_NET_ALLOW (host:port,host:port — inputcheck's NET_ALLOW, LAN or
+# loopback IPv4 literals only) is reached through socat: a unix socket under
+# the chroot, outside, forwards to the registry; inside the namespace a socat
+# listener on the same address and port forwards to that socket. Pass 1 and
+# every other pass keep the host's network.
+net_allow="${SOVEREIGN_NET_ALLOW:-}"
+netflag=""
+nf_pids=""
+if [ -n "${ZPKG_TRUSTED_KEYS:-}" ]; then
+  [ -n "$net_allow" ] || { echo "::error::ZPKG_TRUSTED_KEYS is set (a second pass) and SOVEREIGN_NET_ALLOW is not: refusing to run recipe code with the host's network"; exit 1; }
+  command -v socat >/dev/null || { echo "::error::a second pass needs socat to reach its registry from a network namespace"; exit 1; }
+  netflag="--net"
+  $SUDO mkdir -p "$root/nf"
+  i=0
+  for ep in $(echo "$net_allow" | tr ',' ' '); do
+    i=$((i+1))
+    $SUDO socat "UNIX-LISTEN:$root/nf/$i.sock,fork,mode=0600" "TCP:$ep" &
+    nf_pids="$nf_pids $!"
+  done
+elif [ -n "$net_allow" ]; then
+  echo "::error::SOVEREIGN_NET_ALLOW is set and this is not a second pass: nothing would use it"; exit 1
+fi
+stop_forwards() { for p in $nf_pids; do $SUDO kill "$p" 2>/dev/null || true; done; }
+trap stop_forwards EXIT
 
 # --preserve-env, never a command line: the token and the signing key must not
 # become argv anybody can read out of /proc.
@@ -173,8 +205,17 @@ PRESERVE=""
 # become an empty argument when it is nothing.
 $SUDO $PRESERVE \
   env -u SIGNING_KEY -u OCI_PASSWORD \
-  unshare --mount --pid --fork "$(command -v bash)" -euxc '
-    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; seedfrom="$6"; seedledger="$7"; shift 7
+  unshare --mount --pid --fork $netflag "$(command -v bash)" -euxc '
+    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; seedfrom="$6"; seedledger="$7"; netallow="$8"; shift 8
+    if [ -n "$netallow" ]; then
+      ip link set lo up
+      i=0
+      for ep in $(echo "$netallow" | tr "," " "); do
+        i=$((i+1)); host="${ep%:*}"; port="${ep##*:}"
+        case "$host" in 127.*) ;; *) ip addr add "$host/32" dev lo ;; esac
+        socat "TCP-LISTEN:$port,bind=$host,fork,reuseaddr" "UNIX-CONNECT:$r/nf/$i.sock" &
+      done
+    fi
     for d in null zero full random urandom tty; do
       [ -e "$r/dev/$d" ] || : > "$r/dev/$d"
       mount --bind "/dev/$d" "$r/dev/$d"
@@ -202,7 +243,7 @@ $SUDO $PRESERVE \
       -- /usr/local/bin/zpkb factory --stage-only "${sf[@]}" \
            --recipe-dir /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
            --to "${PUBLISH_TO:?publishing requires an explicit destination}" --artifacts /dist "$@"
-  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$seed_from" "$seed_ledger" "$@" 2>&1 | tee "$log"
+  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$seed_from" "$seed_ledger" "$net_allow" "$@" 2>&1 | tee "$log"
 
 # This script PUBLISHES NOTHING. It staged artifacts and a publish-plan.json under
 # $root/dist; the caller signs and pushes them in a LATER step that holds the

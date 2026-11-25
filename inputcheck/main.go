@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"regexp"
 	"strconv"
@@ -64,6 +65,9 @@ type Inputs struct {
 	// the preflight and publish jobs, which run on GitHub-hosted runners and do
 	// hold it, make that check.
 	NoKeyCheck bool
+	// RunID is this run's id ($GITHUB_RUN_ID). An extra key is minted by an
+	// EARLIER run, so its label must name a run that is not this one.
+	RunID string
 }
 
 const (
@@ -308,7 +312,23 @@ func Validate(in Inputs) (Result, error) {
 	if in.ExtraKeys != "" && PublishLane(r.Effective) != "lan" {
 		return r, fmt.Errorf("extra_trusted_keys is accepted only with a LAN or loopback destination, got '%s': a key a dispatcher names must not widen trust for a build that publishes elsewhere", r.Effective)
 	}
+	if err := checkPass1Labels(in.ExtraKeys, in.RunID); err != nil {
+		return r, err
+	}
+	// A pass that trusts a pass-1 key reads ONLY pass-1's registry and runs
+	// with no network but that registry (builder/sovereign-build.sh): what it
+	// may reach is decided here, once, from the same list it resolves from.
+	netAllow := ""
+	if in.ExtraKeys != "" {
+		var err error
+		if netAllow, err = lanEndpoints(distList(in.OCITo, distFrom)); err != nil {
+			return r, err
+		}
+	}
 	r.Env = [][2]string{
+		// The only endpoints a pass-2 build can reach, `ip:port` separated by
+		// commas; blank for every other run.
+		{"NET_ALLOW", netAllow},
 		{"OCI_TO", in.OCITo},
 		// What the run publishes to, decided once, here: oci_to or seed_dist.
 		// Blank only for test_only, which publishes nothing. Steps read THIS,
@@ -531,6 +551,69 @@ func checkExtraKeys(field, v string) error {
 	return nil
 }
 
+// pass1Label is the only label an extra key may carry: `lan-<run id>-<attempt>`,
+// the name seedkey is given by the run that minted the key (build.yml,
+// LAN_KEY_NAME). The label is what ties a pasted key to the run that filled the
+// registry it verifies, so a key with any other name is refused.
+var pass1Label = regexp.MustCompile(`^lan-([0-9]{1,18})-([0-9]{1,6})$`)
+
+// checkPass1Labels refuses an extra key whose label does not name an EARLIER
+// run: the pass that mints a key cannot be the pass that trusts it. The label
+// is a binding to a run, not a proof that the run exists or filled dist_from.
+func checkPass1Labels(extraKeys, runID string) error {
+	entries := strings.Fields(extraKeys)
+	if len(entries) == 0 {
+		return nil
+	}
+	if runID == "" || len(runID) > 18 || strings.Trim(runID, "0123456789") != "" {
+		return errors.New("extra_trusted_keys needs this run's id to check the key's label against, and none was given")
+	}
+	cur, _ := strconv.ParseUint(runID, 10, 63)
+	for _, e := range entries {
+		name, _, _ := strings.Cut(e, ":")
+		m := pass1Label.FindStringSubmatch(name)
+		if m == nil {
+			return fmt.Errorf("extra_trusted_keys label '%s' is not lan-<pass-1 run id>-<attempt>: a key is accepted only under the name of the run that minted it", name)
+		}
+		id, err := strconv.ParseUint(m[1], 10, 63)
+		if err != nil || id == 0 || id >= cur {
+			return fmt.Errorf("extra_trusted_keys label '%s' does not name an earlier run than this one (%s)", name, runID)
+		}
+	}
+	return nil
+}
+
+// lanEndpoints turns a ZPKG_DIST list into the `ip:port` endpoints a second
+// pass may reach. Every entry must be a LAN or loopback registry named by an
+// IPv4 literal and an explicit port: a host name is a resolver answer the
+// pass would have to be allowed to ask for, and a hosted registry is not what
+// a pass that reads only pass-1's outputs reads from.
+func lanEndpoints(list string) (string, error) {
+	var out []string
+	seen := map[string]bool{}
+	for _, d := range strings.Fields(list) {
+		if PublishLane(d) != "lan" {
+			return "", fmt.Errorf("extra_trusted_keys names a second pass, which reads only the pass-1 LAN or loopback registry, got '%s'", d)
+		}
+		h := strings.TrimPrefix(strings.TrimPrefix(d, "oci://"), "http://")
+		h, _, _ = strings.Cut(h, "/")
+		host, port, ok := strings.Cut(h, ":")
+		if host == "localhost" {
+			host = "127.0.0.1"
+		}
+		ip := net.ParseIP(host)
+		if !ok || ip == nil || ip.To4() == nil || !digitsRe.MatchString(port) || port == "0" {
+			return "", fmt.Errorf("extra_trusted_keys names a second pass: '%s' must name its registry as an IPv4 address and a port, so the pass can be given that endpoint and no network", d)
+		}
+		ep := host + ":" + port
+		if !seen[ep] {
+			seen[ep] = true
+			out = append(out, ep)
+		}
+	}
+	return strings.Join(out, ","), nil
+}
+
 // writeEnv appends validated pairs to the $GITHUB_ENV file. A value holding a
 // newline is refused here too, so that no future caller can write a second
 // variable by accident.
@@ -570,7 +653,7 @@ func fromEnv() Inputs {
 		SeedDist: g("IN_SEED_DIST"), MirrorFrom: g("IN_MIRROR_FROM"), SourceMirror: g("IN_SOURCE_MIRROR"),
 		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: g("IN_EXTRA_KEYS"),
 		SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
-		MaxVersions: g("IN_MAX_VERSIONS"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true",
+		MaxVersions: g("IN_MAX_VERSIONS"), RunID: g("GITHUB_RUN_ID"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true",
 		Flags: map[string]string{},
 	}
 	for _, n := range []string{"FORCE", "REBUILD", "NO_CLOSURE", "PIN_TO_DEPENDENTS", "CLEAN_BUILD_ROOT", "BOOTSTRAP", "TEST_ONLY", "SOVEREIGN"} {

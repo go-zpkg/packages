@@ -14,7 +14,7 @@ const seedKey = "RWSsFdCUPJ7jCHA0LJCPd23ONL4OOKV5efaYVFSbp8jwO/JvWI0oKUYf"
 // ok is a dispatch that publishes nothing (test_only), so a test sets only the
 // field it is about; the destination rules are tested with okTo.
 func ok() Inputs {
-	return Inputs{Flags: map[string]string{"test_only": "1"}, HaveZpkgKey: true}
+	return Inputs{Flags: map[string]string{"test_only": "1"}, HaveZpkgKey: true, RunID: "1000"}
 }
 
 func okTo(dest string) Inputs {
@@ -461,11 +461,12 @@ func TestTheSmokeDestinationIsExactAndNeverSignedWithTheProductionKey(t *testing
 }
 
 func TestExtraTrustedKeys(t *testing.T) {
-	good := "seed:" + seedKey
+	good := "lan-999-1:" + seedKey
 	if len(seedKey) != 56 {
 		t.Fatalf("seed key is %d characters", len(seedKey))
 	}
 	in := okTo(lanDest)
+	in.DistFrom = lanDest
 	in.ExtraKeys = good
 	r, err := Validate(in)
 	if err != nil {
@@ -480,7 +481,7 @@ func TestExtraTrustedKeys(t *testing.T) {
 	if !found {
 		t.Error("EXTRA_KEYS is not exported")
 	}
-	in.ExtraKeys = good + " other:" + seedKey
+	in.ExtraKeys = good + " lan-998-2:" + seedKey
 	if _, err := Validate(in); err != nil {
 		t.Errorf("two keys refused: %v", err)
 	}
@@ -503,24 +504,25 @@ func TestExtraTrustedKeys(t *testing.T) {
 		refused(t, name, in, "extra_trusted_keys")
 	}
 	in = okTo(lanDest)
+	in.DistFrom = lanDest
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "="
 	refused(t, "padding", in, "character outside")
-	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "+"
+	in.ExtraKeys = "lan-5-1:RW" + strings.Repeat("A", 53) + "+"
 	if _, err := Validate(in); err != nil {
 		t.Errorf("a 56-character key with + refused: %v", err)
 	}
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "-"
 	refused(t, "dash in key", in, "RW plus 54 base64")
 	// The boundary of the count and of every character class.
-	in.ExtraKeys = strings.Repeat("Zz9:"+seedKey+" ", 8)
+	in.ExtraKeys = strings.Repeat("lan-7-1:"+seedKey+" ", 8)
 	if _, err := Validate(in); err != nil {
 		t.Errorf("eight keys refused: %v", err)
 	}
-	in.ExtraKeys += "Zz9:" + seedKey
+	in.ExtraKeys += "lan-7-1:" + seedKey
 	refused(t, "nine keys", in, "more than 8")
 	in.ExtraKeys = "seed"
 	refused(t, "no colon", in, "is not name:key")
-	in.ExtraKeys = "seed:" + seedKey[:2] + "ZzZzZzZz9999" + strings.Repeat("a", 42)
+	in.ExtraKeys = "lan-7-1:" + seedKey[:2] + "ZzZzZzZz9999" + strings.Repeat("a", 42)
 	if _, err := Validate(in); err != nil {
 		t.Errorf("characters at the edge of the classes refused: %v", err)
 	}

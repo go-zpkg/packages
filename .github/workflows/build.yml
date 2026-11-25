@@ -696,7 +696,7 @@ jobs:
           MATRIX_PLATFORM: ${{ matrix.platform }}
           # Step-scoped: the steps that install or verify get the validated
           # extra keys, nothing else does (go-zpkg/packages#440).
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           # A tag, not main (go-zpkg/packages#440).
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
@@ -925,7 +925,7 @@ jobs:
           # github.com/containers/crun died, through python.org, on a runner
           # where every other correction WAS applied.
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
           VERSIONS: ${{ github.event.inputs.versions }}
           # The host-tools bootstrap only: inputcheck blanks it for
           # bootstrap=seed, which is a seed PASS and must not be told to take
@@ -1074,6 +1074,7 @@ jobs:
             fi
             SOVEREIGN_OVERLAY="$PWD/overlay" \
             SOVEREIGN_ADVISORIES="$PWD/advisories" \
+            SOVEREIGN_NET_ALLOW="${NET_ALLOW:-}" \
             builder/sovereign-build.sh \
               "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \
               ${GLIBC:+--glibc "$GLIBC"} \
@@ -1184,7 +1185,7 @@ jobs:
         if: always() && env.PUBLISH_LANE == 'lan' && steps.digest.outputs.digest != ''
         env:
           PLATFORM: ${{ matrix.platform }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
           LAN_KEY_NAME: lan-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -eu
@@ -1299,7 +1300,7 @@ jobs:
           # zpkb catalog --publish pushes to $ZPKG_DIST: an oci_to run must
           # catalogue where it published, not where it read.
           ZPKG_DIST: ${{ env.PUBLISH_TO }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           # Signed with the key the publish step above minted for this run.
@@ -1693,7 +1694,7 @@ jobs:
           # keeps the old key. Two guarded halves, not `a && X || Y`, which
           # would hand go-zpkg the old key when X is empty.
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           [ -n "$PUBLISH_TO" ] || { echo "::error::publishing requires an explicit destination; there is none"; exit 1; }
@@ -1740,7 +1741,7 @@ jobs:
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # zpkb catalog --publish pushes to $ZPKG_DIST: catalogue where it published.
           ZPKG_DIST: ${{ env.PUBLISH_TO }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           zpkb catalog \

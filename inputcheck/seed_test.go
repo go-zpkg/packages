@@ -103,15 +103,88 @@ func TestASeedPassRefusesExtraTrustedKeys(t *testing.T) {
 
 // F5: extra_trusted_keys is for a LAN or loopback destination only.
 func TestExtraTrustedKeysNeedALanDestination(t *testing.T) {
-	const key = "lan-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	const key = "lan-1-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
 	for _, dest := range []string{smokeDest, "oci://ghcr.io/other/x", "oci://registry.example.org/x"} {
 		in := okTo(dest)
 		in.ExtraKeys = key
 		refused(t, dest, in, "LAN or loopback destination")
 	}
 	in := okTo(lanDest)
+	in.DistFrom = lanDest
 	in.ExtraKeys = key
 	if _, err := Validate(in); err != nil {
 		t.Errorf("a LAN destination was refused: %v", err)
+	}
+}
+
+// F5: a key is trusted only under the label of the run that minted it, and
+// that run is an earlier one than the run that trusts it.
+func TestAnExtraKeyMustNameTheEarlierRunThatMintedIt(t *testing.T) {
+	const pub = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	cases := []struct{ name, label, run, want string }{
+		{"a free-form label", "seed", "1000", "is not lan-<pass-1 run id>-<attempt>"},
+		{"no attempt", "lan-5", "1000", "is not lan-"},
+		{"a non-numeric run", "lan-x-1", "1000", "is not lan-"},
+		{"an empty attempt", "lan-5-", "1000", "is not lan-"},
+		{"the run itself", "lan-1000-1", "1000", "earlier run"},
+		{"a later run", "lan-1001-1", "1000", "earlier run"},
+		{"run zero", "lan-0-1", "1000", "earlier run"},
+		{"this run is unknown", "lan-5-1", "", "run's id"},
+		{"this run is not a number", "lan-5-1", "12x", "run's id"},
+	}
+	for _, c := range cases {
+		in := okTo(lanDest)
+		in.DistFrom = lanDest
+		in.RunID = c.run
+		in.ExtraKeys = c.label + ":" + pub
+		refused(t, c.name, in, c.want)
+	}
+	in := okTo(lanDest)
+	in.DistFrom = lanDest
+	in.RunID = "1000"
+	in.ExtraKeys = "lan-999-3:" + pub
+	if _, err := Validate(in); err != nil {
+		t.Errorf("the label of an earlier run was refused: %v", err)
+	}
+	netAllow := func(r Result) string {
+		for _, p := range r.Env {
+			if p[0] == "NET_ALLOW" {
+				return p[1]
+			}
+		}
+		return "missing"
+	}
+	if r, _ := Validate(in); netAllow(r) != "10.46.81.1:5111" {
+		t.Errorf("NET_ALLOW = %q, want the pass-1 registry and nothing else", netAllow(r))
+	}
+	in.OCITo = "oci://127.0.0.1:5000/stage"
+	if r, _ := Validate(in); netAllow(r) != "127.0.0.1:5000,10.46.81.1:5111" {
+		t.Errorf("NET_ALLOW = %q, want the staging registry then pass-1's", netAllow(r))
+	}
+	in.OCITo = lanDest
+	// A pass that trusts a pass-1 key reads nothing but LAN registries, named
+	// by an IPv4 address and a port.
+	for name, d := range map[string]string{
+		"hosted":  "oci://ghcr.io/go-zpkg/packages",
+		"no port": "oci://127.0.0.1/seed",
+		"a name":  "oci://localhost.example:5000/seed",
+		"port 0":  "oci://127.0.0.1:0/seed",
+		"go-zpkg": "oci://ghcr.io/go-zpkg/smoke",
+	} {
+		bad := in
+		bad.DistFrom = d
+		refused(t, name, bad, "second pass")
+	}
+	// A public IPv4 literal is well-formed and still not a LAN registry.
+	pub4 := in
+	pub4.DistFrom = "oci://http://8.8.8.8:5000/seed"
+	refused(t, "a public address", pub4, "LAN or loopback registry")
+	in.ExtraKeys = ""
+	if r, _ := Validate(in); netAllow(r) != "" {
+		t.Errorf("NET_ALLOW = %q for a run that trusts no extra key, want blank", netAllow(r))
+	}
+	in.ExtraKeys = ""
+	if _, err := Validate(in); err != nil {
+		t.Errorf("no extra key must not need a label: %v", err)
 	}
 }

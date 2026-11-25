@@ -90,6 +90,9 @@ func TestEveryExtraTrustedKeysStepScopesItNotTheWorkflow(t *testing.T) {
 		n := 0
 		for _, s := range w.steps() {
 			if v, ok := s.Env["ZPKG_EXTRA_TRUSTED_KEYS"]; ok {
+				t.Errorf("%s: step %q sets the ADDITIVE ZPKG_EXTRA_TRUSTED_KEYS=%q: trust is exclusive", f, s.Name, v)
+			}
+			if v, ok := s.Env["ZPKG_TRUSTED_KEYS"]; ok {
 				n++
 				if v != "${{ env.EXTRA_KEYS }}" {
 					t.Errorf("%s: step %q reads the raw value %q, not the validated EXTRA_KEYS", f, s.Name, v)
@@ -97,7 +100,7 @@ func TestEveryExtraTrustedKeysStepScopesItNotTheWorkflow(t *testing.T) {
 			}
 		}
 		if n == 0 {
-			t.Errorf("%s: no step hands ZPKG_EXTRA_TRUSTED_KEYS to zpkb", f)
+			t.Errorf("%s: no step hands ZPKG_TRUSTED_KEYS to zpkb", f)
 		}
 		if w.dispatchInput(t, "extra_trusted_keys") == nil {
 			t.Errorf("%s: no extra_trusted_keys dispatch input", f)
@@ -120,7 +123,7 @@ func TestExtraTrustedKeysCrossesSudoIntoTheChroot(t *testing.T) {
 	if l["ZPKG_EXTRA_TRUSTED_KEYS"] {
 		t.Error("ZPKG_EXTRA_TRUSTED_KEYS is preserved into the chroot: the second pass would trust the default keys as well")
 	}
-	for _, want := range []string{`export ZPKG_TRUSTED_KEYS="$ZPKG_EXTRA_TRUSTED_KEYS"`, "unset ZPKG_EXTRA_TRUSTED_KEYS"} {
+	for _, want := range []string{`if [ -n "${ZPKG_EXTRA_TRUSTED_KEYS:-}" ]; then`, "trust is exclusive (ZPKG_TRUSTED_KEYS), never additive", `a seed pass is verified against the compiled-in keys only, and ZPKG_TRUSTED_KEYS is set`} {
 		if !strings.Contains(string(src), want) {
 			t.Errorf("sovereign-build.sh no longer says %q", want)
 		}

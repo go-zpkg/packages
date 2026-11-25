@@ -99,11 +99,11 @@ func TestTheLanLaneSignsWithAnEphemeralKey(t *testing.T) {
 func TestTheSovereignScriptCarriesTheSeedAsPositionalsAndRefusesHalfOfIt(t *testing.T) {
 	sh := readText(t, "builder/sovereign-build.sh")
 	for _, want := range []string{
-		`seedfrom="$6"; seedledger="$7"; shift 7`,
+		`seedfrom="$6"; seedledger="$7"; netallow="$8"; shift 8`,
 		`exec chroot "$r" /usr/local/bin/zpkx "${sd[@]}"`,
 		`sd=(--seed-from "$seedfrom" --seed-ledger "$seedledger")`,
 		`sf=(--seed-ledger "$seedledger")`,
-		`"$seed_from" "$seed_ledger" "$@"`,
+		`"$seed_from" "$seed_ledger" "$net_allow" "$@"`,
 		"SOVEREIGN_SEED_LEDGER is set and no seed is",
 		"the artifacts would not name what they were built with",
 	} {
