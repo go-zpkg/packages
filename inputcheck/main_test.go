@@ -255,7 +255,10 @@ func TestRegistries(t *testing.T) {
 	}
 	in = ok()
 	in.MirrorFrom = "ftp://x"
-	refused(t, "mirror_from scheme", in, "mirror_from")
+	refused(t, "mirror_from scheme", in, "an http(s):// or oci:// dist")
+	in.RequireOrigin = "1"
+	refused(t, "mirror_from scheme with an origin check", in, "an http(s):// or oci:// dist")
+	in.RequireOrigin = ""
 	in.MirrorFrom = "https://dist.example.org/a;b"
 	refused(t, "mirror_from chars", in, "mirror_from")
 	in.MirrorFrom = "https://dist.example.org/a"

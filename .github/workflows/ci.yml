@@ -430,3 +430,23 @@ jobs:
           done
           [ "$bad" = 0 ] && echo "no workflow exposes a self-hosted runner to fork pull requests"
           exit "$bad"
+
+  # A second pass runs recipe code with no network but the registry it reads.
+  # This runs builder/sovereign-build.sh itself (stub zpkx/zpkb in a busybox
+  # rootfs) and asserts the namespace: the allowed registry answers, another
+  # loopback server, a public address and an unrouted one do not, and a pass
+  # with no allow-list is refused. The darwin test suite can only read the
+  # script's text; this is the job that proves it behaves.
+  netns:
+    name: second pass network namespace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: install socat and a static busybox
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y socat busybox-static
+      - name: builder/netns-test.sh
+        run: |
+          work="$(mktemp -d)"
+          builder/netns-test.sh "$work"

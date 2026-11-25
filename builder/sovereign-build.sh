@@ -152,6 +152,13 @@ if [ -n "${ZPKG_TRUSTED_KEYS:-}" ]; then
     i=$((i+1))
     $SUDO socat "UNIX-LISTEN:$root/nf/$i.sock,fork,mode=0600" "TCP:$ep" &
     nf_pids="$nf_pids $!"
+    # The inner listener connects lazily, but a socket that does not exist yet
+    # would make the first connection fail: wait for it.
+    for _ in $(seq 1 100); do
+      $SUDO test -S "$root/nf/$i.sock" && break
+      sleep 0.1
+    done
+    $SUDO test -S "$root/nf/$i.sock" || { echo "::error::the forward to $ep did not come up"; exit 1; }
   done
 elif [ -n "$net_allow" ]; then
   echo "::error::SOVEREIGN_NET_ALLOW is set and this is not a second pass: nothing would use it"; exit 1
