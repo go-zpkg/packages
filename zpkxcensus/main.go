@@ -14,6 +14,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -85,14 +86,13 @@ func Scan(root string) ([]Hit, int, error) {
 		if !recipeFile(d.Name()) {
 			return nil
 		}
-		f, err := os.Open(p)
+		b, err := os.ReadFile(p)
 		if err != nil {
 			return err
 		}
-		h, serr := scanReader(p, f)
-		cerr := f.Close()
-		if serr != nil || cerr != nil {
-			return errors.Join(serr, cerr)
+		h, err := scanReader(p, bytes.NewReader(b))
+		if err != nil {
+			return err
 		}
 		files++
 		hits = append(hits, h...)
@@ -125,6 +125,7 @@ func Projects(r io.Reader) ([]string, error) {
 // in no tree is an error: a root nobody read is a root nobody cleared.
 func scanProjects(trees, projects []string) ([]Hit, int, error) {
 	var all []Hit
+	var errs []error
 	total := 0
 	for _, p := range projects {
 		found := false
@@ -134,18 +135,60 @@ func scanProjects(trees, projects []string) ([]Hit, int, error) {
 				continue
 			}
 			h, n, err := Scan(dir)
-			if err != nil {
-				return nil, 0, err
-			}
+			errs = append(errs, err)
 			found = found || n > 0
 			all = append(all, h...)
 			total += n
 		}
 		if !found {
-			return nil, 0, fmt.Errorf("project %s has no recipe file in any tree given: a root nobody read is a root nobody cleared", p)
+			errs = append(errs, fmt.Errorf("project %s has no recipe file in any tree given: a root nobody read is a root nobody cleared", p))
 		}
 	}
-	return all, total, nil
+	return all, total, errors.Join(errs...)
+}
+
+// readList reads a toolchain list from a file.
+func readList(path string) ([]string, error) {
+	b, rerr := os.ReadFile(path)
+	lp, perr := Projects(bytes.NewReader(b))
+	return lp, errors.Join(rerr, perr)
+}
+
+// scanTrees judges every recipe file of every tree. A tree with none is an
+// error.
+func scanTrees(roots []string) ([]Hit, int, error) {
+	var all []Hit
+	var errs []error
+	total := 0
+	for _, r := range roots {
+		h, n, err := Scan(r)
+		errs = append(errs, err)
+		if n == 0 && err == nil {
+			errs = append(errs, fmt.Errorf("%s holds no recipe file: a census that read nothing says nothing", r))
+		}
+		all = append(all, h...)
+		total += n
+	}
+	return all, total, errors.Join(errs...)
+}
+
+// census decides what is read: every tree whole, or only the named projects.
+func census(roots, projects []string, list string) ([]Hit, int, error) {
+	if len(projects) == 0 && list == "" {
+		return scanTrees(roots)
+	}
+	ps := projects
+	if list != "" {
+		lp, err := readList(list)
+		if err != nil {
+			return nil, 0, err
+		}
+		ps = append(lp, ps...)
+	}
+	if len(ps) == 0 {
+		return nil, 0, fmt.Errorf("%s names no project", list)
+	}
+	return scanProjects(roots, ps)
 }
 
 // RootCmd builds the command; tests drive it with SetArgs, SetOut and SetErr.
@@ -161,41 +204,9 @@ func RootCmd() *cobra.Command {
 			if len(roots) == 0 {
 				return errors.New("--recipes is required")
 			}
-			var all []Hit
-			total := 0
-			var err error
-			if len(projects) > 0 || list != "" {
-				ps := projects
-				if list != "" {
-					f, oerr := os.Open(list)
-					if oerr != nil {
-						return oerr
-					}
-					lp, perr := Projects(f)
-					if err := errors.Join(perr, f.Close()); err != nil {
-						return err
-					}
-					ps = append(lp, ps...)
-				}
-				if len(ps) == 0 {
-					return fmt.Errorf("%s names no project", list)
-				}
-				all, total, err = scanProjects(roots, ps)
-				if err != nil {
-					return err
-				}
-			} else {
-				for _, r := range roots {
-					h, n, serr := Scan(r)
-					if serr != nil {
-						return serr
-					}
-					if n == 0 {
-						return fmt.Errorf("%s holds no recipe file: a census that read nothing says nothing", r)
-					}
-					all = append(all, h...)
-					total += n
-				}
+			all, total, err := census(roots, projects, list)
+			if err != nil {
+				return err
 			}
 			sort.Slice(all, func(i, j int) bool {
 				if all[i].Path != all[j].Path {

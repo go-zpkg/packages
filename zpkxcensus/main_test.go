@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -147,14 +149,14 @@ func TestOnlyTheNamedProjectsAreJudged(t *testing.T) {
 
 func TestAProjectListThatCannotBeUsedIsRefused(t *testing.T) {
 	d := tree(t, map[string]string{"a.org/package.hcl": "x\n", "empty.txt": "# nothing\n", "long.txt": strings.Repeat("x", 70000) + "\n"})
-	if _, err := run("--recipes", d, "--projects-from", filepath.Join(d, "absent.txt")); err == nil {
-		t.Error("an absent list passed")
+	if _, err := run("--recipes", d, "--projects-from", filepath.Join(d, "absent.txt")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("an absent list: %v", err)
 	}
 	if _, err := run("--recipes", d, "--projects-from", filepath.Join(d, "empty.txt")); err == nil || !strings.Contains(err.Error(), "names no project") {
 		t.Errorf("an empty list passed: %v", err)
 	}
-	if _, err := run("--recipes", d, "--projects-from", filepath.Join(d, "long.txt")); err == nil {
-		t.Error("an unreadable list passed")
+	if _, err := run("--recipes", d, "--projects-from", filepath.Join(d, "long.txt")); err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Errorf("an unreadable list: %v", err)
 	}
 }
 
