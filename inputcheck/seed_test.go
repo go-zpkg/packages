@@ -175,6 +175,16 @@ func TestAnExtraKeyMustNameTheEarlierRunThatMintedIt(t *testing.T) {
 		bad.DistFrom = d
 		refused(t, name, bad, "second pass")
 	}
+	// A name is refused even for localhost: the namespace is given an address.
+	local := in
+	local.DistFrom = "oci://http://localhost:5111/seed"
+	refused(t, "localhost", local, "LAN or loopback registry")
+	// A registry named twice is one endpoint.
+	twice := in
+	twice.OCITo = "oci://http://10.46.81.1:5111/stage"
+	if r, err := Validate(twice); err != nil || netAllow(r) != "10.46.81.1:5111" {
+		t.Errorf("one registry twice: NET_ALLOW = %q, err = %v, want it once", netAllow(r), err)
+	}
 	// A public IPv4 literal is well-formed and still not a LAN registry.
 	pub4 := in
 	pub4.DistFrom = "oci://http://8.8.8.8:5000/seed"

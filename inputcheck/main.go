@@ -407,8 +407,9 @@ func checkSeedPass(in Inputs, effective string) error {
 		return errors.New("bootstrap=seed builds and mirror_from copies: one run does not do both")
 	case in.SeedDist != "":
 		return errors.New("bootstrap=seed cannot be combined with seed_dist, which is a different way of reading a throwaway registry")
-	case in.RequireOrigin != "" || in.SourceKeys != "":
-		return errors.New("bootstrap=seed is not a promotion: require_origin and source_trusted_keys are refused")
+	// require_origin and source_trusted_keys need mirror_from, which the first
+	// case already refuses: Validate rejects them earlier, so no case is kept
+	// here that no input can reach.
 	case in.ExtraKeys != "":
 		return errors.New("bootstrap=seed is verified against the compiled-in keys only: extra_trusted_keys is refused, it names who else may vouch for what the pass installs")
 	case testOnly(in):
@@ -598,9 +599,6 @@ func lanEndpoints(list string) (string, error) {
 		h := strings.TrimPrefix(strings.TrimPrefix(d, "oci://"), "http://")
 		h, _, _ = strings.Cut(h, "/")
 		host, port, ok := strings.Cut(h, ":")
-		if host == "localhost" {
-			host = "127.0.0.1"
-		}
 		ip := net.ParseIP(host)
 		if !ok || ip == nil || ip.To4() == nil || !digitsRe.MatchString(port) || port == "0" {
 			return "", fmt.Errorf("extra_trusted_keys names a second pass: '%s' must name its registry as an IPv4 address and a port, so the pass can be given that endpoint and no network", d)
