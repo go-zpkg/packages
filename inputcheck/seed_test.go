@@ -93,12 +93,25 @@ func TestASeedPassIsRefusedWithWhatItCannotBeCombinedWith(t *testing.T) {
 	}
 }
 
-// The extra keys of a seed pass are how the second pass believes the first
-// one's ephemeral signatures; they stay allowed for a LAN destination.
-func TestASeedPassMayTrustAnExtraKey(t *testing.T) {
+// F3: the seed is verified against the compiled-in keys, so a seed pass takes
+// no extra trusted key at all.
+func TestASeedPassRefusesExtraTrustedKeys(t *testing.T) {
 	in := seedIn()
-	in.ExtraKeys = "lan-1:" + seedKey
+	in.ExtraKeys = "lan-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	refused(t, "seed with extra keys", in, "compiled-in keys only")
+}
+
+// F5: extra_trusted_keys is for a LAN or loopback destination only.
+func TestExtraTrustedKeysNeedALanDestination(t *testing.T) {
+	const key = "lan-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	for _, dest := range []string{smokeDest, "oci://ghcr.io/other/x", "oci://registry.example.org/x"} {
+		in := okTo(dest)
+		in.ExtraKeys = key
+		refused(t, dest, in, "LAN or loopback destination")
+	}
+	in := okTo(lanDest)
+	in.ExtraKeys = key
 	if _, err := Validate(in); err != nil {
-		t.Fatal(err)
+		t.Errorf("a LAN destination was refused: %v", err)
 	}
 }

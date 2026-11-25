@@ -79,6 +79,19 @@ if [ -n "$seed_from" ] || [ -n "${SOVEREIGN_SEED_LEDGER:-}" ]; then
   seed_ledger=/seed-ledger.json
 fi
 
+# THE TRUST OF A RUN THAT NAMES A KEY IS THAT KEY, NOT THE DEFAULT PLUS IT. The
+# second pass reads only what the first pass built, signed with the first pass's
+# ephemeral key, so it trusts that key and no other: ZPKG_TRUSTED_KEYS REPLACES
+# the compiled-in set (ZPKG_EXTRA_TRUSTED_KEYS would add to it, and a second pass
+# that still trusted the production key would accept what that key signed).
+# A seed pass takes no extra key at all (inputcheck refuses it): the seed is
+# verified against the compiled-in keys alone.
+if [ -n "${ZPKG_EXTRA_TRUSTED_KEYS:-}" ]; then
+  [ -z "$seed_from" ] || { echo "::error::a seed pass is verified against the compiled-in keys only, and ZPKG_EXTRA_TRUSTED_KEYS is set"; exit 1; }
+  export ZPKG_TRUSTED_KEYS="$ZPKG_EXTRA_TRUSTED_KEYS"
+  unset ZPKG_EXTRA_TRUSTED_KEYS
+fi
+
 # ZPKG_VERIFY travels with ZPKG_DIST, and the two are one decision.
 #
 # A seed registry is a throwaway on loopback and its artifacts are unsigned, so
@@ -153,7 +166,7 @@ PRESERVE=""
 # PUBLISH_TO, so OCI_TO is not needed either.
 # STAGE_ONLY is here because the factory reads it and the guard test
 # (preserveenv_test.go) holds every variable the factory reads to this list.
-[ -n "$SUDO" ] && PRESERVE="--preserve-env=STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
+[ -n "$SUDO" ] && PRESERVE="--preserve-env=STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_TRUSTED_KEYS"
 # shellcheck disable=SC2016  # the inner script is deliberately literal: it runs
 # in the new namespace, where these variables are the ones that matter.
 # shellcheck disable=SC2086  # $PRESERVE is one flag or nothing, and must not

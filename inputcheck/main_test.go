@@ -465,7 +465,7 @@ func TestExtraTrustedKeys(t *testing.T) {
 	if len(seedKey) != 56 {
 		t.Fatalf("seed key is %d characters", len(seedKey))
 	}
-	in := ok()
+	in := okTo(lanDest)
 	in.ExtraKeys = good
 	r, err := Validate(in)
 	if err != nil {
@@ -502,7 +502,7 @@ func TestExtraTrustedKeys(t *testing.T) {
 		in.ExtraKeys = v
 		refused(t, name, in, "extra_trusted_keys")
 	}
-	in = ok()
+	in = okTo(lanDest)
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "="
 	refused(t, "padding", in, "character outside")
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "+"

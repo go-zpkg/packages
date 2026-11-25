@@ -110,8 +110,20 @@ func TestExtraTrustedKeysCrossesSudoIntoTheChroot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !preserveList(t, string(src))["ZPKG_EXTRA_TRUSTED_KEYS"] {
-		t.Error("ZPKG_EXTRA_TRUSTED_KEYS is not on sovereign-build.sh's --preserve-env list: zpkx inside the chroot would verify without the extra key")
+	// The extra key crosses as the EXCLUSIVE set: the script turns
+	// ZPKG_EXTRA_TRUSTED_KEYS into ZPKG_TRUSTED_KEYS (which replaces the
+	// compiled-in keys) and the preserved name is the second one.
+	l := preserveList(t, string(src))
+	if !l["ZPKG_TRUSTED_KEYS"] {
+		t.Error("ZPKG_TRUSTED_KEYS is not on sovereign-build.sh's --preserve-env list: zpkx inside the chroot would verify with the default keys")
+	}
+	if l["ZPKG_EXTRA_TRUSTED_KEYS"] {
+		t.Error("ZPKG_EXTRA_TRUSTED_KEYS is preserved into the chroot: the second pass would trust the default keys as well")
+	}
+	for _, want := range []string{`export ZPKG_TRUSTED_KEYS="$ZPKG_EXTRA_TRUSTED_KEYS"`, "unset ZPKG_EXTRA_TRUSTED_KEYS"} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("sovereign-build.sh no longer says %q", want)
+		}
 	}
 }
 

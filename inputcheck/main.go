@@ -301,6 +301,13 @@ func Validate(in Inputs) (Result, error) {
 			return r, errors.New("extra_trusted_keys cannot be combined with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust, it re-signs with ZPKG_SIGNING_KEY")
 		}
 	}
+	// extra_trusted_keys widens what the run trusts, so it is for a LAN or
+	// loopback registry only: the key it names is an ephemeral one that exists
+	// for the pass-1 run and must not be accepted by a build that publishes
+	// anywhere that is kept.
+	if in.ExtraKeys != "" && PublishLane(r.Effective) != "lan" {
+		return r, fmt.Errorf("extra_trusted_keys is accepted only with a LAN or loopback destination, got '%s': a key a dispatcher names must not widen trust for a build that publishes elsewhere", r.Effective)
+	}
 	r.Env = [][2]string{
 		{"OCI_TO", in.OCITo},
 		// What the run publishes to, decided once, here: oci_to or seed_dist.
@@ -382,6 +389,8 @@ func checkSeedPass(in Inputs, effective string) error {
 		return errors.New("bootstrap=seed cannot be combined with seed_dist, which is a different way of reading a throwaway registry")
 	case in.RequireOrigin != "" || in.SourceKeys != "":
 		return errors.New("bootstrap=seed is not a promotion: require_origin and source_trusted_keys are refused")
+	case in.ExtraKeys != "":
+		return errors.New("bootstrap=seed is verified against the compiled-in keys only: extra_trusted_keys is refused, it names who else may vouch for what the pass installs")
 	case testOnly(in):
 		return errors.New("bootstrap=seed builds, test_only publishes nothing: pick one")
 	}
