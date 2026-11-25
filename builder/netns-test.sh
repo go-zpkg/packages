@@ -34,6 +34,10 @@ newroot() {
   cp "$(command -v busybox)" "$r/bin/busybox"
   cat > "$r/usr/local/bin/zpkx" <<'EOF'
 #!/bin/busybox sh
+if [ "$1" = "--seed-digest" ]; then
+  echo "sha256:$(/bin/busybox sha256sum "$2" | /bin/busybox cut -d' ' -f1)"
+  exit 0
+fi
 while [ "$1" != "--" ]; do shift; done
 shift
 exec "$@"
@@ -41,6 +45,16 @@ EOF
   cat > "$r/usr/local/bin/zpkb" <<'EOF'
 #!/bin/busybox sh
 case " $* " in *" --expect=pass2 "*) pass2=1 ;; *) pass2=0 ;; esac
+case " $* " in *" --seed-ledger-sha256 "*)
+  # A seed pass: the ledger belongs to the outside, and a write from in here is refused.
+  want=""; prev=""
+  for a in "$@"; do [ "$prev" = --seed-ledger-sha256 ] && want="$a"; prev="$a"; done
+  have="sha256:$(/bin/busybox sha256sum /seed-ledger.json | /bin/busybox cut -d' ' -f1)"
+  [ "$want" = "$have" ] || { echo "SEED-FAIL: digest $want, ledger $have"; exit 21; }
+  if echo forged >> /seed-ledger.json 2>/dev/null; then echo "SEED-FAIL: the ledger was written from inside"; exit 22; fi
+  echo "SEED-OK"
+  ;;
+esac
 get() { /bin/busybox wget -T 3 -qO- "$1" 2>/dev/null; }
 [ "$(get http://127.0.0.1:5111/probe)" = allowed ] || { echo "NETNS-FAIL: the allowed registry did not answer"; exit 11; }
 if [ "$pass2" = 1 ]; then
@@ -79,5 +93,16 @@ run pass1 --expect=pass1
 grep -q 'NETNS-OK pass2=0' "$work/pass1.log"
 if run pass1b --expect=pass1 SOVEREIGN_NET_ALLOW=127.0.0.1:5111; then
   echo "SOVEREIGN_NET_ALLOW was accepted on a pass 1"; exit 1
+fi
+# 4: a seed pass. The ledger is the host's file, mounted read-only; the factory
+# stub is handed its digest, finds it unchanged, and cannot write to it.
+printf '{"project":"llvm.org","version":"23.1.2","digest":"sha256:%064d"}\n' 0 > "$work/ledger.json"
+before="$(sha256sum "$work/ledger.json")"
+run seeded --expect=pass1 SOVEREIGN_SEED_FROM=oci://127.0.0.1:5111/seed SOVEREIGN_SEED_LEDGER="$work/ledger.json"
+grep -q 'SEED-OK' "$work/seeded.log"
+[ "$before" = "$(sha256sum "$work/ledger.json")" ] || { echo "the host ledger changed during the pass"; exit 1; }
+# A pass 1 seed with the ledger missing is refused before anything runs.
+if run noledger --expect=pass1 SOVEREIGN_SEED_FROM=oci://127.0.0.1:5111/seed SOVEREIGN_SEED_LEDGER="$work/absent.json"; then
+  echo "a seed pass with no ledger was accepted"; exit 1
 fi
 echo "netns: all assertions held"

@@ -99,11 +99,13 @@ func TestTheLanLaneSignsWithAnEphemeralKey(t *testing.T) {
 func TestTheSovereignScriptCarriesTheSeedAsPositionalsAndRefusesHalfOfIt(t *testing.T) {
 	sh := readText(t, "builder/sovereign-build.sh")
 	for _, want := range []string{
-		`seedfrom="$6"; seedledger="$7"; netallow="$8"; shift 8`,
+		`seedfrom="$6"; seedledger="$7"; netallow="$8"; seedhost="$9"; shift 9`,
+		`mount -o remount,ro,bind "$r$seedledger"`,
+		`zpkx --seed-digest "$seedledger"`,
+		`sf=(--seed-ledger "$seedledger" --seed-ledger-sha256 "$seeddigest")`,
 		`exec chroot "$r" /usr/local/bin/zpkx "${sd[@]}"`,
 		`sd=(--seed-from "$seedfrom" --seed-ledger "$seedledger")`,
-		`sf=(--seed-ledger "$seedledger")`,
-		`"$seed_from" "$seed_ledger" "$net_allow" "$@"`,
+		`"$seed_from" "$seed_ledger" "$net_allow" "$seed_ledger_host" "$@"`,
 		"SOVEREIGN_SEED_LEDGER is set and no seed is",
 		"the artifacts would not name what they were built with",
 	} {
@@ -115,5 +117,10 @@ func TestTheSovereignScriptCarriesTheSeedAsPositionalsAndRefusesHalfOfIt(t *test
 	// publish-stage reads.
 	if strings.Contains(sh, `"$root/dist/seed-ledger.json"`) {
 		t.Error("the ledger is inside the staged tree")
+	}
+	// The ledger is no longer copied into the rootfs, where zpkx and a recipe
+	// could write it.
+	if strings.Contains(sh, `cp "$SOVEREIGN_SEED_LEDGER"`) {
+		t.Error("the ledger is copied into the rootfs again: it must be mounted read-only")
 	}
 }

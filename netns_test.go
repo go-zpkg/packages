@@ -15,8 +15,8 @@ func TestASecondPassRunsInANetworkNamespaceWithOnlyItsRegistry(t *testing.T) {
 		`refusing to run recipe code with the host's network`,
 		`netflag="--net"`,
 		`unshare --mount --pid --fork $netflag`,
-		`"$seed_from" "$seed_ledger" "$net_allow" "$@"`,
-		`netallow="$8"; shift 8`,
+		`"$seed_from" "$seed_ledger" "$net_allow" "$seed_ledger_host" "$@"`,
+		`netallow="$8"; seedhost="$9"; shift 9`,
 		`ip link set lo up`,
 		`UNIX-LISTEN:$root/nf/$i.sock`,
 		`UNIX-CONNECT:$r/nf/$i.sock`,
@@ -42,7 +42,7 @@ func TestCIRunsTheNetworkNamespaceTestForReal(t *testing.T) {
 		}
 	}
 	sh := readText(t, "builder/netns-test.sh")
-	for _, want := range []string{"NETNS-FAIL: reached", "was accepted", "SOVEREIGN_NET_ALLOW=127.0.0.1:5111"} {
+	for _, want := range []string{"NETNS-FAIL: reached", "was accepted", "SOVEREIGN_NET_ALLOW=127.0.0.1:5111", "SEED-FAIL: the ledger was written from inside", "SEED-OK"} {
 		if !strings.Contains(sh, want) {
 			t.Errorf("netns-test.sh lost %q", want)
 		}

@@ -64,18 +64,27 @@ if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 # that do not say what they were built with, and a ledger with no seed is a
 # claim about nothing.
 #
-# The ledger is copied INTO the rootfs (/seed-ledger.json, not /dist, which is
-# the staged tree the publish step digests): zpkx inside the chroot appends
-# what it installs from the seed, and the factory reads the whole of it into the
-# stage plan, where `zpkb publish-stage` signs it into every artifact's
-# provenance. Passed as POSITIONALS to the inner script, not as environment, so
+# The ledger is mounted read-only at /seed-ledger.json inside the rootfs (not
+# /dist, which is the staged tree the publish step digests): the factory reads
+# it into the stage plan, where `zpkb publish-stage` signs it into every
+# artifact's provenance. Passed as POSITIONALS to the inner script, not as environment, so
 # the preserve-env list below stays the list of what the factory reads.
 seed_from="${SOVEREIGN_SEED_FROM:-}"
 seed_ledger=""
+seed_ledger_host=""
 if [ -n "$seed_from" ] || [ -n "${SOVEREIGN_SEED_LEDGER:-}" ]; then
   [ -n "$seed_from" ] || { echo "::error::SOVEREIGN_SEED_LEDGER is set and no seed is: refusing to build a ledger of nothing"; exit 1; }
   [ -s "${SOVEREIGN_SEED_LEDGER:-}" ] || { echo "::error::seed ${seed_from} is in force and the ledger '${SOVEREIGN_SEED_LEDGER:-}' is missing or empty: the artifacts would not name what they were built with"; exit 1; }
-  $SUDO cp "$SOVEREIGN_SEED_LEDGER" "$root/seed-ledger.json"
+  # ⛔ THE LEDGER IS WRITTEN OUTSIDE THE CHROOT AND READ-ONLY INSIDE IT. It used
+  # to be copied in, where zpkx could append to it and a recipe could rewrite it,
+  # so what the factory signed was "whatever the file said by then". Now the host
+  # file is bind-mounted read-only over /seed-ledger.json (the inner script),
+  # its digest is taken by `zpkx --seed-digest` before anything runs, and the
+  # factory refuses a ledger that no longer has that digest
+  # (--seed-ledger-sha256). A seed install inside the chroot therefore FAILS
+  # rather than growing the ledger: what the pass was built from is what the
+  # outside staged, and nothing else.
+  seed_ledger_host="$(cd "$(dirname "$SOVEREIGN_SEED_LEDGER")" && pwd)/$(basename "$SOVEREIGN_SEED_LEDGER")"
   seed_ledger=/seed-ledger.json
 fi
 
@@ -213,7 +222,7 @@ PRESERVE=""
 $SUDO $PRESERVE \
   env -u SIGNING_KEY -u OCI_PASSWORD \
   unshare --mount --pid --fork $netflag "$(command -v bash)" -euxc '
-    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; seedfrom="$6"; seedledger="$7"; netallow="$8"; shift 8
+    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; seedfrom="$6"; seedledger="$7"; netallow="$8"; seedhost="$9"; shift 9
     if [ -n "$netallow" ]; then
       ip link set lo up
       i=0
@@ -242,15 +251,19 @@ $SUDO $PRESERVE \
     fi
     sd=(); sf=()
     if [ -n "$seedfrom" ]; then
+      [ -e "$r$seedledger" ] || : > "$r$seedledger"
+      mount --bind "$seedhost" "$r$seedledger"
+      mount -o remount,ro,bind "$r$seedledger"
+      seeddigest="$(chroot "$r" /usr/local/bin/zpkx --seed-digest "$seedledger")"
       sd=(--seed-from "$seedfrom" --seed-ledger "$seedledger")
-      sf=(--seed-ledger "$seedledger")
+      sf=(--seed-ledger "$seedledger" --seed-ledger-sha256 "$seeddigest")
     fi
     exec chroot "$r" /usr/local/bin/zpkx "${sd[@]}" \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
       -- /usr/local/bin/zpkb factory --stage-only "${sf[@]}" \
            --recipe-dir /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
            --to "${PUBLISH_TO:?publishing requires an explicit destination}" --artifacts /dist "$@"
-  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$seed_from" "$seed_ledger" "$net_allow" "$@" 2>&1 | tee "$log"
+  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$seed_from" "$seed_ledger" "$net_allow" "$seed_ledger_host" "$@" 2>&1 | tee "$log"
 
 # This script PUBLISHES NOTHING. It staged artifacts and a publish-plan.json under
 # $root/dist; the caller signs and pushes them in a LATER step that holds the
