@@ -302,6 +302,33 @@ func TestNoShellGlobDecidesWhatIsLoopback(t *testing.T) {
 	}
 }
 
+// A pass that consumes a seed pass's output checks, after staging, that every
+// staged artifact is verifiably seed-built, with the keys in reach and the
+// registry it read them from, and only on such a pass.
+func TestPassTwoChecksEveryStagedArtifactIsSeedBuilt(t *testing.T) {
+	found := 0
+	for _, s := range loadWorkflow(t, ".github/workflows/build.yml").steps() {
+		if !strings.Contains(s.Run, "origin --seeded") {
+			continue
+		}
+		found++
+		for _, want := range []string{`--dist "$DIST_FROM"`, `--root "$RUNNER_TEMP/rootfs/zpkg"`} {
+			if !strings.Contains(s.Run, want) {
+				t.Errorf("step %q lacks %s", s.Name, want)
+			}
+		}
+		if !strings.Contains(s.If, "EXTRA_KEYS != ''") {
+			t.Errorf("step %q is not limited to a pass with extra keys: %q", s.Name, s.If)
+		}
+		if s.Env["ZPKG_TRUSTED_KEYS"] == "" {
+			t.Errorf("step %q has no trusted keys in reach", s.Name)
+		}
+	}
+	if found != 1 {
+		t.Errorf("%d steps run `origin --seeded`, expected exactly the pass-2 check", found)
+	}
+}
+
 // go-zpkg/packages#500: a mirror_from dispatch is staged by the build job and
 // signed by the hosted publish job. Nothing refuses it before the build any
 // more, and the step that stages it carries the flags that make it a verified

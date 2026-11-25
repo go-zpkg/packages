@@ -767,6 +767,26 @@ jobs:
             ${SEED_FROM:+--seed-from "$SEED_FROM" --seed-ledger "$RUNNER_TEMP/seed-ledger.json"} \
             --container
 
+      # PASS 2: a pass that consumes a seed pass's output (extra_trusted_keys)
+      # may stage ONLY artifacts whose signed provenance says they were built
+      # from a seed. One that does not fails the whole pass, and all of them
+      # are listed. Verification is never off here (inputcheck refuses
+      # ZPKG_VERIFY=0 on such a pass).
+      #
+      # `--root` is zpkb's batch mode. The pinned zpkb is older than it until
+      # the pin moves, and an unknown flag is exit 2: this step FAILS CLOSED
+      # until then rather than passing without having looked.
+      - name: pass 2 - every staged artifact is verifiably seed-built
+        if: env.SOVEREIGN_ON == '1' && env.EXTRA_KEYS != ''
+        env:
+          MATRIX_PLATFORM: ${{ matrix.platform }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+        run: |
+          zpkb origin --seeded \
+            --dist "$DIST_FROM" \
+            --platform "$MATRIX_PLATFORM" \
+            --root "$RUNNER_TEMP/rootfs/zpkg"
+
       # What the machine HAS, in a step of its own.
       #
       # It was written inside the build step first, which is a number nobody
