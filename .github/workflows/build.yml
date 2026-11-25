@@ -670,7 +670,11 @@ jobs:
             # the host is EXACTLY 127.0.0.1, [::1] or localhost, with at most a
             # numeric port. This was a shell glob, which also matched a host
             # that merely begins with 127 — no pattern is left here.
-            if [ "$SEED_LOOPBACK" = true ]; then
+            # ⛔ Never on a seed pass or on a pass that consumes one's output
+            # (SEED_FROM, EXTRA_KEYS): the signature is what vouches for it,
+            # not the transport. `inputcheck` refuses ZPKG_VERIFY=0 there and
+            # keeps those inputs apart from seed_dist; this is the second lock.
+            if [ "$SEED_LOOPBACK" = true ] && [ -z "$SEED_FROM" ] && [ -z "$EXTRA_KEYS" ]; then
               echo "verification off: a loopback throwaway registry is not a trust boundary"
               echo "ZPKG_VERIFY=0" >> "$GITHUB_ENV"
             else

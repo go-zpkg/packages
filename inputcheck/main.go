@@ -60,6 +60,9 @@ type Inputs struct {
 	MaxVersions   string
 	Flags         map[string]string // blank-or-short switches: force, rebuild, ...
 	HaveZpkgKey   bool
+	// Verify is $ZPKG_VERIFY as the job inherited it; "0" is signature
+	// verification off.
+	Verify string
 	// NoKeyCheck skips the "the production key must exist" refusal. The build
 	// job runs on a self-hosted runner and holds NO secret, so it cannot know;
 	// the preflight and publish jobs, which run on GitHub-hosted runners and do
@@ -292,6 +295,13 @@ func Validate(in Inputs) (Result, error) {
 		return r, errors.New("mirror_from cannot be combined with seed_dist: a seed run may read its registry unverified, and a mirror must be verified")
 	}
 	seed := in.Flags["bootstrap"] == bootstrapSeed
+	// ⛔ A pass that is seeded, or that consumes a seed pass's output (that is
+	// what extra_trusted_keys is for: the ephemeral key that signed it), ALWAYS
+	// verifies. Verification is about the signature, not the transport, so a
+	// loopback or LAN http registry is no reason to turn it off.
+	if in.Verify == "0" && (seed || in.ExtraKeys != "") {
+		return r, errors.New("ZPKG_VERIFY=0 is refused on a seed pass and on a pass that consumes a seed pass's output (extra_trusted_keys): the signature is what vouches for it, whatever the transport")
+	}
 	if seed {
 		if err := checkSeedPass(in, r.Effective); err != nil {
 			return r, err
@@ -651,7 +661,7 @@ func fromEnv() Inputs {
 		SeedDist: g("IN_SEED_DIST"), MirrorFrom: g("IN_MIRROR_FROM"), SourceMirror: g("IN_SOURCE_MIRROR"),
 		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: g("IN_EXTRA_KEYS"),
 		SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
-		MaxVersions: g("IN_MAX_VERSIONS"), RunID: g("GITHUB_RUN_ID"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true",
+		MaxVersions: g("IN_MAX_VERSIONS"), RunID: g("GITHUB_RUN_ID"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true", Verify: g("ZPKG_VERIFY"),
 		Flags: map[string]string{},
 	}
 	for _, n := range []string{"FORCE", "REBUILD", "NO_CLOSURE", "PIN_TO_DEPENDENTS", "CLEAN_BUILD_ROOT", "BOOTSTRAP", "TEST_ONLY", "SOVEREIGN"} {

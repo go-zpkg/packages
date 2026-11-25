@@ -911,3 +911,28 @@ func TestTheNoKeyCheckFlagReachesValidation(t *testing.T) {
 		t.Errorf("with --no-key-check: exit %d, want 0", code)
 	}
 }
+
+// A pass that is seeded, or that consumes a seed pass's output, verifies
+// signatures whatever the transport: ZPKG_VERIFY=0 is refused on both.
+func TestVerificationOffIsRefusedOnSeedPasses(t *testing.T) {
+	seeded := okTo("oci://127.0.0.1:5000/seed")
+	seeded.Flags["bootstrap"] = "seed"
+	seeded.MaxVersions = "1"
+	mustValidate(t, seeded) // positive control
+	seeded.Verify = "1"
+	mustValidate(t, seeded)
+	seeded.Verify = "0"
+	refused(t, "seed pass", seeded, "ZPKG_VERIFY=0 is refused")
+
+	pass2 := okTo("oci://127.0.0.1:5000/out")
+	pass2.ExtraKeys = "lan-7-1:" + seedKey
+	pass2.DistFrom = "oci://127.0.0.1:5000/seed"
+	mustValidate(t, pass2) // positive control
+	pass2.Verify = "0"
+	refused(t, "pass 2", pass2, "ZPKG_VERIFY=0 is refused")
+
+	// A plain pass with no seed in it keeps the old, separate decision.
+	plain := okTo("oci://127.0.0.1:5000/out")
+	plain.Verify = "0"
+	mustValidate(t, plain)
+}
