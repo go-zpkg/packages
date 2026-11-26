@@ -62,6 +62,13 @@ func TestTheRootfsIsStagedFromTheSeedWithALedgerAndNoDist(t *testing.T) {
 	if !strings.Contains(stage, `--seed-ledger "$RUNNER_TEMP/seed-ledger.json"`) {
 		t.Error("the staging records no ledger")
 	}
+	// A seed is always recorded: `--seed-from` without `--seed-ledger` is
+	// refused ("a seed has one source and is always recorded: no ledger file
+	// is set"), which made the census pre-flight a no-op that printed a
+	// misleading error on every seed pass.
+	if n := strings.Count(stage, `--seed-from "$SEED_FROM" --seed-ledger "$RUNNER_TEMP/seed-ledger.json"`); n != 2 {
+		t.Errorf("%d of the 2 `zpkb builder` calls that read the seed carry a ledger:\n%s", n, stage)
+	}
 	if !strings.Contains(stage, `rm -f "$RUNNER_TEMP/seed-ledger.json"`) {
 		t.Error("a stale ledger of an earlier job could survive")
 	}

@@ -750,7 +750,7 @@ jobs:
           rm -f "$RUNNER_TEMP/seed-ledger.json"
           zpkb builder --dry-run \
             --platform "$MATRIX_PLATFORM" \
-            ${SEED_FROM:+--seed-from "$SEED_FROM"} \
+            ${SEED_FROM:+--seed-from "$SEED_FROM" --seed-ledger "$RUNNER_TEMP/seed-ledger.json"} \
             --toolchain builder/toolchain.txt || true
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
           # can be on the same PATH. See sovereign.yml.
