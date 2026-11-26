@@ -669,13 +669,37 @@ func publishOnly(env [][2]string) [][2]string {
 	return out
 }
 
+// ledgerEntryPrefix introduces, inside extra_trusted_keys, the digest of the
+// seed ledger the pass-1 run recorded. workflow_dispatch takes at most 25
+// inputs and the workflow already has 25, so the digest travels in the one
+// input a second pass already needs.
+const ledgerEntryPrefix = "pass1-ledger:"
+
+// splitLedgerEntry separates the FIRST `pass1-ledger:<digest>` entry from the
+// keys of an extra_trusted_keys value. A second such entry stays among the
+// keys, where checkExtraKeys refuses it (it is not a key), so a second digest
+// is never silently dropped.
+func splitLedgerEntry(v string) (keys, ledger string) {
+	var kept []string
+	taken := false
+	for _, e := range strings.Fields(v) {
+		if d, ok := strings.CutPrefix(e, ledgerEntryPrefix); ok && !taken {
+			ledger, taken = d, true
+			continue
+		}
+		kept = append(kept, e)
+	}
+	return strings.Join(kept, " "), ledger
+}
+
 func fromEnv() Inputs {
 	g := os.Getenv
+	extraKeys, pass1Ledger := splitLedgerEntry(g("IN_EXTRA_KEYS"))
 	in := Inputs{
 		OCITo: g("IN_OCI_TO"), DistFrom: g("IN_DIST_FROM"), OverlayRef: g("IN_OVERLAY_REF"),
 		SeedDist: g("IN_SEED_DIST"), MirrorFrom: g("IN_MIRROR_FROM"), SourceMirror: g("IN_SOURCE_MIRROR"),
-		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: g("IN_EXTRA_KEYS"),
-		Pass1Ledger: g("IN_PASS1_LEDGER_SHA256"), SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
+		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: extraKeys,
+		Pass1Ledger: pass1Ledger, SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
 		MaxVersions: g("IN_MAX_VERSIONS"), RunID: g("GITHUB_RUN_ID"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true", Verify: g("ZPKG_VERIFY"),
 		Flags: map[string]string{},
 	}

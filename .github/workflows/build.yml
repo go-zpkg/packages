@@ -95,11 +95,7 @@ on:
         required: false
         default: "1879069619956097ab80525b9c27ad15f1f07229"
       extra_trusted_keys:
-        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
-        required: false
-        default: ""
-      pass1_ledger_sha256:
-        description: "the digest (sha256:<64 lowercase hex>) of the seed ledger the pass-1 run recorded, printed by its seed pass. Required whenever extra_trusted_keys is set: the second pass compares the bytes it installed against what the first pass's signed provenance says it built from, and a pass 2 without the digest fails before verifying anything. Blank otherwise."
+        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. A second pass (this input set) must ALSO carry one entry `pass1-ledger:sha256:<64 lowercase hex>`, the digest of the seed ledger the pass-1 run recorded, printed by its seed pass: the second pass compares the bytes it installed against what the first pass's signed provenance says it built from, and without the digest it fails before verifying anything. That entry is not a key (it is split off before keys are read, and not counted among the 8). Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
         required: false
         default: ""
       source_trusted_keys:
@@ -164,7 +160,6 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
-          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
@@ -269,7 +264,6 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
-          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
@@ -573,7 +567,6 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
-          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_SOURCE_KEYS: ${{ github.event.inputs.source_trusted_keys }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
@@ -794,7 +787,7 @@ jobs:
           # "the installed bytes are the ones pass 1 recorded". Without it
           # there is nothing to compare, so the pass stops here.
           if [ -z "$LEDGER_SHA256" ]; then
-            echo "::error::pass1_ledger_sha256 is required when extra_trusted_keys is set"
+            echo "::error::a pass1-ledger:sha256:<hex> entry is required in extra_trusted_keys"
             exit 1
           fi
           zpkb origin --seeded \
@@ -1685,7 +1678,6 @@ jobs:
           IN_GLIBC: ${{ github.event.inputs.glibc }}
           IN_VERSIONS: ${{ github.event.inputs.versions }}
           IN_EXTRA_KEYS: ${{ github.event.inputs.extra_trusted_keys }}
-          IN_PASS1_LEDGER_SHA256: ${{ github.event.inputs.pass1_ledger_sha256 }}
           IN_LOCK: ${{ github.event.inputs.lock }}
           IN_RECIPES: ${{ github.event.inputs.recipes }}
           IN_MAX_VERSIONS: ${{ github.event.inputs.max_versions }}

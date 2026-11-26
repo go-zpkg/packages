@@ -234,3 +234,35 @@ func TestAnExtraKeyMustNameTheEarlierRunThatMintedIt(t *testing.T) {
 		t.Errorf("no extra key must not need a label: %v", err)
 	}
 }
+
+// workflow_dispatch takes at most 25 inputs, so the pass-1 ledger digest rides
+// inside extra_trusted_keys as `pass1-ledger:<digest>` and is split off before
+// any key is read.
+func TestTheLedgerDigestRidesInsideExtraTrustedKeys(t *testing.T) {
+	const key = "lan-1-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	d := "sha256:" + strings.Repeat("ab", 32)
+	cases := []struct{ name, in, keys, ledger string }{
+		{"empty", "", "", ""},
+		{"keys only", key, key, ""},
+		{"digest only", "pass1-ledger:" + d, "", d},
+		{"digest after a key", key + " pass1-ledger:" + d, key, d},
+		{"digest before a key", "pass1-ledger:" + d + "  " + key, key, d},
+		{"a second digest stays among the keys", "pass1-ledger:" + d + " pass1-ledger:" + d, "pass1-ledger:" + d, d},
+	}
+	for _, c := range cases {
+		k, l := splitLedgerEntry(c.in)
+		if k != c.keys || l != c.ledger {
+			t.Errorf("%s: splitLedgerEntry(%q) = %q, %q; want %q, %q", c.name, c.in, k, l, c.keys, c.ledger)
+		}
+	}
+	// A second digest is refused, never dropped.
+	in := okTo(lanDest)
+	in.DistFrom = lanDest
+	in.ExtraKeys, in.Pass1Ledger = splitLedgerEntry(key + " pass1-ledger:" + d + " pass1-ledger:" + d)
+	refused(t, "two digests", in, "key for 'pass1-ledger' is not RW")
+	// And fromEnv reads it from the one input.
+	setEnv(t, map[string]string{"IN_EXTRA_KEYS": key + " pass1-ledger:" + d})
+	if got := fromEnv(); got.ExtraKeys != key || got.Pass1Ledger != d {
+		t.Errorf("fromEnv = keys %q ledger %q", got.ExtraKeys, got.Pass1Ledger)
+	}
+}
