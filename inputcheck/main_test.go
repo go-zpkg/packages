@@ -470,7 +470,7 @@ func TestExtraTrustedKeys(t *testing.T) {
 	}
 	in := okTo(lanDest)
 	in.DistFrom = lanDest
-	in.ExtraKeys = good
+	in.ExtraKeys, in.Pass1Ledger = good, testLedger
 	r, err := Validate(in)
 	if err != nil {
 		t.Fatal(err)
@@ -484,6 +484,7 @@ func TestExtraTrustedKeys(t *testing.T) {
 	if !found {
 		t.Error("EXTRA_KEYS is not exported")
 	}
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = good + " lan-998-2:" + seedKey
 	if _, err := Validate(in); err != nil {
 		t.Errorf("two keys refused: %v", err)
@@ -503,28 +504,35 @@ func TestExtraTrustedKeys(t *testing.T) {
 		"tab":       "seed:" + seedKey + "\t",
 	} {
 		in := ok()
+		in.Pass1Ledger = testLedger
 		in.ExtraKeys = v
 		refused(t, name, in, "extra_trusted_keys")
 	}
 	in = okTo(lanDest)
 	in.DistFrom = lanDest
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "="
 	refused(t, "padding", in, "character outside")
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "lan-5-1:RW" + strings.Repeat("A", 53) + "+"
 	if _, err := Validate(in); err != nil {
 		t.Errorf("a 56-character key with + refused: %v", err)
 	}
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "-"
 	refused(t, "dash in key", in, "RW plus 54 base64")
 	// The boundary of the count and of every character class.
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = strings.Repeat("lan-7-1:"+seedKey+" ", 8)
 	if _, err := Validate(in); err != nil {
 		t.Errorf("eight keys refused: %v", err)
 	}
 	in.ExtraKeys += "lan-7-1:" + seedKey
 	refused(t, "nine keys", in, "more than 8")
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "seed"
 	refused(t, "no colon", in, "is not name:key")
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "lan-7-1:" + seedKey[:2] + "ZzZzZzZz9999" + strings.Repeat("a", 42)
 	if _, err := Validate(in); err != nil {
 		t.Errorf("characters at the edge of the classes refused: %v", err)
@@ -573,7 +581,7 @@ func TestSourceTrustedKeysServeAPromotionAndNothingElse(t *testing.T) {
 		}
 	}
 	// extra_trusted_keys stays refused for the same destination.
-	in.ExtraKeys = good
+	in.ExtraKeys, in.Pass1Ledger = good, testLedger
 	refused(t, "extra keys with go-zpkg", in, "cannot be combined")
 }
 
@@ -881,6 +889,7 @@ func TestNoKeyCheckOnlyRelaxesTheKeyPresenceRefusal(t *testing.T) {
 	if _, err := Validate(in); err != nil {
 		t.Errorf("--no-key-check still refused: %v", err)
 	}
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "k:" + seedKey
 	refused(t, "extra keys with prod", in, "must not widen trust")
 	in = okTo("oci://ghcr.io/go-zpkg/other")
@@ -926,6 +935,7 @@ func TestVerificationOffIsRefusedOnSeedPasses(t *testing.T) {
 
 	pass2 := okTo("oci://127.0.0.1:5000/out")
 	pass2.ExtraKeys = "lan-7-1:" + seedKey
+	pass2.Pass1Ledger = testLedger
 	pass2.DistFrom = "oci://127.0.0.1:5000/seed"
 	mustValidate(t, pass2) // positive control
 	pass2.Verify = "0"

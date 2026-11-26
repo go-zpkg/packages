@@ -52,7 +52,7 @@ on:
         required: false
         default: "1879069619956097ab80525b9c27ad15f1f07229"
       extra_trusted_keys:
-        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. Refused with an oci_to naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
+        description: "Not accepted by this workflow: any value is refused (it has no seeded-origin check; dispatch a second pass through build.yml). Leave blank."
         required: false
         default: ""
 
@@ -117,38 +117,13 @@ jobs:
           # holds the same rules for build.yml; this file validates in shell
           # because its defaults differ (a blank oci_to means the default
           # registry here, not dist_from).
+          # ⛔ REFUSED OUTRIGHT. A key a dispatcher names is trusted by every
+          # install of the run, and the only check that what was installed was
+          # seed-built (`zpkb origin --seeded`, with the pass-1 ledger digest) is
+          # a step of build.yml. This workflow has none, so it accepts no key at
+          # all: a second pass is dispatched through build.yml.
           if [ -n "$IN_EXTRA_KEYS" ]; then
-            case "$IN_EXTRA_KEYS" in
-              *[!A-Za-z0-9._:+/\ -]*) echo "::error::extra_trusted_keys holds a character outside A-Za-z0-9._:+/ - and the space separator"; exit 1 ;;
-            esac
-            case "${IN_OCI_TO,,}" in
-              *go-zpkg*) echo "::error::extra_trusted_keys cannot be combined with an oci_to naming go-zpkg: a promotion into go-zpkg must not widen trust, it re-signs with ZPKG_SIGNING_KEY (go-zpkg/packages#440)."; exit 1 ;;
-            esac
-            n=0
-            set -f
-            for e in $IN_EXTRA_KEYS; do
-              n=$((n+1))
-              case "$e" in
-                *:*) ;;
-                *) echo "::error::extra_trusted_keys entry '$e' is not name:key"; exit 1 ;;
-              esac
-              name=${e%%:*}
-              key=${e#*:}
-              case "$name" in
-                ""|*[!A-Za-z0-9._-]*) echo "::error::extra_trusted_keys name '$name' is empty or outside A-Za-z0-9._-"; exit 1 ;;
-              esac
-              [ "${#name}" -le 64 ] || { echo "::error::extra_trusted_keys name '$name' is longer than 64 characters"; exit 1; }
-              case "$key" in
-                RW*) ;;
-                *) echo "::error::extra_trusted_keys key for '$name' does not start with RW"; exit 1 ;;
-              esac
-              case "$key" in
-                *[!A-Za-z0-9+/]*) echo "::error::extra_trusted_keys key for '$name' is not base64"; exit 1 ;;
-              esac
-              [ "${#key}" -eq 56 ] || { echo "::error::extra_trusted_keys key for '$name' is ${#key} characters, a minisign public key is 56"; exit 1; }
-            done
-            set +f
-            [ "$n" -le 8 ] || { echo "::error::extra_trusted_keys names $n keys, more than 8"; exit 1; }
+            echo "::error::sovereign.yml refuses extra_trusted_keys: it has no seeded-origin check, so a key it accepted would be trusted with nothing verifying what it vouches for; dispatch a second pass through build.yml"; exit 1
           fi
           # No default for the destination: blank is refused, and go-pkgx is
           # refused as one. dist_from keeps its READ default.
@@ -238,8 +213,8 @@ jobs:
           # Tags, not main: this job holds the signing and registry secrets
           # (go-zpkg/packages#440), and each pin is a line a test can read, a
           # bump a deliberate edit.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.4
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.45.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
@@ -481,7 +456,7 @@ jobs:
 
       - name: build zpkb
         run: |
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: sign and publish what the build staged

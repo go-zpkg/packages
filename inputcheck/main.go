@@ -344,6 +344,16 @@ func Validate(in Inputs) (Result, error) {
 		if netAllow, err = lanEndpoints(distList(in.OCITo, distFrom)); err != nil {
 			return r, err
 		}
+		// A pass that trusts a key is a second pass: its seeded-origin gate and
+		// its network namespace are tied to the pass-1 ledger digest and to the
+		// sovereign rootfs build, so a key without either would be trusted with
+		// both skipped.
+		if in.Pass1Ledger == "" {
+			return r, errors.New("extra_trusted_keys needs a pass1-ledger:sha256:<hex> entry: the digest of the ledger the pass-1 run recorded, without which the seeded-origin gate is skipped while the key is still trusted")
+		}
+		if v := in.Flags["sovereign"]; v == "0" || v == "false" {
+			return r, errors.New("extra_trusted_keys needs a sovereign pass: sovereign=0 skips the seeded-origin gate and the network namespace while the key is still trusted")
+		}
 	}
 	r.Env = [][2]string{
 		// The only endpoints a pass-2 build can reach, `ip:port` separated by

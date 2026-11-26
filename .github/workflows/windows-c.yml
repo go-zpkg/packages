@@ -81,7 +81,7 @@ jobs:
           # A lane left behind reads the OLD name, gets the empty string, and
           # builds with no overlay while exiting 0. The pin and the variable
           # move together or the lane goes quietly wrong.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.43.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@main
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"

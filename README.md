@@ -380,6 +380,20 @@ for nothing else**:
 `bootstrap=seed` is refused with a hosted `oci_to`, `mirror_from`, `seed_dist`,
 `sovereign=0`, `test_only` and a blank `max_versions`.
 
+`extra_trusted_keys` is accepted only with a pass-1 ledger entry and a
+sovereign pass (`sovereign` not `0`): a key without either would be trusted
+while the seeded-origin check and the network namespace are skipped. It is
+accepted by `build.yml` only; `sovereign.yml` refuses it, having no
+seeded-origin check.
+
+**What the signed digest covers.** The `pass1-ledger` digest is the digest of
+the merged ledger of ONE factory run: every seed package that run installed, in
+one file. Pass 2 compares the bytes it installed with that one digest. A pass 1
+that is split (several architectures, chunks, or a retried run that installs the
+seed again) produces ledgers that no single digest covers, so pass 2 fails
+closed: it refuses rather than trusting a digest that vouches for part of what
+was installed. Run pass 1 as one factory run, for one architecture, in one go.
+
 The LAN lane no longer pushes unsigned artifacts. The publish step mints an
 **ephemeral key** (`go run ./seedkey`), signs the artifacts and the catalogue
 with it, prints its public half (and writes it to the step summary) as a

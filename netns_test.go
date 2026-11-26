@@ -57,3 +57,33 @@ func TestSovereignWorkflowComputesNetAllowForASecondPass(t *testing.T) {
 		}
 	}
 }
+
+// sovereign.yml has no `zpkb origin --seeded` step, so a key it accepted would
+// be trusted by the installs with nothing checking that what they installed was
+// seed-built. The workflow therefore refuses extra_trusted_keys outright, in
+// the validate step and before anything is read from the value.
+func TestSovereignWorkflowRefusesExtraTrustedKeys(t *testing.T) {
+	for _, s := range loadWorkflow(t, ".github/workflows/sovereign.yml").steps() {
+		if !strings.Contains(s.Run, "IN_EXTRA_KEYS") || !strings.Contains(s.Run, "GITHUB_ENV") {
+			continue
+		}
+		i := strings.Index(s.Run, `if [ -n "$IN_EXTRA_KEYS" ]; then`)
+		if i < 0 {
+			t.Fatal("the validate step does not test IN_EXTRA_KEYS")
+		}
+		body := s.Run[i:]
+		const refusal = "sovereign.yml refuses extra_trusted_keys"
+		j := strings.Index(body, refusal)
+		if j < 0 {
+			t.Fatalf("the validate step does not refuse extra_trusted_keys (%q)", refusal)
+		}
+		if k := strings.Index(body[j:], "exit 1"); k < 0 || k > 200 {
+			t.Error("the refusal is not followed by exit 1")
+		}
+		if strings.Contains(body[:j], "for e in $IN_EXTRA_KEYS") {
+			t.Error("the value is parsed before it is refused")
+		}
+		return
+	}
+	t.Fatal("no validate step reads IN_EXTRA_KEYS")
+}

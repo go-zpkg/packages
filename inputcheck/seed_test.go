@@ -114,7 +114,7 @@ func TestExtraTrustedKeysNeedALanDestination(t *testing.T) {
 	}
 	in := okTo(lanDest)
 	in.DistFrom = lanDest
-	in.ExtraKeys = key
+	in.ExtraKeys, in.Pass1Ledger = key, testLedger
 	if _, err := Validate(in); err != nil {
 		t.Errorf("a LAN destination was refused: %v", err)
 	}
@@ -153,6 +153,35 @@ func TestPass1LedgerDigestIsValidatedAndExported(t *testing.T) {
 	}
 }
 
+// testLedger is a canonical pass-1 ledger digest for tests that need one.
+var testLedger = "sha256:" + strings.Repeat("cd", 32)
+
+// A key without the pass-1 ledger digest, or on a pass that does not build
+// inside the sovereign rootfs, would be trusted while the seeded gate and the
+// network namespace that go with it are skipped: both are refused.
+func TestAnExtraKeyNeedsTheLedgerDigestAndASovereignPass(t *testing.T) {
+	const key = "lan-1-1:RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+	good := "sha256:" + strings.Repeat("ab", 32)
+	base := func() Inputs {
+		in := okTo(lanDest)
+		in.DistFrom = lanDest
+		in.ExtraKeys = key
+		in.Pass1Ledger = good
+		return in
+	}
+	if _, err := Validate(base()); err != nil {
+		t.Fatalf("keys, digest and a default sovereign pass were refused: %v", err)
+	}
+	in := base()
+	in.Pass1Ledger = ""
+	refused(t, "keys without a ledger digest", in, "needs a pass1-ledger")
+	for _, off := range []string{"0", "false"} {
+		in := base()
+		in.Flags["sovereign"] = off
+		refused(t, "keys with sovereign="+off, in, "needs a sovereign pass")
+	}
+}
+
 // F5: a key is trusted only under the label of the run that minted it, and
 // that run is an earlier one than the run that trusts it.
 func TestAnExtraKeyMustNameTheEarlierRunThatMintedIt(t *testing.T) {
@@ -178,7 +207,7 @@ func TestAnExtraKeyMustNameTheEarlierRunThatMintedIt(t *testing.T) {
 	in := okTo(lanDest)
 	in.DistFrom = lanDest
 	in.RunID = "1000"
-	in.ExtraKeys = "lan-999-3:" + pub
+	in.ExtraKeys, in.Pass1Ledger = "lan-999-3:"+pub, testLedger
 	if _, err := Validate(in); err != nil {
 		t.Errorf("the label of an earlier run was refused: %v", err)
 	}
@@ -225,11 +254,11 @@ func TestAnExtraKeyMustNameTheEarlierRunThatMintedIt(t *testing.T) {
 	pub4 := in
 	pub4.DistFrom = "oci://http://8.8.8.8:5000/seed"
 	refused(t, "a public address", pub4, "LAN or loopback registry")
-	in.ExtraKeys = ""
+	in.ExtraKeys, in.Pass1Ledger = "", ""
 	if r, _ := Validate(in); netAllow(r) != "" {
 		t.Errorf("NET_ALLOW = %q for a run that trusts no extra key, want blank", netAllow(r))
 	}
-	in.ExtraKeys = ""
+	in.ExtraKeys, in.Pass1Ledger = "", ""
 	if _, err := Validate(in); err != nil {
 		t.Errorf("no extra key must not need a label: %v", err)
 	}

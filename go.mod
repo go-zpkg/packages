@@ -4,8 +4,8 @@ go 1.27.4
 
 require (
 	github.com/go-attest/sign v0.3.0
-	github.com/go-zpkg/artifact v0.94.0
-	github.com/go-zpkg/zpkb v0.106.0
+	github.com/go-zpkg/artifact v0.98.0
+	github.com/go-zpkg/zpkb v0.107.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.41.0
@@ -47,7 +47,7 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
