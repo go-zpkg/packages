@@ -14,7 +14,7 @@ const seedKey = "RWSsFdCUPJ7jCHA0LJCPd23ONL4OOKV5efaYVFSbp8jwO/JvWI0oKUYf"
 // ok is a dispatch that publishes nothing (test_only), so a test sets only the
 // field it is about; the destination rules are tested with okTo.
 func ok() Inputs {
-	return Inputs{Flags: map[string]string{"test_only": "1"}, HaveZpkgKey: true}
+	return Inputs{Flags: map[string]string{"test_only": "1"}, HaveZpkgKey: true, RunID: "1000"}
 }
 
 func okTo(dest string) Inputs {
@@ -255,7 +255,10 @@ func TestRegistries(t *testing.T) {
 	}
 	in = ok()
 	in.MirrorFrom = "ftp://x"
-	refused(t, "mirror_from scheme", in, "mirror_from")
+	refused(t, "mirror_from scheme", in, "an http(s):// or oci:// dist")
+	in.RequireOrigin = "1"
+	refused(t, "mirror_from scheme with an origin check", in, "an http(s):// or oci:// dist")
+	in.RequireOrigin = ""
 	in.MirrorFrom = "https://dist.example.org/a;b"
 	refused(t, "mirror_from chars", in, "mirror_from")
 	in.MirrorFrom = "https://dist.example.org/a"
@@ -461,12 +464,13 @@ func TestTheSmokeDestinationIsExactAndNeverSignedWithTheProductionKey(t *testing
 }
 
 func TestExtraTrustedKeys(t *testing.T) {
-	good := "seed:" + seedKey
+	good := "lan-999-1:" + seedKey
 	if len(seedKey) != 56 {
 		t.Fatalf("seed key is %d characters", len(seedKey))
 	}
-	in := ok()
-	in.ExtraKeys = good
+	in := okTo(lanDest)
+	in.DistFrom = lanDest
+	in.ExtraKeys, in.Pass1Ledger = good, testLedger
 	r, err := Validate(in)
 	if err != nil {
 		t.Fatal(err)
@@ -480,7 +484,8 @@ func TestExtraTrustedKeys(t *testing.T) {
 	if !found {
 		t.Error("EXTRA_KEYS is not exported")
 	}
-	in.ExtraKeys = good + " other:" + seedKey
+	in.Pass1Ledger = testLedger
+	in.ExtraKeys = good + " lan-998-2:" + seedKey
 	if _, err := Validate(in); err != nil {
 		t.Errorf("two keys refused: %v", err)
 	}
@@ -499,28 +504,36 @@ func TestExtraTrustedKeys(t *testing.T) {
 		"tab":       "seed:" + seedKey + "\t",
 	} {
 		in := ok()
+		in.Pass1Ledger = testLedger
 		in.ExtraKeys = v
 		refused(t, name, in, "extra_trusted_keys")
 	}
-	in = ok()
+	in = okTo(lanDest)
+	in.DistFrom = lanDest
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "="
 	refused(t, "padding", in, "character outside")
-	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "+"
+	in.Pass1Ledger = testLedger
+	in.ExtraKeys = "lan-5-1:RW" + strings.Repeat("A", 53) + "+"
 	if _, err := Validate(in); err != nil {
 		t.Errorf("a 56-character key with + refused: %v", err)
 	}
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "seed:RW" + strings.Repeat("A", 53) + "-"
 	refused(t, "dash in key", in, "RW plus 54 base64")
 	// The boundary of the count and of every character class.
-	in.ExtraKeys = strings.Repeat("Zz9:"+seedKey+" ", 8)
+	in.Pass1Ledger = testLedger
+	in.ExtraKeys = strings.Repeat("lan-7-1:"+seedKey+" ", 8)
 	if _, err := Validate(in); err != nil {
 		t.Errorf("eight keys refused: %v", err)
 	}
-	in.ExtraKeys += "Zz9:" + seedKey
+	in.ExtraKeys += "lan-7-1:" + seedKey
 	refused(t, "nine keys", in, "more than 8")
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "seed"
 	refused(t, "no colon", in, "is not name:key")
-	in.ExtraKeys = "seed:" + seedKey[:2] + "ZzZzZzZz9999" + strings.Repeat("a", 42)
+	in.Pass1Ledger = testLedger
+	in.ExtraKeys = "lan-7-1:" + seedKey[:2] + "ZzZzZzZz9999" + strings.Repeat("a", 42)
 	if _, err := Validate(in); err != nil {
 		t.Errorf("characters at the edge of the classes refused: %v", err)
 	}
@@ -568,7 +581,7 @@ func TestSourceTrustedKeysServeAPromotionAndNothingElse(t *testing.T) {
 		}
 	}
 	// extra_trusted_keys stays refused for the same destination.
-	in.ExtraKeys = good
+	in.ExtraKeys, in.Pass1Ledger = good, testLedger
 	refused(t, "extra keys with go-zpkg", in, "cannot be combined")
 }
 
@@ -876,6 +889,7 @@ func TestNoKeyCheckOnlyRelaxesTheKeyPresenceRefusal(t *testing.T) {
 	if _, err := Validate(in); err != nil {
 		t.Errorf("--no-key-check still refused: %v", err)
 	}
+	in.Pass1Ledger = testLedger
 	in.ExtraKeys = "k:" + seedKey
 	refused(t, "extra keys with prod", in, "must not widen trust")
 	in = okTo("oci://ghcr.io/go-zpkg/other")
@@ -905,4 +919,30 @@ func TestTheNoKeyCheckFlagReachesValidation(t *testing.T) {
 	if _, _, code := runCmd("--check-only", "--no-key-check"); code != 0 {
 		t.Errorf("with --no-key-check: exit %d, want 0", code)
 	}
+}
+
+// A pass that is seeded, or that consumes a seed pass's output, verifies
+// signatures whatever the transport: ZPKG_VERIFY=0 is refused on both.
+func TestVerificationOffIsRefusedOnSeedPasses(t *testing.T) {
+	seeded := okTo("oci://127.0.0.1:5000/seed")
+	seeded.Flags["bootstrap"] = "seed"
+	seeded.MaxVersions = "1"
+	mustValidate(t, seeded) // positive control
+	seeded.Verify = "1"
+	mustValidate(t, seeded)
+	seeded.Verify = "0"
+	refused(t, "seed pass", seeded, "ZPKG_VERIFY=0 is refused")
+
+	pass2 := okTo("oci://127.0.0.1:5000/out")
+	pass2.ExtraKeys = "lan-7-1:" + seedKey
+	pass2.Pass1Ledger = testLedger
+	pass2.DistFrom = "oci://127.0.0.1:5000/seed"
+	mustValidate(t, pass2) // positive control
+	pass2.Verify = "0"
+	refused(t, "pass 2", pass2, "ZPKG_VERIFY=0 is refused")
+
+	// A plain pass with no seed in it keeps the old, separate decision.
+	plain := okTo("oci://127.0.0.1:5000/out")
+	plain.Verify = "0"
+	mustValidate(t, plain)
 }

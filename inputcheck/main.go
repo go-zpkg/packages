@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"regexp"
 	"strconv"
@@ -43,27 +44,37 @@ func run(args []string, stdout, stderr io.Writer) int {
 // Inputs is every dispatch input the workflows hand to a shell or write to the
 // environment. A field that was not dispatched is "".
 type Inputs struct {
-	OCITo         string
-	DistFrom      string
-	OverlayRef    string
-	SeedDist      string
-	MirrorFrom    string
-	SourceMirror  string
-	Glibc         string
-	Versions      string
-	ExtraKeys     string
-	SourceKeys    string
+	OCITo        string
+	DistFrom     string
+	OverlayRef   string
+	SeedDist     string
+	MirrorFrom   string
+	SourceMirror string
+	Glibc        string
+	Versions     string
+	ExtraKeys    string
+	SourceKeys   string
+	// Pass1Ledger is the digest (sha256:<64 hex>) of the seed ledger the
+	// pass-1 run recorded. A pass that consumes pass 1's output compares what
+	// it installed against it.
+	Pass1Ledger   string
 	RequireOrigin string
 	Lock          string
 	Recipes       string
 	MaxVersions   string
 	Flags         map[string]string // blank-or-short switches: force, rebuild, ...
 	HaveZpkgKey   bool
+	// Verify is $ZPKG_VERIFY as the job inherited it; "0" is signature
+	// verification off.
+	Verify string
 	// NoKeyCheck skips the "the production key must exist" refusal. The build
 	// job runs on a self-hosted runner and holds NO secret, so it cannot know;
 	// the preflight and publish jobs, which run on GitHub-hosted runners and do
 	// hold it, make that check.
 	NoKeyCheck bool
+	// RunID is this run's id ($GITHUB_RUN_ID). An extra key is minted by an
+	// EARLIER run, so its label must name a run that is not this one.
+	RunID string
 }
 
 const (
@@ -237,6 +248,12 @@ func Validate(in Inputs) (Result, error) {
 	if err := checkExtraKeys("source_trusted_keys", in.SourceKeys); err != nil {
 		return r, err
 	}
+	if in.Pass1Ledger != "" && !ledgerDigestRe.MatchString(in.Pass1Ledger) {
+		return r, errors.New("pass1_ledger_sha256 must be sha256: followed by 64 lowercase hex characters")
+	}
+	if in.Pass1Ledger != "" && in.ExtraKeys == "" {
+		return r, errors.New("pass1_ledger_sha256 names the ledger of the pass whose output this run consumes, so it needs extra_trusted_keys")
+	}
 	if in.SourceKeys != "" && (in.MirrorFrom == "" || in.RequireOrigin == "") {
 		return r, errors.New("source_trusted_keys is read only when a promotion verifies its source, so it needs mirror_from and require_origin=1")
 	}
@@ -287,6 +304,19 @@ func Validate(in Inputs) (Result, error) {
 	if in.MirrorFrom != "" && in.SeedDist != "" {
 		return r, errors.New("mirror_from cannot be combined with seed_dist: a seed run may read its registry unverified, and a mirror must be verified")
 	}
+	seed := in.Flags["bootstrap"] == bootstrapSeed
+	// ⛔ A pass that is seeded, or that consumes a seed pass's output (that is
+	// what extra_trusted_keys is for: the ephemeral key that signed it), ALWAYS
+	// verifies. Verification is about the signature, not the transport, so a
+	// loopback or LAN http registry is no reason to turn it off.
+	if in.Verify == "0" && (seed || in.ExtraKeys != "") {
+		return r, errors.New("ZPKG_VERIFY=0 is refused on a seed pass and on a pass that consumes a seed pass's output (extra_trusted_keys): the signature is what vouches for it, whatever the transport")
+	}
+	if seed {
+		if err := checkSeedPass(in, r.Effective); err != nil {
+			return r, err
+		}
+	}
 	if prod {
 		if !in.HaveZpkgKey && !in.NoKeyCheck {
 			return r, fmt.Errorf("publishing to %s needs secrets.ZPKG_SIGNING_KEY, which is empty. The old ARTIFACT_SIGNING_KEY never signs go-zpkg artifacts", r.Effective)
@@ -295,7 +325,40 @@ func Validate(in Inputs) (Result, error) {
 			return r, errors.New("extra_trusted_keys cannot be combined with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust, it re-signs with ZPKG_SIGNING_KEY")
 		}
 	}
+	// extra_trusted_keys widens what the run trusts, so it is for a LAN or
+	// loopback registry only: the key it names is an ephemeral one that exists
+	// for the pass-1 run and must not be accepted by a build that publishes
+	// anywhere that is kept.
+	if in.ExtraKeys != "" && PublishLane(r.Effective) != "lan" {
+		return r, fmt.Errorf("extra_trusted_keys is accepted only with a LAN or loopback destination, got '%s': a key a dispatcher names must not widen trust for a build that publishes elsewhere", r.Effective)
+	}
+	if err := checkPass1Labels(in.ExtraKeys, in.RunID); err != nil {
+		return r, err
+	}
+	// A pass that trusts a pass-1 key reads ONLY pass-1's registry and runs
+	// with no network but that registry (builder/sovereign-build.sh): what it
+	// may reach is decided here, once, from the same list it resolves from.
+	netAllow := ""
+	if in.ExtraKeys != "" {
+		var err error
+		if netAllow, err = lanEndpoints(distList(in.OCITo, distFrom)); err != nil {
+			return r, err
+		}
+		// A pass that trusts a key is a second pass: its seeded-origin gate and
+		// its network namespace are tied to the pass-1 ledger digest and to the
+		// sovereign rootfs build, so a key without either would be trusted with
+		// both skipped.
+		if in.Pass1Ledger == "" {
+			return r, errors.New("extra_trusted_keys needs a pass1-ledger:sha256:<hex> entry: the digest of the ledger the pass-1 run recorded, without which the seeded-origin gate is skipped while the key is still trusted")
+		}
+		if v := in.Flags["sovereign"]; v == "0" || v == "false" {
+			return r, errors.New("extra_trusted_keys needs a sovereign pass: sovereign=0 skips the seeded-origin gate and the network namespace while the key is still trusted")
+		}
+	}
 	r.Env = [][2]string{
+		// The only endpoints a pass-2 build can reach, `ip:port` separated by
+		// commas; blank for every other run.
+		{"NET_ALLOW", netAllow},
 		{"OCI_TO", in.OCITo},
 		// What the run publishes to, decided once, here: oci_to or seed_dist.
 		// Blank only for test_only, which publishes nothing. Steps read THIS,
@@ -315,6 +378,8 @@ func Validate(in Inputs) (Result, error) {
 		// not carry it, and no step hands it to ZPKG_*: it is not trust for
 		// anything a client or the post-publish test reads.
 		{"SOURCE_KEYS", in.SourceKeys},
+		// Read by the pass-2 verification alone, as `--seed-ledger-sha256`.
+		{"PASS1_LEDGER_SHA256", in.Pass1Ledger},
 		// Read by the SIGNING_KEY expressions: ZPKG_SIGNING_KEY signs only
 		// when this is `true`, every other destination gets the other key.
 		{"SIGN_PROD", strconv.FormatBool(prod)},
@@ -323,8 +388,72 @@ func Validate(in Inputs) (Result, error) {
 		{"SEED_LOOPBACK", strconv.FormatBool(in.SeedDist != "" && isLoopbackRegistry(in.SeedDist))},
 		// Where the staged output is pushed from: see PublishLane.
 		{"PUBLISH_LANE", PublishLane(r.Effective)},
+		// The registry a SEED pass takes its build environment from: the one
+		// constant above, never an input. Blank for every other run.
+		{"SEED_FROM", seedFrom(seed)},
+		// What `zpkb factory --bootstrap` is told: the host-tools bootstrap
+		// only. `seed` is a different thing, and handing it to that flag would
+		// build a seed pass from the runner's own tools.
+		{"BOOTSTRAP_HOST", bootstrapHost(in.Flags["bootstrap"])},
 	}
 	return r, nil
+}
+
+// bootstrapSeed is the value of the `bootstrap` input that asks for a SEED
+// PASS: the toolchain's build environment is taken from go-pkgx, each package
+// verified, and the outputs name that seed and are never promoted. The
+// dispatch has 25 inputs, GitHub's ceiling, so this is a value of one that
+// exists, and the source it reads is a constant rather than an input — a
+// configurable seed registry is a configurable trust anchor.
+const bootstrapSeed = "seed"
+
+// seedSource is the registry a seed pass reads its build environment from.
+const seedSource = "oci://ghcr.io/go-pkgx/packages"
+
+func seedFrom(seed bool) string {
+	if seed {
+		return seedSource
+	}
+	return ""
+}
+
+func bootstrapHost(v string) string {
+	if v == bootstrapSeed {
+		return ""
+	}
+	return v
+}
+
+// checkSeedPass is every refusal that belongs to bootstrap=seed.
+//
+// ⛔ A SEED PASS NEVER REACHES A HOSTED DESTINATION. Its artifacts were built in
+// an environment somebody else's registry supplied; the build records that and
+// promotion refuses it. Only a LAN destination is a place such an output may
+// go, and it goes there signed with the run's own ephemeral key.
+func checkSeedPass(in Inputs, effective string) error {
+	if PublishLane(effective) != "lan" {
+		return fmt.Errorf("bootstrap=seed publishes only to the LAN or a loopback registry, got '%s': a seed-built artifact is never published to a hosted registry, and a promotion is made from a rebuild of our own outputs", effective)
+	}
+	switch {
+	case in.MirrorFrom != "":
+		return errors.New("bootstrap=seed builds and mirror_from copies: one run does not do both")
+	case in.SeedDist != "":
+		return errors.New("bootstrap=seed cannot be combined with seed_dist, which is a different way of reading a throwaway registry")
+	// require_origin and source_trusted_keys need mirror_from, which the first
+	// case already refuses: Validate rejects them earlier, so no case is kept
+	// here that no input can reach.
+	case in.ExtraKeys != "":
+		return errors.New("bootstrap=seed is verified against the compiled-in keys only: extra_trusted_keys is refused, it names who else may vouch for what the pass installs")
+	case testOnly(in):
+		return errors.New("bootstrap=seed builds, test_only publishes nothing: pick one")
+	}
+	if v := in.Flags["sovereign"]; v == "0" || v == "false" {
+		return errors.New("bootstrap=seed builds inside the rootfs staged from the seed: sovereign=0 would build with the runner's distribution instead")
+	}
+	if in.MaxVersions == "" {
+		return errors.New("bootstrap=seed with max_versions blank means every version of every project. Pass max_versions=1, or state a number")
+	}
+	return nil
 }
 
 // hasRepositoryPath reports whether `oci://[http(s)://]host[:port]/repo` names
@@ -455,6 +584,69 @@ func checkExtraKeys(field, v string) error {
 	return nil
 }
 
+// ledgerDigestRe is the canonical form of a seed-ledger digest.
+var ledgerDigestRe = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// pass1Label is the only label an extra key may carry: `lan-<run id>-<attempt>`,
+// the name seedkey is given by the run that minted the key (build.yml,
+// LAN_KEY_NAME). The label is what ties a pasted key to the run that filled the
+// registry it verifies, so a key with any other name is refused.
+var pass1Label = regexp.MustCompile(`^lan-([0-9]{1,18})-([0-9]{1,6})$`)
+
+// checkPass1Labels refuses an extra key whose label does not name an EARLIER
+// run: the pass that mints a key cannot be the pass that trusts it. The label
+// is a binding to a run, not a proof that the run exists or filled dist_from.
+func checkPass1Labels(extraKeys, runID string) error {
+	entries := strings.Fields(extraKeys)
+	if len(entries) == 0 {
+		return nil
+	}
+	if runID == "" || len(runID) > 18 || strings.Trim(runID, "0123456789") != "" {
+		return errors.New("extra_trusted_keys needs this run's id to check the key's label against, and none was given")
+	}
+	cur, _ := strconv.ParseUint(runID, 10, 63)
+	for _, e := range entries {
+		name, _, _ := strings.Cut(e, ":")
+		m := pass1Label.FindStringSubmatch(name)
+		if m == nil {
+			return fmt.Errorf("extra_trusted_keys label '%s' is not lan-<pass-1 run id>-<attempt>: a key is accepted only under the name of the run that minted it", name)
+		}
+		id, err := strconv.ParseUint(m[1], 10, 63)
+		if err != nil || id == 0 || id >= cur {
+			return fmt.Errorf("extra_trusted_keys label '%s' does not name an earlier run than this one (%s)", name, runID)
+		}
+	}
+	return nil
+}
+
+// lanEndpoints turns a ZPKG_DIST list into the `ip:port` endpoints a second
+// pass may reach. Every entry must be a LAN or loopback registry named by an
+// IPv4 literal and an explicit port: a host name is a resolver answer the
+// pass would have to be allowed to ask for, and a hosted registry is not what
+// a pass that reads only pass-1's outputs reads from.
+func lanEndpoints(list string) (string, error) {
+	var out []string
+	seen := map[string]bool{}
+	for _, d := range strings.Fields(list) {
+		if PublishLane(d) != "lan" {
+			return "", fmt.Errorf("extra_trusted_keys names a second pass, which reads only the pass-1 LAN or loopback registry, got '%s'", d)
+		}
+		h := strings.TrimPrefix(strings.TrimPrefix(d, "oci://"), "http://")
+		h, _, _ = strings.Cut(h, "/")
+		host, port, ok := strings.Cut(h, ":")
+		ip := net.ParseIP(host)
+		if !ok || ip == nil || ip.To4() == nil || !digitsRe.MatchString(port) || port == "0" {
+			return "", fmt.Errorf("extra_trusted_keys names a second pass: '%s' must name its registry as an IPv4 address and a port, so the pass can be given that endpoint and no network", d)
+		}
+		ep := host + ":" + port
+		if !seen[ep] {
+			seen[ep] = true
+			out = append(out, ep)
+		}
+	}
+	return strings.Join(out, ","), nil
+}
+
 // writeEnv appends validated pairs to the $GITHUB_ENV file. A value holding a
 // newline is refused here too, so that no future caller can write a second
 // variable by accident.
@@ -487,14 +679,38 @@ func publishOnly(env [][2]string) [][2]string {
 	return out
 }
 
+// ledgerEntryPrefix introduces, inside extra_trusted_keys, the digest of the
+// seed ledger the pass-1 run recorded. workflow_dispatch takes at most 25
+// inputs and the workflow already has 25, so the digest travels in the one
+// input a second pass already needs.
+const ledgerEntryPrefix = "pass1-ledger:"
+
+// splitLedgerEntry separates the FIRST `pass1-ledger:<digest>` entry from the
+// keys of an extra_trusted_keys value. A second such entry stays among the
+// keys, where checkExtraKeys refuses it (it is not a key), so a second digest
+// is never silently dropped.
+func splitLedgerEntry(v string) (keys, ledger string) {
+	var kept []string
+	taken := false
+	for _, e := range strings.Fields(v) {
+		if d, ok := strings.CutPrefix(e, ledgerEntryPrefix); ok && !taken {
+			ledger, taken = d, true
+			continue
+		}
+		kept = append(kept, e)
+	}
+	return strings.Join(kept, " "), ledger
+}
+
 func fromEnv() Inputs {
 	g := os.Getenv
+	extraKeys, pass1Ledger := splitLedgerEntry(g("IN_EXTRA_KEYS"))
 	in := Inputs{
 		OCITo: g("IN_OCI_TO"), DistFrom: g("IN_DIST_FROM"), OverlayRef: g("IN_OVERLAY_REF"),
 		SeedDist: g("IN_SEED_DIST"), MirrorFrom: g("IN_MIRROR_FROM"), SourceMirror: g("IN_SOURCE_MIRROR"),
-		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: g("IN_EXTRA_KEYS"),
-		SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
-		MaxVersions: g("IN_MAX_VERSIONS"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true",
+		Glibc: g("IN_GLIBC"), Versions: g("IN_VERSIONS"), ExtraKeys: extraKeys,
+		Pass1Ledger: pass1Ledger, SourceKeys: g("IN_SOURCE_KEYS"), RequireOrigin: g("IN_REQUIRE_ORIGIN"), Lock: g("IN_LOCK"), Recipes: g("IN_RECIPES"),
+		MaxVersions: g("IN_MAX_VERSIONS"), RunID: g("GITHUB_RUN_ID"), HaveZpkgKey: g("HAVE_ZPKG_KEY") == "true", Verify: g("ZPKG_VERIFY"),
 		Flags: map[string]string{},
 	}
 	for _, n := range []string{"FORCE", "REBUILD", "NO_CLOSURE", "PIN_TO_DEPENDENTS", "CLEAN_BUILD_ROOT", "BOOTSTRAP", "TEST_ONLY", "SOVEREIGN"} {

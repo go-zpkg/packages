@@ -90,6 +90,9 @@ func TestEveryExtraTrustedKeysStepScopesItNotTheWorkflow(t *testing.T) {
 		n := 0
 		for _, s := range w.steps() {
 			if v, ok := s.Env["ZPKG_EXTRA_TRUSTED_KEYS"]; ok {
+				t.Errorf("%s: step %q sets the ADDITIVE ZPKG_EXTRA_TRUSTED_KEYS=%q: trust is exclusive", f, s.Name, v)
+			}
+			if v, ok := s.Env["ZPKG_TRUSTED_KEYS"]; ok {
 				n++
 				if v != "${{ env.EXTRA_KEYS }}" {
 					t.Errorf("%s: step %q reads the raw value %q, not the validated EXTRA_KEYS", f, s.Name, v)
@@ -97,7 +100,7 @@ func TestEveryExtraTrustedKeysStepScopesItNotTheWorkflow(t *testing.T) {
 			}
 		}
 		if n == 0 {
-			t.Errorf("%s: no step hands ZPKG_EXTRA_TRUSTED_KEYS to zpkb", f)
+			t.Errorf("%s: no step hands ZPKG_TRUSTED_KEYS to zpkb", f)
 		}
 		if w.dispatchInput(t, "extra_trusted_keys") == nil {
 			t.Errorf("%s: no extra_trusted_keys dispatch input", f)
@@ -110,8 +113,20 @@ func TestExtraTrustedKeysCrossesSudoIntoTheChroot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !preserveList(t, string(src))["ZPKG_EXTRA_TRUSTED_KEYS"] {
-		t.Error("ZPKG_EXTRA_TRUSTED_KEYS is not on sovereign-build.sh's --preserve-env list: zpkx inside the chroot would verify without the extra key")
+	// The extra key crosses as the EXCLUSIVE set: the script turns
+	// ZPKG_EXTRA_TRUSTED_KEYS into ZPKG_TRUSTED_KEYS (which replaces the
+	// compiled-in keys) and the preserved name is the second one.
+	l := preserveList(t, string(src))
+	if !l["ZPKG_TRUSTED_KEYS"] {
+		t.Error("ZPKG_TRUSTED_KEYS is not on sovereign-build.sh's --preserve-env list: zpkx inside the chroot would verify with the default keys")
+	}
+	if l["ZPKG_EXTRA_TRUSTED_KEYS"] {
+		t.Error("ZPKG_EXTRA_TRUSTED_KEYS is preserved into the chroot: the second pass would trust the default keys as well")
+	}
+	for _, want := range []string{`if [ -n "${ZPKG_EXTRA_TRUSTED_KEYS:-}" ]; then`, "trust is exclusive (ZPKG_TRUSTED_KEYS), never additive", `a seed pass is verified against the compiled-in keys only, and ZPKG_TRUSTED_KEYS is set`} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("sovereign-build.sh no longer says %q", want)
+		}
 	}
 }
 
@@ -284,6 +299,36 @@ func TestNoShellGlobDecidesWhatIsLoopback(t *testing.T) {
 		if strings.Contains(s.Run, "ZPKG_VERIFY=0") && !strings.Contains(s.Run, `"$SEED_LOOPBACK" = true`) {
 			t.Errorf("step %q turns verification off without SEED_LOOPBACK", s.Name)
 		}
+	}
+}
+
+// A pass that consumes a seed pass's output checks, after staging, that every
+// staged artifact is verifiably seed-built, with the keys in reach and the
+// registry it read them from, and only on such a pass.
+func TestPassTwoChecksEveryStagedArtifactIsSeedBuilt(t *testing.T) {
+	found := 0
+	for _, s := range loadWorkflow(t, ".github/workflows/build.yml").steps() {
+		if !strings.Contains(s.Run, "origin --seeded") {
+			continue
+		}
+		found++
+		for _, want := range []string{`--dist "$DIST_FROM"`, `--root "$RUNNER_TEMP/rootfs/zpkg"`, `--seed-ledger-sha256 "$LEDGER_SHA256"`, `[ -z "$LEDGER_SHA256" ]`} {
+			if !strings.Contains(s.Run, want) {
+				t.Errorf("step %q lacks %s", s.Name, want)
+			}
+		}
+		if !strings.Contains(s.If, "EXTRA_KEYS != ''") {
+			t.Errorf("step %q is not limited to a pass with extra keys: %q", s.Name, s.If)
+		}
+		if s.Env["ZPKG_TRUSTED_KEYS"] == "" {
+			t.Errorf("step %q has no trusted keys in reach", s.Name)
+		}
+		if s.Env["LEDGER_SHA256"] != "${{ env.PASS1_LEDGER_SHA256 }}" {
+			t.Errorf("step %q does not read the validated PASS1_LEDGER_SHA256: %q", s.Name, s.Env["LEDGER_SHA256"])
+		}
+	}
+	if found != 1 {
+		t.Errorf("%d steps run `origin --seeded`, expected exactly the pass-2 check", found)
 	}
 }
 

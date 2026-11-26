@@ -245,6 +245,20 @@ jobs:
           # 180 disagreements, every one of them ours.
           go run ./overlaycheck --pantry "$RUNNER_TEMP/pantry" --overlay "$RUNNER_TEMP/overlay" --overrides overrides
 
+      # ⛔ UNDER A SEED A RECIPE CANNOT CALL zpkx ITSELF. A seed pass gives the
+      # build environment of another registry and a nested `zpkx +tool` has no
+      # seed access by design, so every tool a recipe needs must be a declared
+      # build dependency. A recipe that calls it works on a normal build and
+      # fails closed under a seed, in the middle of pass 1. This reads the recipes
+      # of the toolchain roots (builder/toolchain.txt) and go.dev, in the overlay
+      # and in the pantry the factory builds from, and names the line.
+      # The two checkouts are printed by SHA: the verdict belongs to those trees.
+      - name: no seed-pass root recipe invokes zpkx itself
+        run: |
+          git -C "$RUNNER_TEMP/overlay" rev-parse HEAD
+          git -C "$RUNNER_TEMP/pantry" rev-parse HEAD
+          go run ./zpkxcensus --recipes "$RUNNER_TEMP/overlay/projects" --recipes "$RUNNER_TEMP/pantry/projects" --projects-from builder/toolchain.txt --project go.dev
+
       # ⛔⛔ A STANDALONE RECIPE RETIRES ITS OVERRIDES IN SILENCE.
       # Since zpkb v0.90.0 (go-zpkg/zpkb#514) a standalone recipe in
       # go-zpkg/recipes is the WHOLE recipe, so the logical override for the same
@@ -430,3 +444,23 @@ jobs:
           done
           [ "$bad" = 0 ] && echo "no workflow exposes a self-hosted runner to fork pull requests"
           exit "$bad"
+
+  # A second pass runs recipe code with no network but the registry it reads.
+  # This runs builder/sovereign-build.sh itself (stub zpkx/zpkb in a busybox
+  # rootfs) and asserts the namespace: the allowed registry answers, another
+  # loopback server, a public address and an unrouted one do not, and a pass
+  # with no allow-list is refused. The darwin test suite can only read the
+  # script's text; this is the job that proves it behaves.
+  netns:
+    name: second pass network namespace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: install socat and a static busybox
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y socat busybox-static
+      - name: builder/netns-test.sh
+        run: |
+          work="$(mktemp -d)"
+          builder/netns-test.sh "$work"

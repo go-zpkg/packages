@@ -63,7 +63,7 @@ on:
         required: false
         default: ""
       bootstrap:
-        description: "`1` builds WITHOUT zpkb's base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point — every build is handed all fifteen of its members as artifacts — so on an architecture with no artifacts at all, nothing can be built first. Use it ONLY with seed_dist, and only for the first generation: rebuild everything inside the sovereign rootfs afterwards."
+        description: "`1` builds WITHOUT zpkb's base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point — every build is handed all fifteen of its members as artifacts — so on an architecture with no artifacts at all, nothing can be built first. Use it ONLY with seed_dist, and only for the first generation: rebuild everything inside the sovereign rootfs afterwards. `seed` is a SEED PASS: the rootfs and the build environment are taken from go-pkgx (a fixed registry, every package signature-verified), the outputs are signed by this run with an ephemeral key and name the seed in their provenance, and they go to a LAN oci_to ONLY — a seed-built artifact is never promoted. Needs max_versions; refuses sovereign=0, mirror_from, seed_dist, a hosted oci_to."
         required: false
         default: ""
       test_only:
@@ -95,7 +95,7 @@ on:
         required: false
         default: "1879069619956097ab80525b9c27ad15f1f07229"
       extra_trusted_keys:
-        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
+        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. A second pass (this input set) must ALSO carry one entry `pass1-ledger:sha256:<64 lowercase hex>`, the digest of the seed ledger the pass-1 run recorded, printed by its seed pass: the second pass compares the bytes it installed against what the first pass's signed provenance says it built from, and without the digest it fails before verifying anything. That entry is not a key (it is split off before keys are read, and not counted among the 8). Blank, as it should normally be. How generation 1 of a bootstrap verifies what generation 0 signed with a throwaway seed key. Refused with a destination naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
         required: false
         default: ""
       source_trusted_keys:
@@ -285,6 +285,10 @@ jobs:
           MAX_VERSIONS: ${{ github.event.inputs.max_versions }}
         run: |
           [ -n "$BOOTSTRAP" ] || exit 0
+          # bootstrap=seed is the opposite: it builds INSIDE the rootfs staged
+          # from the seed, and inputcheck (a Go program with tests) refuses
+          # sovereign=0, a blank max_versions and every hosted destination.
+          if [ "$BOOTSTRAP" = seed ]; then exit 0; fi
           [ "$SOVEREIGN" = 0 ] || {
             echo "::error::bootstrap=$BOOTSTRAP stages no toolchain, so the sovereign rootfs cannot be built from one. Pass sovereign=0 with it."
             exit 1
@@ -475,14 +479,14 @@ jobs:
           # A TAG, not main: this job holds the signing and registry secrets,
           # and a moving branch would run whatever it points at when the job
           # starts. A newer tool is a deliberate bump of this line (go-zpkg/packages#440).
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.4
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.45.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: install zpkb
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -666,7 +670,11 @@ jobs:
             # the host is EXACTLY 127.0.0.1, [::1] or localhost, with at most a
             # numeric port. This was a shell glob, which also matched a host
             # that merely begins with 127 — no pattern is left here.
-            if [ "$SEED_LOOPBACK" = true ]; then
+            # ⛔ Never on a seed pass or on a pass that consumes one's output
+            # (SEED_FROM, EXTRA_KEYS): the signature is what vouches for it,
+            # not the transport. `inputcheck` refuses ZPKG_VERIFY=0 there and
+            # keeps those inputs apart from seed_dist; this is the second lock.
+            if [ "$SEED_LOOPBACK" = true ] && [ -z "$SEED_FROM" ] && [ -z "$EXTRA_KEYS" ]; then
               echo "verification off: a loopback throwaway registry is not a trust boundary"
               echo "ZPKG_VERIFY=0" >> "$GITHUB_ENV"
             else
@@ -692,7 +700,7 @@ jobs:
           MATRIX_PLATFORM: ${{ matrix.platform }}
           # Step-scoped: the steps that install or verify get the validated
           # extra keys, nothing else does (go-zpkg/packages#440).
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           # A tag, not main (go-zpkg/packages#440).
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
@@ -733,8 +741,16 @@ jobs:
           # `|| true`: this is diagnosis, not the gate. The staging below is
           # the verdict, and a pre-flight that could fail a job the real step
           # would have passed is a second opinion nobody asked for.
+          #
+          # A SEED PASS stages its rootfs from go-pkgx (SEED_FROM, a constant
+          # inputcheck sets for bootstrap=seed and for nothing else), every
+          # package verified, and records what it installed in a ledger the
+          # build carries into the provenance of what it makes. A stale ledger
+          # from an earlier job on this runner would be a claim about nothing.
+          rm -f "$RUNNER_TEMP/seed-ledger.json"
           zpkb builder --dry-run \
             --platform "$MATRIX_PLATFORM" \
+            ${SEED_FROM:+--seed-from "$SEED_FROM"} \
             --toolchain builder/toolchain.txt || true
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
           # can be on the same PATH. See sovereign.yml.
@@ -748,7 +764,37 @@ jobs:
             --toolchain builder/toolchain.txt \
             --zpkb "$(command -v zpkb)" \
             --zpkx "$(command -v zpkx)" \
+            ${SEED_FROM:+--seed-from "$SEED_FROM" --seed-ledger "$RUNNER_TEMP/seed-ledger.json"} \
             --container
+
+      # PASS 2: a pass that consumes a seed pass's output (extra_trusted_keys)
+      # may stage ONLY artifacts whose signed provenance says they were built
+      # from a seed. One that does not fails the whole pass, and all of them
+      # are listed. Verification is never off here (inputcheck refuses
+      # ZPKG_VERIFY=0 on such a pass).
+      #
+      # `--root` is zpkb's batch mode. The pinned zpkb is older than it until
+      # the pin moves, and an unknown flag is exit 2: this step FAILS CLOSED
+      # until then rather than passing without having looked.
+      - name: pass 2 - every staged artifact is verifiably seed-built
+        if: env.SOVEREIGN_ON == '1' && env.EXTRA_KEYS != ''
+        env:
+          MATRIX_PLATFORM: ${{ matrix.platform }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          LEDGER_SHA256: ${{ env.PASS1_LEDGER_SHA256 }}
+        run: |
+          # The digest is what turns "the installed names look right" into
+          # "the installed bytes are the ones pass 1 recorded". Without it
+          # there is nothing to compare, so the pass stops here.
+          if [ -z "$LEDGER_SHA256" ]; then
+            echo "::error::a pass1-ledger:sha256:<hex> entry is required in extra_trusted_keys"
+            exit 1
+          fi
+          zpkb origin --seeded \
+            --dist "$DIST_FROM" \
+            --platform "$MATRIX_PLATFORM" \
+            --seed-ledger-sha256 "$LEDGER_SHA256" \
+            --root "$RUNNER_TEMP/rootfs/zpkg"
 
       # What the machine HAS, in a step of its own.
       #
@@ -912,9 +958,18 @@ jobs:
           # github.com/containers/crun died, through python.org, on a runner
           # where every other correction WAS applied.
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
           VERSIONS: ${{ github.event.inputs.versions }}
-          BOOTSTRAP: ${{ github.event.inputs.bootstrap }}
+          # The host-tools bootstrap only: inputcheck blanks it for
+          # bootstrap=seed, which is a seed PASS and must not be told to take
+          # its tools from the runner.
+          BOOTSTRAP: ${{ env.BOOTSTRAP_HOST }}
+          # The registry a seed pass takes its build environment from (a
+          # constant in inputcheck), blank for every other run; and the ledger
+          # of what it installed from there, which the factory carries into
+          # every artifact's provenance.
+          SOVEREIGN_SEED_FROM: ${{ env.SEED_FROM }}
+          SOVEREIGN_SEED_LEDGER: ${{ runner.temp }}/seed-ledger.json
           # A VARIABLE zpkb reads through envBool, never
           # ${TEST_ONLY:+--test-only} on the command line below: `:+` tests
           # for non-empty and "0" is not empty, so that form turns the flag
@@ -1052,6 +1107,7 @@ jobs:
             fi
             SOVEREIGN_OVERLAY="$PWD/overlay" \
             SOVEREIGN_ADVISORIES="$PWD/advisories" \
+            SOVEREIGN_NET_ALLOW="${NET_ALLOW:-}" \
             builder/sovereign-build.sh \
               "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \
               ${GLIBC:+--glibc "$GLIBC"} \
@@ -1148,16 +1204,27 @@ jobs:
 
       # The smoke registry (oci://http://10.46.81.1:5111) and a loopback seed
       # registry are not reachable from a GitHub-hosted runner, so those two keep
-      # a path that needs no secret: this job pushes UNAUTHENTICATED and
-      # UNSIGNED. Nothing signed is ever produced on this lane.
-      - name: publish to a LAN or loopback registry, unsigned and unauthenticated
+      # a path that needs no secret: this job pushes UNAUTHENTICATED. It used to
+      # push UNSIGNED too, which left every artifact made here unreadable by a
+      # client that verifies — and a seed pass's outputs have to be read, and
+      # verified, by the pass that rebuilds them. The job holds no secret, so it
+      # mints its OWN key (`seedkey`): the secret lives in $RUNNER_TEMP for the
+      # length of this job, the public half is printed and written to the step
+      # summary as a `name:RW…` entry for the next dispatch's extra_trusted_keys
+      # (or, for a promotion, source_trusted_keys), and no client trusts it
+      # unless it is handed it. It is never ZPKG_SIGNING_KEY.
+      - name: publish to a LAN or loopback registry, signed with an ephemeral key
         id: lan_publish
         if: always() && env.PUBLISH_LANE == 'lan' && steps.digest.outputs.digest != ''
         env:
           PLATFORM: ${{ matrix.platform }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          LAN_KEY_NAME: lan-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          zpkb publish-stage "$STAGE_DIR" --to "${PUBLISH_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" --allow-unsigned
+          set -eu
+          rm -f "$RUNNER_TEMP/lan-sign.key"
+          go run ./seedkey --secret "$RUNNER_TEMP/lan-sign.key" --name "$LAN_KEY_NAME" --summary "$GITHUB_STEP_SUMMARY"
+          zpkb publish-stage "$STAGE_DIR" --to "${PUBLISH_TO:?publishing requires an explicit destination}" --advisories "$PWD/advisories" --sign "$RUNNER_TEMP/lan-sign.key"
 
       # A NAMED dispatch that built nothing is a failed dispatch.
       #
@@ -1266,15 +1333,17 @@ jobs:
           # zpkb catalog --publish pushes to $ZPKG_DIST: an oci_to run must
           # catalogue where it published, not where it read.
           ZPKG_DIST: ${{ env.PUBLISH_TO }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
+          # Signed with the key the publish step above minted for this run.
           zpkb catalog \
             --recipe-dir pantry \
             --overlay overlay \
             --overrides overrides \
             --versions \
             --platform "$PLATFORM" \
+            --sign "$RUNNER_TEMP/lan-sign.key" \
             --publish
 
       # AFTER, and `always()`, because the number matters most on the run
@@ -1641,7 +1710,7 @@ jobs:
         if: env.DECLARED_DIGEST != 'none'
         run: |
           # The version the build job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from
@@ -1658,7 +1727,7 @@ jobs:
           # keeps the old key. Two guarded halves, not `a && X || Y`, which
           # would hand go-zpkg the old key when X is empty.
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           [ -n "$PUBLISH_TO" ] || { echo "::error::publishing requires an explicit destination; there is none"; exit 1; }
@@ -1705,7 +1774,7 @@ jobs:
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
           # zpkb catalog --publish pushes to $ZPKG_DIST: catalogue where it published.
           ZPKG_DIST: ${{ env.PUBLISH_TO }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           zpkb catalog \

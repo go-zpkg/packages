@@ -350,6 +350,57 @@ before-figure is quoted, and the ones that were here are gone: they came from a
 crawl that read only the first page of ghcr's tag listing and so missed a third
 of the registry. The ratio was not measurable; only these absolutes are.
 
+## A seed pass: somebody else's toolchain, once, named
+
+Our own toolchain (the roots in `builder/toolchain.txt`, plus `go.dev`) has to
+exist before anything of ours can be built, and today the only complete copy is
+go-pkgx's. `bootstrap=seed` uses it **as a build environment for one pass and
+for nothing else**:
+
+1. **Pass 1** (`bootstrap=seed`, a LAN `oci_to`, `max_versions=1`). The rootfs
+   (`zpkb builder --seed-from`) and the toolchain the build runs under
+   (`zpkx --seed-from`) come from `oci://ghcr.io/go-pkgx/packages`, a constant in
+   `inputcheck` and not an input (the dispatch is at GitHub's limit of 25 inputs,
+   and a configurable seed is a configurable trust anchor). Every seed package's
+   signature is verified; each is recorded in a ledger; the ledger is carried
+   into the stage plan, into every artifact's provenance as materials with their
+   digests, and into the signed origin claim (`zpkb-seed`). Nothing from go-pkgx
+   is published, mirrored or a dependency of any output.
+2. **Pass 2** rebuilds the same set with `dist_from` = the pass-1 registry and
+   `extra_trusted_keys` = pass 1's ephemeral key. go-pkgx is not reachable:
+   `dist_from` refuses it and nothing in a pass-2 run is told it exists.
+   `extra_trusted_keys` also carries one `pass1-ledger:sha256:<hex>` entry, the
+   digest of pass 1's seed ledger (required; it is not a key, and it rides there
+   because `workflow_dispatch` takes at most 25 inputs): the pass-2 check compares the bytes it
+   installed with what pass 1's signed provenance recorded, not just the names.
+3. Only **pass 2's** outputs are promoted (`mirror_from`, `require_origin=1`,
+   `source_trusted_keys`). `zpkb` refuses to promote an artifact whose claim
+   names a seed.
+
+`bootstrap=seed` is refused with a hosted `oci_to`, `mirror_from`, `seed_dist`,
+`sovereign=0`, `test_only` and a blank `max_versions`.
+
+`extra_trusted_keys` is accepted only with a pass-1 ledger entry and a
+sovereign pass (`sovereign` not `0`): a key without either would be trusted
+while the seeded-origin check and the network namespace are skipped. It is
+accepted by `build.yml` only; `sovereign.yml` refuses it, having no
+seeded-origin check.
+
+**What the signed digest covers.** The `pass1-ledger` digest is the digest of
+the merged ledger of ONE factory run: every seed package that run installed, in
+one file. Pass 2 compares the bytes it installed with that one digest. A pass 1
+that is split (several architectures, chunks, or a retried run that installs the
+seed again) produces ledgers that no single digest covers, so pass 2 fails
+closed: it refuses rather than trusting a digest that vouches for part of what
+was installed. Run pass 1 as one factory run, for one architecture, in one go.
+
+The LAN lane no longer pushes unsigned artifacts. The publish step mints an
+**ephemeral key** (`go run ./seedkey`), signs the artifacts and the catalogue
+with it, prints its public half (and writes it to the step summary) as a
+`name:RW…` entry, and the secret is gone with the job's temporary directory.
+That entry is what the next pass is handed as `extra_trusted_keys`; it is never
+`ZPKG_SIGNING_KEY`, and no client trusts it unless told to.
+
 ## Build isolation
 
 - **Phase A (shipped, in use).** Linux builds run inside a pinned `debian:stable-slim`

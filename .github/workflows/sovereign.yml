@@ -52,7 +52,7 @@ on:
         required: false
         default: "1879069619956097ab80525b9c27ad15f1f07229"
       extra_trusted_keys:
-        description: "extra public keys this run TRUSTS when it installs or verifies, exported as ZPKG_EXTRA_TRUSTED_KEYS to the steps that install or verify: whitespace-separated `name:RW<base64>` entries (go-zpkg/artifact trust.go ParseSigners), at most 8. Blank, as it should normally be. Refused with an oci_to naming go-zpkg: a promotion into go-zpkg must not widen trust (go-zpkg/packages#440)."
+        description: "Not accepted by this workflow: any value is refused (it has no seeded-origin check; dispatch a second pass through build.yml). Leave blank."
         required: false
         default: ""
 
@@ -117,38 +117,13 @@ jobs:
           # holds the same rules for build.yml; this file validates in shell
           # because its defaults differ (a blank oci_to means the default
           # registry here, not dist_from).
+          # ⛔ REFUSED OUTRIGHT. A key a dispatcher names is trusted by every
+          # install of the run, and the only check that what was installed was
+          # seed-built (`zpkb origin --seeded`, with the pass-1 ledger digest) is
+          # a step of build.yml. This workflow has none, so it accepts no key at
+          # all: a second pass is dispatched through build.yml.
           if [ -n "$IN_EXTRA_KEYS" ]; then
-            case "$IN_EXTRA_KEYS" in
-              *[!A-Za-z0-9._:+/\ -]*) echo "::error::extra_trusted_keys holds a character outside A-Za-z0-9._:+/ - and the space separator"; exit 1 ;;
-            esac
-            case "${IN_OCI_TO,,}" in
-              *go-zpkg*) echo "::error::extra_trusted_keys cannot be combined with an oci_to naming go-zpkg: a promotion into go-zpkg must not widen trust, it re-signs with ZPKG_SIGNING_KEY (go-zpkg/packages#440)."; exit 1 ;;
-            esac
-            n=0
-            set -f
-            for e in $IN_EXTRA_KEYS; do
-              n=$((n+1))
-              case "$e" in
-                *:*) ;;
-                *) echo "::error::extra_trusted_keys entry '$e' is not name:key"; exit 1 ;;
-              esac
-              name=${e%%:*}
-              key=${e#*:}
-              case "$name" in
-                ""|*[!A-Za-z0-9._-]*) echo "::error::extra_trusted_keys name '$name' is empty or outside A-Za-z0-9._-"; exit 1 ;;
-              esac
-              [ "${#name}" -le 64 ] || { echo "::error::extra_trusted_keys name '$name' is longer than 64 characters"; exit 1; }
-              case "$key" in
-                RW*) ;;
-                *) echo "::error::extra_trusted_keys key for '$name' does not start with RW"; exit 1 ;;
-              esac
-              case "$key" in
-                *[!A-Za-z0-9+/]*) echo "::error::extra_trusted_keys key for '$name' is not base64"; exit 1 ;;
-              esac
-              [ "${#key}" -eq 56 ] || { echo "::error::extra_trusted_keys key for '$name' is ${#key} characters, a minisign public key is 56"; exit 1; }
-            done
-            set +f
-            [ "$n" -le 8 ] || { echo "::error::extra_trusted_keys names $n keys, more than 8"; exit 1; }
+            echo "::error::sovereign.yml refuses extra_trusted_keys: it has no seeded-origin check, so a key it accepted would be trusted with nothing verifying what it vouches for; dispatch a second pass through build.yml"; exit 1
           fi
           # No default for the destination: blank is refused, and go-pkgx is
           # refused as one. dist_from keeps its READ default.
@@ -177,6 +152,21 @@ jobs:
           case "$ref" in
             -*|*..*|*[!A-Za-z0-9._/-]*) echo "::error::overlay_ref '$ref' is not a branch, tag or SHA"; exit 1 ;;
           esac
+          # A pass that trusts extra keys is a SECOND pass: it runs in a network
+          # namespace (the build script's) that reaches only the
+          # registry it reads. Its dist_from must therefore be a LAN or loopback
+          # registry named by an IPv4 literal and a port; that endpoint is
+          # NET_ALLOW. inputcheck holds the same rule for build.yml.
+          net_allow=""
+          if [ -n "$IN_EXTRA_KEYS" ]; then
+            hp=${dist_from#oci://}
+            hp=${hp#http://}
+            hp=${hp%%/*}
+            if ! [[ "$hp" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.)[0-9]{1,3}(\.[0-9]{1,3}){0,2}\.[0-9]{1,3}:[0-9]{1,5}$ ]]; then
+              echo "::error::extra_trusted_keys names a second pass, which reads only a LAN or loopback registry named by an IPv4 address and a port, got '$dist_from'"; exit 1
+            fi
+            net_allow=$hp
+          fi
           # The production key signs ONE destination, spelled exactly. One
           # that merely names go-zpkg is refused, with either key.
           # (Whether the key EXISTS is the publish job's to say: this job holds no
@@ -202,6 +192,7 @@ jobs:
             echo "OVERLAY_URL=https://raw.githubusercontent.com/go-zpkg/recipes/$ref/projects"
             echo "OVERLAY_REF=$ref"
             echo "EXTRA_KEYS=$IN_EXTRA_KEYS"
+            echo "NET_ALLOW=$net_allow"
           } >> "$GITHUB_ENV"
           echo "publish to $oci_to, read from $dist_from, overlay at $ref"
 
@@ -222,8 +213,8 @@ jobs:
           # Tags, not main: this job holds the signing and registry secrets
           # (go-zpkg/packages#440), and each pin is a line a test can read, a
           # bump a deliberate edit.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.40.4
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkx@v0.45.0
           CGO_ENABLED=0 go install github.com/go-zpkg/zpkm@v0.11.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
@@ -293,7 +284,7 @@ jobs:
       - name: stage the sovereign rootfs
         env:
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           # ⛔⛔ `command -v pkgx` WOULD NOW FIND SOMEBODY ELSE'S PROGRAM.
           # Ours is `zpkx` since the rename, and `pkgx` is upstream's — a
@@ -351,7 +342,7 @@ jobs:
           ZPKG_DIR: /zpkg
           HOME: /root
           ZPKG_RECIPES_OVERLAY: ${{ env.OVERLAY_URL }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
           # Our aarch64 pool is emulated by construction — the host is amd64 —
           # and qemu-user fakes uname AND /proc/cpuinfo, so nothing inside the
           # container can tell. The workflow knows, so it says.
@@ -385,6 +376,7 @@ jobs:
         run: |
           SOVEREIGN_OVERLAY="$PWD/overlay" \
           SOVEREIGN_ADVISORIES="$PWD/advisories" \
+          SOVEREIGN_NET_ALLOW="${NET_ALLOW:-}" \
           builder/sovereign-build.sh \
             "$RUNNER_TEMP/rootfs" "$PWD/pantry" "$PWD/overrides" \
             ${VERSIONS:+--versions "$VERSIONS"}
@@ -464,7 +456,7 @@ jobs:
 
       - name: build zpkb
         run: |
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.106.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: sign and publish what the build staged
@@ -476,7 +468,7 @@ jobs:
           # keeps the old key. Two guarded halves rather than `a && X || Y`,
           # which would hand Y (the old key) to go-zpkg whenever X is empty.
           SIGNING_KEY: ${{ (env.SIGN_PROD == 'true' && secrets.ZPKG_SIGNING_KEY) || (env.SIGN_PROD != 'true' && secrets.ARTIFACT_SIGNING_KEY) || '' }}
-          ZPKG_EXTRA_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
+          ZPKG_TRUSTED_KEYS: ${{ env.EXTRA_KEYS }}
         run: |
           set -eu
           unsigned=

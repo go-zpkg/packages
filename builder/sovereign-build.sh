@@ -57,6 +57,53 @@ log="${SOVEREIGN_LOG:-${RUNNER_TEMP:-/tmp}/zpkb.log}"
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 
+# A SEED PASS. $SOVEREIGN_SEED_FROM is the registry the build environment is
+# taken from (build.yml sets it for bootstrap=seed and for nothing else), and
+# $SOVEREIGN_SEED_LEDGER the ledger `zpkb builder` wrote while staging this
+# rootfs from it. Both or neither: a seed with no ledger would build artifacts
+# that do not say what they were built with, and a ledger with no seed is a
+# claim about nothing.
+#
+# The ledger is mounted read-only at /seed-ledger.json inside the rootfs (not
+# /dist, which is the staged tree the publish step digests): the factory reads
+# it into the stage plan, where `zpkb publish-stage` signs it into every
+# artifact's provenance. Passed as POSITIONALS to the inner script, not as environment, so
+# the preserve-env list below stays the list of what the factory reads.
+seed_from="${SOVEREIGN_SEED_FROM:-}"
+seed_ledger=""
+seed_ledger_host=""
+if [ -n "$seed_from" ] || [ -n "${SOVEREIGN_SEED_LEDGER:-}" ]; then
+  [ -n "$seed_from" ] || { echo "::error::SOVEREIGN_SEED_LEDGER is set and no seed is: refusing to build a ledger of nothing"; exit 1; }
+  [ -s "${SOVEREIGN_SEED_LEDGER:-}" ] || { echo "::error::seed ${seed_from} is in force and the ledger '${SOVEREIGN_SEED_LEDGER:-}' is missing or empty: the artifacts would not name what they were built with"; exit 1; }
+  # ⛔ THE LEDGER IS WRITTEN OUTSIDE THE CHROOT AND READ-ONLY INSIDE IT. It used
+  # to be copied in, where zpkx could append to it and a recipe could rewrite it,
+  # so what the factory signed was "whatever the file said by then". Now the host
+  # file is bind-mounted read-only over /seed-ledger.json (the inner script),
+  # its digest is taken by `zpkx --seed-digest` before anything runs, and the
+  # factory refuses a ledger that no longer has that digest
+  # (--seed-ledger-sha256). A seed install inside the chroot therefore FAILS
+  # rather than growing the ledger: what the pass was built from is what the
+  # outside staged, and nothing else.
+  seed_ledger_host="$(cd "$(dirname "$SOVEREIGN_SEED_LEDGER")" && pwd)/$(basename "$SOVEREIGN_SEED_LEDGER")"
+  seed_ledger=/seed-ledger.json
+fi
+
+# THE TRUST OF A RUN THAT NAMES A KEY IS THAT KEY, NOT THE DEFAULT PLUS IT. The
+# second pass reads only what the first pass built, signed with the first pass's
+# ephemeral key, so it trusts that key and no other: ZPKG_TRUSTED_KEYS REPLACES
+# the compiled-in set (ZPKG_EXTRA_TRUSTED_KEYS would add to it, and a second pass
+# that still trusted the production key would accept what that key signed).
+# A seed pass takes no extra key at all (inputcheck refuses it): the seed is
+# verified against the compiled-in keys alone.
+# The workflow hands the key in ZPKG_TRUSTED_KEYS, which REPLACES the default
+# set. The ADDITIVE ZPKG_EXTRA_TRUSTED_KEYS is refused outright: a pass that
+# trusts the default set plus a key is a pass that accepts what the default
+# keys sign, and a seed pass is verified against the compiled-in keys alone.
+if [ -n "${ZPKG_EXTRA_TRUSTED_KEYS:-}" ]; then
+  echo "::error::ZPKG_EXTRA_TRUSTED_KEYS is set: trust is exclusive (ZPKG_TRUSTED_KEYS), never additive"; exit 1
+fi
+[ -z "$seed_from" ] || [ -z "${ZPKG_TRUSTED_KEYS:-}" ] || { echo "::error::a seed pass is verified against the compiled-in keys only, and ZPKG_TRUSTED_KEYS is set"; exit 1; }
+
 # ZPKG_VERIFY travels with ZPKG_DIST, and the two are one decision.
 #
 # A seed registry is a throwaway on loopback and its artifacts are unsigned, so
@@ -91,6 +138,42 @@ if [ -n "${LOCK:-}" ]; then
   LOCK=/lock.hcl
   export LOCK
 fi
+
+# A SECOND PASS HAS NO NETWORK BUT THE REGISTRY IT READS. A pass that trusts a
+# pass-1 key (ZPKG_TRUSTED_KEYS non-empty) runs recipe code that a pass-1 build
+# produced the tools for; it must not be able to reach anything else. It gets a
+# NEW network namespace (unshare --net) with a loopback and nothing more, and
+# $SOVEREIGN_NET_ALLOW (host:port,host:port — inputcheck's NET_ALLOW, LAN or
+# loopback IPv4 literals only) is reached through socat: a unix socket under
+# the chroot, outside, forwards to the registry; inside the namespace a socat
+# listener on the same address and port forwards to that socket. Pass 1 and
+# every other pass keep the host's network.
+net_allow="${SOVEREIGN_NET_ALLOW:-}"
+netflag=""
+nf_pids=""
+if [ -n "${ZPKG_TRUSTED_KEYS:-}" ]; then
+  [ -n "$net_allow" ] || { echo "::error::ZPKG_TRUSTED_KEYS is set (a second pass) and SOVEREIGN_NET_ALLOW is not: refusing to run recipe code with the host's network"; exit 1; }
+  command -v socat >/dev/null || { echo "::error::a second pass needs socat to reach its registry from a network namespace"; exit 1; }
+  netflag="--net"
+  $SUDO mkdir -p "$root/nf"
+  i=0
+  for ep in $(echo "$net_allow" | tr ',' ' '); do
+    i=$((i+1))
+    $SUDO socat "UNIX-LISTEN:$root/nf/$i.sock,fork,mode=0600" "TCP:$ep" &
+    nf_pids="$nf_pids $!"
+    # The inner listener connects lazily, but a socket that does not exist yet
+    # would make the first connection fail: wait for it.
+    for _ in $(seq 1 100); do
+      $SUDO test -S "$root/nf/$i.sock" && break
+      sleep 0.1
+    done
+    $SUDO test -S "$root/nf/$i.sock" || { echo "::error::the forward to $ep did not come up"; exit 1; }
+  done
+elif [ -n "$net_allow" ]; then
+  echo "::error::SOVEREIGN_NET_ALLOW is set and this is not a second pass: nothing would use it"; exit 1
+fi
+stop_forwards() { for p in $nf_pids; do $SUDO kill "$p" 2>/dev/null || true; done; }
+trap stop_forwards EXIT
 
 # --preserve-env, never a command line: the token and the signing key must not
 # become argv anybody can read out of /proc.
@@ -131,15 +214,24 @@ PRESERVE=""
 # PUBLISH_TO, so OCI_TO is not needed either.
 # STAGE_ONLY is here because the factory reads it and the guard test
 # (preserveenv_test.go) holds every variable the factory reads to this list.
-[ -n "$SUDO" ] && PRESERVE="--preserve-env=STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_EXTRA_TRUSTED_KEYS"
+[ -n "$SUDO" ] && PRESERVE="--preserve-env=STAGE_ONLY,RECIPES,LOCK,FORCE,JOBS,QEMU_RESERVED_VA,MAX_VERSIONS,NO_CLOSURE,NO_PUBLISH,PUBLISH_TO,PLATFORM,ZPKG_DIR,HOME,ZPKG_DIST,ZPKG_CACHE,ZPKG_VERIFY,ZPKG_RECIPES_OVERLAY,VERSIONS,COMPRESS,KEEP_BUILD_TREES,PIN_TO_DEPENDENTS,REBUILD,TEST_ONLY,SOURCE_MIRROR,ADVISORIES_DIR,ZPKG_TRUSTED_KEYS"
 # shellcheck disable=SC2016  # the inner script is deliberately literal: it runs
 # in the new namespace, where these variables are the ones that matter.
 # shellcheck disable=SC2086  # $PRESERVE is one flag or nothing, and must not
 # become an empty argument when it is nothing.
 $SUDO $PRESERVE \
   env -u SIGNING_KEY -u OCI_PASSWORD \
-  unshare --mount --pid --fork "$(command -v bash)" -euxc '
-    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; shift 5
+  unshare --mount --pid --fork $netflag "$(command -v bash)" -euxc '
+    r="$1"; pantry="$2"; overrides="$3"; overlay="$4"; advisories="$5"; seedfrom="$6"; seedledger="$7"; netallow="$8"; seedhost="$9"; shift 9
+    if [ -n "$netallow" ]; then
+      ip link set lo up
+      i=0
+      for ep in $(echo "$netallow" | tr "," " "); do
+        i=$((i+1)); host="${ep%:*}"; port="${ep##*:}"
+        case "$host" in 127.*) ;; *) ip addr add "$host/32" dev lo ;; esac
+        socat "TCP-LISTEN:$port,bind=$host,fork,reuseaddr" "UNIX-CONNECT:$r/nf/$i.sock" &
+      done
+    fi
     for d in null zero full random urandom tty; do
       [ -e "$r/dev/$d" ] || : > "$r/dev/$d"
       mount --bind "/dev/$d" "$r/dev/$d"
@@ -157,12 +249,21 @@ $SUDO $PRESERVE \
       mount --bind "$advisories" "$r/advisories"
       ad=(--advisories /advisories)
     fi
-    exec chroot "$r" /usr/local/bin/zpkx \
+    sd=(); sf=()
+    if [ -n "$seedfrom" ]; then
+      [ -e "$r$seedledger" ] || : > "$r$seedledger"
+      mount --bind "$seedhost" "$r$seedledger"
+      mount -o remount,ro,bind "$r$seedledger"
+      seeddigest="$(chroot "$r" /usr/local/bin/zpkx --seed-digest "$seedledger")"
+      sd=(--seed-from "$seedfrom" --seed-ledger "$seedledger")
+      sf=(--seed-ledger "$seedledger" --seed-ledger-sha256 "$seeddigest")
+    fi
+    exec chroot "$r" /usr/local/bin/zpkx "${sd[@]}" \
       +gnu.org/glibc +gnu.org/coreutils +gnu.org/make +llvm.org \
-      -- /usr/local/bin/zpkb factory --stage-only \
+      -- /usr/local/bin/zpkb factory --stage-only "${sf[@]}" \
            --recipe-dir /pantry --overrides /overrides --libc zpkx "${ov[@]}" "${ad[@]}" \
            --to "${PUBLISH_TO:?publishing requires an explicit destination}" --artifacts /dist "$@"
-  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$@" 2>&1 | tee "$log"
+  ' bash "$root" "$pantry" "$overrides" "$overlay" "$advisories" "$seed_from" "$seed_ledger" "$net_allow" "$seed_ledger_host" "$@" 2>&1 | tee "$log"
 
 # This script PUBLISHES NOTHING. It staged artifacts and a publish-plan.json under
 # $root/dist; the caller signs and pushes them in a LATER step that holds the
