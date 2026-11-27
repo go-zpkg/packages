@@ -486,7 +486,7 @@ jobs:
         run: |
           # Static for the same reason as pkgx: zpkb is installed into the rootfs.
           # A tag, like zpkx above; the version go.mod links.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.109.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # The pantry is a recorded commit, never a moving branch: its recipe
@@ -750,7 +750,7 @@ jobs:
           rm -f "$RUNNER_TEMP/seed-ledger.json"
           zpkb builder --dry-run \
             --platform "$MATRIX_PLATFORM" \
-            ${SEED_FROM:+--seed-from "$SEED_FROM"} \
+            ${SEED_FROM:+--seed-from "$SEED_FROM" --seed-ledger "$RUNNER_TEMP/seed-ledger.json"} \
             --toolchain builder/toolchain.txt || true
           # `zpkb`/`zpkx` since the rename: `pkgx` is upstream's binary and
           # can be on the same PATH. See sovereign.yml.
@@ -1710,7 +1710,7 @@ jobs:
         if: env.DECLARED_DIGEST != 'none'
         run: |
           # The version the build job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.107.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.109.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is spelled here and must equal the plan's: the plan is input from
