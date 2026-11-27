@@ -136,7 +136,7 @@ jobs:
           # The proxy policy is the workflow-level env:, so it covers this and
           # every other go invocation here, and ./goproxycheck keeps it level.
           # A tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.109.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.110.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Cross-build chunk ${{ matrix.chunk }} → Windows packages
         env:
@@ -308,7 +308,7 @@ jobs:
         if: always() && env.PUBLISH_TO != ''
         run: |
           # The version build.yml's publish job installs; a tag, never a moving branch.
-          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.109.0
+          CGO_ENABLED=0 go install github.com/go-zpkg/zpkb/cmd/zpkb@v0.110.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # `--to` is the destination inputcheck validated; nothing in the staged
