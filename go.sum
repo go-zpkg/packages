@@ -51,8 +51,8 @@ github.com/go-versions/semver v0.3.0 h1:pAMC8MYt3qGYZVkqUrC7ab3gWONUY3YCNB+KDbwF
 github.com/go-versions/semver v0.3.0/go.mod h1:DQNmFQUtUvQuALNKXYIlHQgYJQOzqeE5ncVdKTzBX8c=
 github.com/go-zpkg/artifact v0.101.0 h1:22QJ4HBxRB/fdYKjkeG1Hcr+MqeInoABqUnspq28zuc=
 github.com/go-zpkg/artifact v0.101.0/go.mod h1:MilO1Sb+8VuQXhDO93ptvi2pNPEUJTFLSYmbSiFJ9t4=
-github.com/go-zpkg/zpkb v0.114.0 h1:vNx9J2TNP2ExcNhB+Hq56LqbZI1CxFpoZgmMyFsA5ig=
-github.com/go-zpkg/zpkb v0.114.0/go.mod h1:m2RGDwf/s2B4afb7urTjpMJ7CkkPojSc7vli0yr32Jk=
+github.com/go-zpkg/zpkb v0.116.0 h1:6cBFaG+DdEpyyNmtSsKBPsymzzGmDKgWipbmpVg1afs=
+github.com/go-zpkg/zpkb v0.116.0/go.mod h1:m2RGDwf/s2B4afb7urTjpMJ7CkkPojSc7vli0yr32Jk=
 github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 h1:f+oWsMOmNPc8JmEHVZIycC7hBoQxHH9pNKQORJNozsQ=
 github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8/go.mod h1:wcDNUvekVysuuOpQKo3191zZyTpiI6se1N1ULghS0sw=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
